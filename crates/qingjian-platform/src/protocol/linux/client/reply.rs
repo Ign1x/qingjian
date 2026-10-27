@@ -31,6 +31,11 @@ pub struct Reply {
 
     /// 选区翻译还在等结果：preedit 与候选都空着也得接着轮询（Linux Server 在帧上另附的字段）。
     pub translation_pending: bool,
+
+    /// Server 要前端读应用里选中的文字（选区翻译快捷键，只在按键报了 `selection_supported` 时才会有）：
+    /// 带请求编号，读出来用 [`Connection::selection`](super::Connection::selection) 回，
+    /// 那一键吃不吃以那次的回包为准。
+    pub selection_request: Option<u64>,
 }
 
 impl Default for Reply {
@@ -43,6 +48,7 @@ impl Default for Reply {
             identity: None,
             english: None,
             translation_pending: false,
+            selection_request: None,
         }
     }
 }
@@ -50,7 +56,8 @@ impl Default for Reply {
 impl Reply {
     /// 从 Server 的一条回包里读出来。
     ///
-    /// 正常是 `KeyResult`，轮询回 `Update`；会话已经不在了、或点选的那一帧已经过期，Server 回 `Ignored`（当作没事发生）。
+    /// 正常是 `KeyResult`，轮询回 `Update`，选区翻译快捷键回 `RequestSelection`；
+    /// 会话已经不在了、或点选的那一帧已经过期，Server 回 `Ignored`（当作没事发生）。
     pub fn from_value(value: Value) -> Result<Self, ClientError> {
         if value.get("Ignored").is_some() {
             return Ok(Self::default());
@@ -81,12 +88,17 @@ impl Reply {
                 identity,
                 english,
                 translation_pending,
+                ..Self::default()
             }),
             Ok(ServerMessage::Update { frame, commit, .. }) => Ok(Self {
                 commit,
                 frame,
                 identity,
                 translation_pending,
+                ..Self::default()
+            }),
+            Ok(ServerMessage::RequestSelection { request, .. }) => Ok(Self {
+                selection_request: Some(request),
                 ..Self::default()
             }),
             _ => Err(ClientError::Unexpected(value.to_string())),

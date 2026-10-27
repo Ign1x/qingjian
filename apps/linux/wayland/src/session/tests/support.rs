@@ -77,6 +77,7 @@ impl FakeServer {
             identity: Some(identity(self.revision)),
             english,
             translation_pending: false,
+            ..Reply::default()
         }
     }
 

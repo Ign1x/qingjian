@@ -314,6 +314,8 @@ id 不能撞拼音侧的写法与日志里的 `wubi`（`is_valid_id`），因为
 两个 Rust 前端（IBus、Wayland）共用的部分也在这里：`client`（一条 Unix socket 一问一答，`Connection` / `Reply` / `ClientError`；
 **哪些消息有回包是协议的一部分**——`OpenSession` 与 `LinuxEvent` 有，`CloseSession` 与展示回执没有，读多了卡住、读少了下一次答复串位；超时 200 ms，与 Fcitx5 插件一致；
 `key_flushing` 是组句中快捷键先上原文再放行的那一套；`Reply` 里的展示身份、`english`、帧上的 `translation_pending` 是 Linux Server 另附在原始 JSON 上的，按原始 JSON 取；
+`key` 报了 `selection_supported` 才会收到选区翻译的 `RequestSelection`（读成 `Reply::selection_request`，读出选区用 `selection` 回，那一键吃不吃以那次的回包为准；IBus 报 false）；
+`candidate` / `page` 原样带画那一页的展示身份，帧换过了 Server 回 `Ignored`（读成什么都不做的缺省答复）；
 `acknowledge` 回报画出来的义项（没有回包，一次最多 128 对）；`AppSurrounding::around` 按 UTF-8 字节偏移截光标两侧各 80 字，规则同 `apps/linux/surrounding.h`；
 `apps/linux/server/tests/client.rs` 拿它对着真 Server 走握手、按键、轮询、回执、冲洗与 Shift 切换）与 `key`（keysym + X11 修饰键掩码 → `KeyEvent`，**与 `apps/linux/fcitx5/src/key/mapping.cpp` 必须一字不差**：
 几个前端喂同一个 Server 同一套 `[shortcut]`，不一致同一个键在不同框架下行为就不同；最容易错的是 Shift+数字：X11 给的 keysym 是 `@`，

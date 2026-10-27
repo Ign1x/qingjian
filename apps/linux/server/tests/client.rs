@@ -42,6 +42,7 @@ fn shared_client_round_trips_against_the_real_server() {
                 to_key_event(character as u32, 0),
                 false,
                 surrounding.clone(),
+                false,
             )
             .unwrap();
         assert_eq!(reply.outcome, KeyOutcome::Consumed, "{character}");
@@ -75,7 +76,13 @@ fn shared_client_round_trips_against_the_real_server() {
 
     // 组句中 Ctrl+A：Server 放行，冲洗把原文上屏、组句清空
     let flushed = connection
-        .key_flushing(session, to_key_event('a' as u32, CONTROL), false, None)
+        .key_flushing(
+            session,
+            to_key_event('a' as u32, CONTROL),
+            false,
+            None,
+            false,
+        )
         .unwrap();
     assert_eq!(flushed.outcome, KeyOutcome::Passthrough);
     assert_eq!(flushed.commit.as_deref(), Some("nihao"));
@@ -83,26 +90,44 @@ fn shared_client_round_trips_against_the_real_server() {
 
     // 单击 Shift：按下放行，抬起时切到英文，回包带 english
     let pressed = connection
-        .key(session, to_key_event(keysym::SHIFT_L, 0), false, None)
+        .key(
+            session,
+            to_key_event(keysym::SHIFT_L, 0),
+            false,
+            None,
+            false,
+        )
         .unwrap();
     assert_eq!(pressed.outcome, KeyOutcome::Passthrough);
     assert_eq!(pressed.english, None);
     let released = connection
-        .key(session, to_key_event(keysym::SHIFT_L, 1), true, None)
+        .key(session, to_key_event(keysym::SHIFT_L, 1), true, None, false)
         .unwrap();
     assert_eq!(released.english, Some(true));
 
     // 切回中文再组一段，失焦（应用自己画着 preedit）时不上屏
     connection
-        .key(session, to_key_event(keysym::SHIFT_L, 0), false, None)
+        .key(
+            session,
+            to_key_event(keysym::SHIFT_L, 0),
+            false,
+            None,
+            false,
+        )
         .unwrap();
     let back = connection
-        .key(session, to_key_event(keysym::SHIFT_L, 1), true, None)
+        .key(session, to_key_event(keysym::SHIFT_L, 1), true, None, false)
         .unwrap();
     assert_eq!(back.english, Some(false));
     for character in "ni".chars() {
         connection
-            .key(session, to_key_event(character as u32, 0), false, None)
+            .key(
+                session,
+                to_key_event(character as u32, 0),
+                false,
+                None,
+                false,
+            )
             .unwrap();
     }
     connection.focus(session, false).unwrap();

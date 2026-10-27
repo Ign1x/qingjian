@@ -1,8 +1,8 @@
-//! 输入框来了、走了、变了。
+//! 输入框来了、走了、变了；活动窗口换了应用时换 Server 上的会话。
 
 use std::time::Instant;
 
-use super::{Field, Output, Preedit, Server, Session};
+use super::{FOLLOW, Field, Output, Preedit, Server, Session};
 
 impl<S: Server> Session<S> {
     pub(super) fn activate(&mut self, field: Field, out: &mut impl Output) {
@@ -13,6 +13,7 @@ impl<S: Server> Session<S> {
         self.settle_at = None;
         self.shown = None;
         self.poll_at = None;
+        self.follow_at = None;
         self.field = field;
         self.enter(out);
     }
@@ -50,6 +51,7 @@ impl<S: Server> Session<S> {
         self.active = false;
         self.repeat.stop();
         self.poll_at = None;
+        self.follow_at = None;
         self.leave();
         self.hide(out);
         // 输入框失活时应用自己清掉 preedit；失活之后发的更新合成器不再转给它，攒着的也就作废了
@@ -64,6 +66,31 @@ impl<S: Server> Session<S> {
             let _ = self.server.focus(false);
             let _ = self.server.deactivate();
         }
+    }
+
+    /// 活动窗口换了应用。没有输入框激活着时记下就行，下次激活用它；激活着（合成器先报了激活、后报活动窗口，
+    /// 或应用改了 app_id）就等 [`FOLLOW`] 再跟过去。
+    pub(super) fn switch_app(&mut self, app: Option<String>, now: Instant) {
+        self.app = app;
+        if self.active {
+            self.follow_at = Some(now + FOLLOW);
+        }
+    }
+
+    /// 输入框还激活着，Server 上用着的却不是活动窗口那个应用的会话：换过去，键盘、行内拼音与候选窗都不动。
+    /// 组句中先不换（换了这次组句就丢了），过一会儿再看。
+    pub(super) fn follow(&mut self, out: &mut impl Output, now: Instant) {
+        if !self.active || self.server.app() == self.app.as_deref() {
+            return;
+        }
+        if self.composing() {
+            self.follow_at = Some(now + FOLLOW);
+            return;
+        }
+        tracing::debug!("输入框激活期间活动窗口换了应用，换到它的会话");
+        self.poll_at = None;
+        self.leave();
+        self.enter(out);
     }
 
     pub(super) fn update(&mut self, field: Field, out: &mut impl Output, now: Instant) {

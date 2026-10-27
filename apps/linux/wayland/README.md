@@ -8,6 +8,7 @@
 ## 前提
 
 - 合成器有 input-method-v2 与虚拟键盘：Hyprland、sway、niri、labwc 等。KWin、GNOME 没有，用 fcitx 版。
+- 按应用记中 / 英、`[apps]` 按应用的设置要合成器另有 `zwlr_foreign_toplevel_manager_v1`（上面几个都有）；没有时所有应用共用一个会话，启动日志里有一句。
 - **同一个 seat 只能有一个输入法**：fcitx5 的 `waylandim` 插件开着时这里会收到 `unavailable` 退出。试之前先停掉 fcitx5（或在它的配置里关掉 waylandim）。
 - Server 起着：`cargo run -p qingjian-linux-server`（或装好的 systemd 用户服务），两边用同一个 socket（`QINGJIAN_SOCKET` 可改）。
 - 应用走 Wayland 的 text-input：`GTK_IM_MODULE` / `QT_IM_MODULE` 不要设成 `fcitx` / `ibus`（Qt 6.7 起设 `wayland` 或不设）；
@@ -37,7 +38,8 @@ Hyprland 开机启动：在配置里加 `exec-once = qingjian-linux-wayland`，�
 cargo test -p qingjian-linux-wayland
 ```
 
-会话规则（按键转发、抬起跟着按下走、过期回包、上屏切块、重复、Server 断开重连）、input-method-v2 的状态机、位图裁边与缩放都是纯逻辑，不要合成器。
+会话规则（按键转发、抬起跟着按下走、过期回包、上屏切块、重复、Server 断开重连、按应用分会话）、input-method-v2 的状态机、活动窗口的跟踪、位图裁边与缩放都是纯逻辑，不要合成器；
+与 Server 的连接（一个应用一个会话、关最久没用的、重连补开）对着走真 socket 的假 Server 测。
 真会话里要过的一遍见设计文档的「验证」一节。
 
 ## 验证记录

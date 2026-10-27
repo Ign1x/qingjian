@@ -146,6 +146,10 @@ impl Server for Link {
         }
     }
 
+    fn app(&self) -> Option<&str> {
+        self.app.as_deref()
+    }
+
     fn capabilities(&mut self, capabilities: Capabilities) -> Result<(), ClientError> {
         self.capabilities = capabilities;
         // 会话还没开的话开的时候先报；开着的只在变了时报：Server 收到不同的能力会丢掉组句

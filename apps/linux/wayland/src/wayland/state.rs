@@ -15,11 +15,13 @@ use wayland_protocols_misc::zwp_input_method_v2::client::zwp_input_method_keyboa
 use wayland_protocols_misc::zwp_input_method_v2::client::zwp_input_method_manager_v2::ZwpInputMethodManagerV2;
 use wayland_protocols_misc::zwp_input_method_v2::client::zwp_input_method_v2::ZwpInputMethodV2;
 use wayland_protocols_misc::zwp_virtual_keyboard_v1::client::zwp_virtual_keyboard_manager_v1::ZwpVirtualKeyboardManagerV1;
+use wayland_protocols_wlr::foreign_toplevel::v1::client::zwlr_foreign_toplevel_manager_v1::ZwlrForeignToplevelManagerV1;
 
 use super::keyboard::VirtualKeyboard;
 use super::method::Method;
 use super::popup::Popup;
 use super::shm::Buffers;
+use super::toplevel::Toplevels;
 use super::xkb::Xkb;
 use crate::error::Error;
 use crate::session::Input;
@@ -34,6 +36,9 @@ pub struct Wayland {
 
     /// 输入框那边的状态与焦点代次。
     pub method: Method,
+
+    /// 活动窗口是哪个应用；合成器没有 foreign-toplevel 时一直不知道。
+    pub toplevels: Toplevels,
 
     /// 键盘 grab；交还键盘时是 `None`。
     pub grab: Option<ZwpInputMethodKeyboardGrabV2>,
@@ -93,6 +98,13 @@ impl Wayland {
         if viewporter.is_none() || fractional.is_none() {
             tracing::info!("合成器没有分数缩放或 viewporter，候选窗按整数缩放画");
         }
+        // 绑上之后合成器先把已有的窗口全报一遍，之后有变化再报
+        let manager: Option<ZwlrForeignToplevelManagerV1> = globals.bind(qh, 1..=3, ()).ok();
+        if manager.is_none() {
+            tracing::info!(
+                "合成器没有 zwlr_foreign_toplevel_manager_v1，认不出输入框在哪个应用里：所有应用共用一个会话，[apps] 按应用的设置不生效"
+            );
+        }
         let input_method = methods.get_input_method(&seat, qh, ());
         let keyboard = VirtualKeyboard::new(keyboards.create_virtual_keyboard(&seat, qh, ()));
         let popup = Popup::new(
@@ -107,6 +119,7 @@ impl Wayland {
             shm,
             input_method,
             method: Method::default(),
+            toplevels: Toplevels::default(),
             grab: None,
             xkb: None,
             keyboard,

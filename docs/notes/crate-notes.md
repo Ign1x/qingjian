@@ -645,7 +645,11 @@ Wayland 原生版的前端（设计见 `docs/design/linux-wayland.md`）：自�
   `link/` 一个应用一个会话：`Server::select` 定当前应用，会话第一次用到时才开（`OpenSession.app` 报 app_id；上下文是 `wayland-` 加 app_id 的 64 位 FNV-1a 哈希，
   Server 要求非空、不超过 64 字节、同连接内不重复，不知道哪个应用时是原来的 `wayland`），能力按会话记、变了才报，开着的超过 16 个就关最久没用的；
   断开重连只补开当前应用的会话、先报能力再补报焦点，别的应用用到再开。Link 的测试对着走真 socket 的假 Server（`session/tests/wire.rs`，像真 Server 一样对上下文重复、报能力前发事件直接断开）。
+  活动窗口的应用由 `Input::App` 报来，输入框激活时 `select` 它；激活期间换了应用，等 200 毫秒（`FOLLOW`）、不在组句时才换会话
+  （切换窗口时活动窗口与输入框失活 / 激活的先后不定，中间常有一下没有活动窗口，紧接着的失活、激活会直接用上新应用）；跟过去只动 Server 那一侧，键盘与应用里的东西不动。
 - `wayland/`：`method/` 是 input-method-v2 的双缓冲（`done` 计数即 commit 的 serial，激活 / 失活各给焦点代次加一，又激活一次先当失活）；
+  `toplevel/` 跟踪 `zwlr_foreign_toplevel_manager_v1` 报的顶层窗口（按协议对象编号记，`done` 时生效，几个激活着取最后激活的，空 app_id 当没有，标题不读），
+  活动窗口的应用变了才排一件 `Input::App`；合成器没有这个全局对象时启动记一句 info，之后什么都不报，所有输入框共用不知道哪个应用的那一个会话；
   `grab.rs` 读键位表（`MAP_PRIVATE` 映射）、用 `xkb.rs`（xkbcommon-dl，运行时 dlopen）算 keysym 与 X11 掩码，按到达顺序排队；
   `keyboard.rs` 是进程里唯一的虚拟键盘（与输入法同一条连接，合成器才不会把转出去的键又送回 grab）；`popup.rs` 有分数缩放时用 viewport、buffer scale 保持 1；
   `shm.rs` 三块缓冲轮换；`context.rs` 实现 `Output`；`mod.rs` 是主循环（`poll` 等合成器事件或下一个到点的事，SIGINT / SIGTERM 退出前替按着的键补抬起）。

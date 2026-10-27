@@ -104,6 +104,10 @@ impl Server for FakeServer {
         }
     }
 
+    fn app(&self) -> Option<&str> {
+        self.app.as_deref()
+    }
+
     fn capabilities(&mut self, capabilities: Capabilities) -> Result<(), ClientError> {
         self.calls.push(Call::Capabilities(capabilities));
         Ok(())

@@ -42,6 +42,10 @@ const POLL_INTERVAL: Duration = Duration::from_millis(80);
 /// 重画后再 commit 要一帧左右；这期间发出去的下一次正好撞上。不 commit 的应用最多慢这么久。
 const SETTLE: Duration = Duration::from_millis(80);
 
+/// 输入框激活着时活动窗口换了应用，等多久再跟过去换 Server 上的会话。切换窗口时合成器报活动窗口与输入框失活、激活的先后不定，
+/// 中间常有一瞬间没有激活着的窗口；等这一会儿，紧接着的失活、激活直接用上新应用，不用白换几次。
+const FOLLOW: Duration = Duration::from_millis(200);
+
 /// 一个输入法实例在一个 seat 上的状态。
 pub struct Session<S> {
     server: S,
@@ -82,8 +86,11 @@ pub struct Session<S> {
     /// 下一次轮询的时刻；没在组句是 `None`。
     poll_at: Option<Instant>,
 
-    /// 活动窗口的应用；还不知道时是 `None`，所有输入框共用一个会话。
+    /// 活动窗口的应用（合成器报的最新一个）；合成器不报活动窗口时一直是 `None`，所有输入框共用一个会话。
     app: Option<String>,
+
+    /// 什么时候看一眼 Server 上用着的是不是活动窗口那个应用的会话；输入框激活期间活动窗口换了应用才排上。
+    follow_at: Option<Instant>,
 }
 
 impl<S: Server> Session<S> {
@@ -103,6 +110,7 @@ impl<S: Server> Session<S> {
             shown: None,
             poll_at: None,
             app: None,
+            follow_at: None,
         }
     }
 
@@ -116,10 +124,11 @@ impl<S: Server> Session<S> {
             Input::Key(key) => self.key(key, out, now),
             Input::Modifiers(modifiers) => self.modifiers(modifiers, out),
             Input::Repeat { rate, delay } => self.repeat.configure(rate, delay),
+            Input::App(app) => self.switch_app(app, now),
         }
     }
 
-    /// 到点的事：按键重复、组句轮询、Server 断开后的重连；最后看看键盘该不该交还。
+    /// 到点的事：按键重复、组句轮询、跟着活动窗口换会话、Server 断开后的重连；最后看看键盘该不该交还。
     /// 主循环每处理完一批事件调一次。
     pub fn tick(&mut self, out: &mut impl Output, now: Instant) {
         if self.settle_at.is_some_and(|at| at <= now) {
@@ -135,6 +144,10 @@ impl<S: Server> Session<S> {
                 self.poll(out, now);
             }
         }
+        if self.follow_at.is_some_and(|at| at <= now) {
+            self.follow_at = None;
+            self.follow(out, now);
+        }
         if self.reconnect_at().is_some_and(|at| at <= now) {
             self.connect(out);
         }
@@ -149,6 +162,7 @@ impl<S: Server> Session<S> {
             self.poll_at,
             self.reconnect_at(),
             settle,
+            self.follow_at,
         ]
         .into_iter()
         .flatten()

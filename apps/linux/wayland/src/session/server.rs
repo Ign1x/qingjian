@@ -11,6 +11,9 @@ pub trait Server {
     /// `None` 是不知道哪个应用（合成器不报活动窗口）。会话第一次用到时才开。
     fn select(&mut self, app: Option<&str>);
 
+    /// 现在选着的应用。
+    fn app(&self) -> Option<&str>;
+
     /// 输入框的能力（密码框 / 敏感），报给当前应用的会话。那个会话上次报的一样就不发；会话还没开就先记下，开的时候先报。
     fn capabilities(&mut self, capabilities: Capabilities) -> Result<(), ClientError>;
 

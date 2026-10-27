@@ -11,6 +11,7 @@ mod popup;
 mod present;
 mod shm;
 mod state;
+mod toplevel;
 mod xkb;
 
 use std::os::fd::AsRawFd;

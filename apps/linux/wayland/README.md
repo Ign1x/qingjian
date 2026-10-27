@@ -38,6 +38,17 @@ cargo test -p qingjian-linux-wayland
 ```
 
 会话规则（按键转发、抬起跟着按下走、过期回包、上屏切块、重复、Server 断开重连）、input-method-v2 的状态机、位图裁边与缩放都是纯逻辑，不要合成器。
+
+`tests/blackbox/` 是黑盒测试：真的二进制连测试进程里的假合成器（wayland-server）与假 Server，过一遍起不来的两种退出、SIGTERM、
+接管键盘、行内拼音与上屏、放行的键经虚拟键盘转出、失活时还按着的键、候选窗贴图与分数缩放。怎么搭的见 crate-notes。
+二进制运行时 dlopen libxkbcommon，加载不了时这些测试打印「跳过 …」后通过（CI 的裸容器就是这样）。NixOS 上：
+
+```bash
+LD_LIBRARY_PATH=$(nix-build '<nixpkgs>' -A libxkbcommon --no-out-link)/lib cargo test -p qingjian-linux-wayland
+```
+
+与整个 workspace 一起跑（`cargo test --workspace`）时前端改成 dlopen libwayland-client，`LD_LIBRARY_PATH` 里还要加上
+`$(nix-build '<nixpkgs>' -A wayland --no-out-link)/lib`，不然同样跳过。
 真会话里要过的一遍见设计文档的「验证」一节。
 
 ## 验证记录

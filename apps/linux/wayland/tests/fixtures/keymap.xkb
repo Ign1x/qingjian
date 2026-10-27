@@ -1,0 +1,73 @@
+// 黑盒测试里假合成器经键盘 grab 发的键位表：美式布局里测试用到的十几个键，
+// 写成 xkb 源文件后用 `xkbcli compile-keymap --format 1 --from-xkb` 编译（合成器发的就是这种编译后的文本）。
+xkb_keymap {
+xkb_keycodes "qingjian-test" {
+	minimum = 8;
+	maximum = 255;
+	<ESC>                = 9;
+	<AE01>               = 10;
+	<AE02>               = 11;
+	<BKSP>               = 22;
+	<AD08>               = 31;
+	<AD09>               = 32;
+	<RTRN>               = 36;
+	<LCTL>               = 37;
+	<AC01>               = 38;
+	<AC06>               = 43;
+	<LFSH>               = 50;
+	<AB06>               = 57;
+	<SPCE>               = 65;
+};
+
+xkb_types "qingjian-test" {
+	type "ONE_LEVEL" {
+		modifiers= none;
+		level_name[1]= "Any";
+	};
+	type "TWO_LEVEL" {
+		modifiers= Shift;
+		map[Shift]= 2;
+		level_name[1]= "Base";
+		level_name[2]= "Shift";
+	};
+	type "ALPHABETIC" {
+		modifiers= Shift+Lock;
+		map[Shift]= 2;
+		map[Lock]= 2;
+		level_name[1]= "Base";
+		level_name[2]= "Caps";
+	};
+};
+
+xkb_compatibility "qingjian-test" {
+	interpret.useModMapMods= AnyLevel;
+	interpret.repeat= False;
+	interpret Shift_L+AnyOfOrNone(all) {
+		action= SetMods(modifiers=Shift);
+	};
+	interpret Control_L+AnyOfOrNone(all) {
+		action= SetMods(modifiers=Control);
+	};
+};
+
+xkb_symbols "qingjian-test" {
+	name[1]="English (US)";
+
+	key <ESC>                {	[          Escape ] };
+	key <AE01>               {	[               1,          exclam ] };
+	key <AE02>               {	[               2,              at ] };
+	key <BKSP>               {	[       BackSpace ] };
+	key <AD08>               {	[               i,               I ] };
+	key <AD09>               {	[               o,               O ] };
+	key <RTRN>               {	[          Return ] };
+	key <LCTL>               {	[       Control_L ] };
+	key <AC01>               {	[               a,               A ] };
+	key <AC06>               {	[               h,               H ] };
+	key <LFSH>               {	[         Shift_L ] };
+	key <AB06>               {	[               n,               N ] };
+	key <SPCE>               {	[           space ] };
+	modifier_map Shift { <LFSH> };
+	modifier_map Control { <LCTL> };
+};
+
+};

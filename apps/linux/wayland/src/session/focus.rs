@@ -1,5 +1,7 @@
 //! 输入框来了、走了、变了。
 
+use std::time::Instant;
+
 use super::{Field, Output, Preedit, Server, Session};
 
 impl<S: Server> Session<S> {
@@ -11,11 +13,17 @@ impl<S: Server> Session<S> {
         self.settle_at = None;
         self.shown = None;
         self.poll_at = None;
-        if let Err(error) = self.server.capabilities(field.capabilities()) {
+        self.field = field;
+        self.enter(out);
+    }
+
+    /// Server 那一侧的进场：选活动窗口那个应用的会话、报能力，不是密码框就报焦点、接管键盘
+    /// （密码框不接管，键直接归应用；之前拿着的键盘由 yield_keyboard 交还）。
+    fn enter(&mut self, out: &mut impl Output) {
+        self.server.select(self.app.as_deref());
+        if let Err(error) = self.server.capabilities(self.field.capabilities()) {
             tracing::warn!(%error, "报输入框能力失败");
         }
-        self.field = field;
-        // 密码框不接管键盘，键直接归应用；之前拿着的键盘由 yield_keyboard 交还
         if !self.field.password {
             self.connect(out);
         }
@@ -42,11 +50,7 @@ impl<S: Server> Session<S> {
         self.active = false;
         self.repeat.stop();
         self.poll_at = None;
-        if !self.field.password && self.server.connected() {
-            // 与 Fcitx5 插件同一个顺序。失焦后已经不能往原来的框里上屏，组句由 Server 丢弃
-            let _ = self.server.focus(false);
-            let _ = self.server.deactivate();
-        }
+        self.leave();
         self.hide(out);
         // 输入框失活时应用自己清掉 preedit；失活之后发的更新合成器不再转给它，攒着的也就作废了
         self.preedit = Preedit::default();
@@ -54,7 +58,15 @@ impl<S: Server> Session<S> {
         self.settle_at = None;
     }
 
-    pub(super) fn update(&mut self, field: Field, out: &mut impl Output, now: std::time::Instant) {
+    /// Server 那一侧的退场，与 Fcitx5 插件同一个顺序。失焦后已经不能往原来的框里上屏，组句由 Server 丢弃。
+    fn leave(&mut self) {
+        if !self.field.password && self.server.connected() {
+            let _ = self.server.focus(false);
+            let _ = self.server.deactivate();
+        }
+    }
+
+    pub(super) fn update(&mut self, field: Field, out: &mut impl Output, now: Instant) {
         if !self.active {
             return;
         }

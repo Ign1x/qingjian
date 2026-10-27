@@ -81,6 +81,9 @@ pub struct Session<S> {
 
     /// 下一次轮询的时刻；没在组句是 `None`。
     poll_at: Option<Instant>,
+
+    /// 活动窗口的应用；还不知道时是 `None`，所有输入框共用一个会话。
+    app: Option<String>,
 }
 
 impl<S: Server> Session<S> {
@@ -99,6 +102,7 @@ impl<S: Server> Session<S> {
             drawn: None,
             shown: None,
             poll_at: None,
+            app: None,
         }
     }
 

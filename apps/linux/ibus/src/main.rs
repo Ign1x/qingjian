@@ -115,7 +115,7 @@ fn check(typed: &str) -> Result<(), ClientError> {
         let mut last = Default::default();
         for character in typed.chars() {
             let event = to_key_event(character as u32, 0);
-            let reply = connection.key(session, event, false, None)?;
+            let reply = connection.key(session, event, false, None, false)?;
             tracing::debug!(key = %character, outcome = ?reply.outcome, "按键");
             if let Some(commit) = &reply.commit {
                 tracing::info!(text = %commit, "上屏");

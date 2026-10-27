@@ -156,7 +156,7 @@ impl IBusEngine {
         let event = to_key_event(keyval, state);
         let consumed = self
             .apply(&emitter, "按键", |connection, session| {
-                connection.key_flushing(session, event, release, None)
+                connection.key_flushing(session, event, release, None, false)
             })
             .await;
         // 排错时要看的是**事件之间的交错**（焦点、能力、按键谁先谁后），少了这一条就只能靠猜

@@ -53,6 +53,13 @@ impl Router {
         self.reload = Some(reload);
     }
 
+    /// `config.toml` 路径；没开热加载（测试）时为 `None`。托盘切换与候选菜单往里写，热加载再读回来。
+    pub(super) fn config_path(&self) -> Option<&Path> {
+        self.reload
+            .as_ref()
+            .map(|reload| reload.config_path.as_path())
+    }
+
     /// `tick` 里调；一秒内只真正看一次。解析失败保持原配置，mtime 照记（不每秒重试同一个坏文件）。
     pub(super) fn poll_config_reload(&mut self) {
         let Some(reload) = &mut self.reload else {

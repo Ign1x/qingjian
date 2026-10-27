@@ -17,7 +17,7 @@ use serde_json::{Value, json};
 use super::{ClientError, Reply};
 use crate::protocol::linux::{
     AppSurrounding, Capabilities, DisplayAcknowledged, DisplayIdentity, LINUX_UI_PROTOCOL,
-    LinuxEvent, socket_path,
+    LinuxEvent, ModeCommand, socket_path,
 };
 use crate::protocol::{
     ClientMessage, KeyEvent, KeyOutcome, PROTOCOL_VERSION, SessionId, read_message, write_message,
@@ -112,21 +112,24 @@ impl Connection {
     ///
     /// `surrounding` 是光标两侧的文字（见 [`AppSurrounding::around`]），云联想拿它当上文；
     /// 拿不到或者是敏感输入框就给 `None`。
+    ///
+    /// `selection_supported` 说这个前端能不能读应用的选区：给 `true` 时，选区翻译快捷键的回包是
+    /// [`Reply::selection_request`]，要读出选区用 [`Self::selection`] 回；读不了就给 `false`，Server 把那个键当普通键。
     pub fn key(
         &mut self,
         session: SessionId,
         event: KeyEvent,
         release: bool,
         surrounding: Option<AppSurrounding>,
+        selection_supported: bool,
     ) -> Result<Reply, ClientError> {
-        // 还不接选区翻译的回传：报了 true 才会收到 RequestSelection，那要另一套应答
         self.event(
             session,
             LinuxEvent::Key {
                 event,
                 release,
                 surrounding,
-                selection_supported: false,
+                selection_supported,
             },
         )
     }
@@ -136,16 +139,17 @@ impl Connection {
     /// 回包带着要上屏的原文，按键照旧放行。调用方要先上屏、再把键交给应用。
     ///
     /// 应用收到 Ctrl+F 这类键会先自己挪焦点，输入法之后才知道失焦，那时再交出 preedit 已经落到新框或丢掉了；
-    /// 与 macOS 在应用处理快捷键前 `commitComposition` 的结果一致。
+    /// 与 macOS 在应用处理快捷键前 `commitComposition` 的结果一致。参数同 [`Self::key`]。
     pub fn key_flushing(
         &mut self,
         session: SessionId,
         event: KeyEvent,
         release: bool,
         surrounding: Option<AppSurrounding>,
+        selection_supported: bool,
     ) -> Result<Reply, ClientError> {
         let shortcut = !release && event.modifiers.has_command_key();
-        let reply = self.key(session, event, release, surrounding)?;
+        let reply = self.key(session, event, release, surrounding, selection_supported)?;
         if !shortcut || reply.outcome != KeyOutcome::Passthrough || reply.frame.preedit.is_empty() {
             return Ok(reply);
         }
@@ -186,6 +190,80 @@ impl Connection {
     /// 应用要求重置：丢掉组句，不上屏。
     pub fn reset(&mut self, session: SessionId) -> Result<Reply, ClientError> {
         self.event(session, LinuxEvent::Reset)
+    }
+
+    /// 回 Server 的选区请求（[`Reply::selection_request`]）：`text` 是应用里选中的文字，没有选区或读不到给空串。
+    /// 回包是触发它的那一键的结果：开始翻译时吃掉、帧是「翻译中…」（`translation_pending`，接着轮询），
+    /// 不翻译（空串、超过 500 字、请求过期）时放行。
+    pub fn selection(
+        &mut self,
+        session: SessionId,
+        request: u64,
+        text: String,
+    ) -> Result<Reply, ClientError> {
+        self.event(session, LinuxEvent::Selection { request, text })
+    }
+
+    /// 点了当前页第 `index` 格（从 0 起）：上屏它。
+    ///
+    /// `identity` 原样用画这一页的那次回包上的；帧已经换了，Server 回 `Ignored`，这边读成什么都不做的缺省答复。
+    pub fn candidate(
+        &mut self,
+        session: SessionId,
+        identity: DisplayIdentity,
+        index: usize,
+    ) -> Result<Reply, ClientError> {
+        self.event(session, LinuxEvent::Candidate { identity, index })
+    }
+
+    /// 点了翻页：`next` 为下一页，否则上一页。`identity` 的规矩同 [`Self::candidate`]。
+    pub fn page(
+        &mut self,
+        session: SessionId,
+        identity: DisplayIdentity,
+        next: bool,
+    ) -> Result<Reply, ClientError> {
+        self.event(session, LinuxEvent::Page { identity, next })
+    }
+
+    /// 右键了当前页第 `index` 格（Linux 协议 v4 起）：回包的 [`Reply::menu`] 是这格能做的几项，空的就不弹菜单。
+    /// 只是问一句，帧与展示身份都不变。`identity` 的规矩同 [`Self::candidate`]。
+    pub fn menu(
+        &mut self,
+        session: SessionId,
+        identity: DisplayIdentity,
+        index: usize,
+    ) -> Result<Reply, ClientError> {
+        self.event(session, LinuxEvent::Menu { identity, index })
+    }
+
+    /// 右键菜单里点了一项（v4 起）：`action` 原样用 [`MenuItem::id`](crate::protocol::linux::MenuItem::id)，
+    /// `identity` 与 `index` 同弹菜单时的那次。回包的帧带着做完的那句提示（`notice`，下一次按键清），候选按做完的结果重排。
+    pub fn menu_pick(
+        &mut self,
+        session: SessionId,
+        identity: DisplayIdentity,
+        index: usize,
+        action: u32,
+    ) -> Result<Reply, ClientError> {
+        self.event(
+            session,
+            LinuxEvent::MenuPick {
+                identity,
+                index,
+                action,
+            },
+        )
+    }
+
+    /// 托盘 / 状态显示面上切模式（v4 起）。回包像按键那样落地：切了中 / 英时 `english` 有值（拿它弹提示），
+    /// 组句中的拼音原样上屏在 `commit` 里；`mode` 是切完的模式。
+    pub fn indicator(
+        &mut self,
+        session: SessionId,
+        command: ModeCommand,
+    ) -> Result<Reply, ClientError> {
+        self.event(session, LinuxEvent::Indicator(command))
     }
 
     /// 组句期间取一次最新的帧：本地整句模型的重排结果从这里来（Server 不推送）。

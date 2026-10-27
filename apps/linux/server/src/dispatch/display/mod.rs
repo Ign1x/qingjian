@@ -2,17 +2,19 @@
 mod annotation;
 
 use self::annotation::annotate_frame;
-use super::Router;
+use super::{Answer, Router};
 use qingjian_core::Translation;
 use qingjian_platform::protocol::linux::{
-    DisplayAcknowledged, DisplayIdentity, LINUX_UI_PROTOCOL, LinuxEvent, LinuxRequest,
+    DisplayAcknowledged, DisplayIdentity, LINUX_UI_PROTOCOL_MIN, LinuxEvent, LinuxRequest,
 };
 use qingjian_platform::protocol::{ClientMessage, ServerMessage, SessionId};
 use serde_json::{Value, json};
 
 impl Router {
+    /// `OpenSession` 回包的 `linux_ui`，`LinuxHello` 的回包在它上面换上会话编号与握手的版本。
+    /// 这里的版本固定报还认的最老一版：握手之前不知道前端是哪一版，Fcitx5 / Fcitx4 插件要它等于 3。
     pub fn display_settings(&self) -> Value {
-        json!({"version": LINUX_UI_PROTOCOL, "preedit": self.config.preedit})
+        json!({"version": LINUX_UI_PROTOCOL_MIN, "preedit": self.config.preedit})
     }
 
     pub fn handle_linux(&mut self, value: Value) -> Option<Value> {
@@ -36,14 +38,19 @@ impl Router {
         }
         let response = if let Some(body) = value.get("LinuxEvent") {
             let request: LinuxRequest = serde_json::from_value(body.clone()).ok()?;
-            if let LinuxEvent::Candidate { identity, .. } | LinuxEvent::Page { identity, .. } =
-                &request.event
+            if let LinuxEvent::Candidate { identity, .. }
+            | LinuxEvent::Page { identity, .. }
+            | LinuxEvent::Menu { identity, .. }
+            | LinuxEvent::MenuPick { identity, .. } = &request.event
                 && !self.valid_panel_event(request.session, identity)
             {
                 // 旧鼠标事件不能改变其他会话的焦点、显示身份或学习回报。
                 return Some(json!({"Ignored": {"session": request.session}}));
             }
-            self.linux_event(request)?
+            match self.linux_event(request)? {
+                Answer::Message(message) => message,
+                Answer::Menu(menu) => return Some(json!({ "Menu": menu })),
+            }
         } else {
             let message: ClientMessage = serde_json::from_value(value).ok()?;
             self.handle(message)?
@@ -53,16 +60,15 @@ impl Router {
             .translation
             .as_ref()
             .is_some_and(|job| job.result.is_none());
-        match &response {
-            ServerMessage::KeyResult { frame, .. } => {
-                value["KeyResult"]["frame"]["translation_pending"] = json!(pending);
-                annotate_frame(frame, &mut value["KeyResult"]["frame"]);
+        if let ServerMessage::KeyResult { session, frame, .. }
+        | ServerMessage::Update { session, frame, .. } = &response
+        {
+            let body = value.as_object_mut()?.values_mut().next()?;
+            body["frame"]["translation_pending"] = json!(pending);
+            annotate_frame(frame, &mut body["frame"]);
+            if let Some(mode) = self.input_mode(*session) {
+                body["mode"] = json!(mode);
             }
-            ServerMessage::Update { frame, .. } => {
-                value["Update"]["frame"]["translation_pending"] = json!(pending);
-                annotate_frame(frame, &mut value["Update"]["frame"]);
-            }
-            _ => {}
         }
         match &response {
             ServerMessage::KeyResult { session, frame, .. }

@@ -134,7 +134,7 @@ impl Server for Link {
         surrounding: Option<AppSurrounding>,
     ) -> Result<Reply, ClientError> {
         self.with(|connection, session| {
-            connection.key_flushing(session, event, release, surrounding)
+            connection.key_flushing(session, event, release, surrounding, false)
         })
     }
 

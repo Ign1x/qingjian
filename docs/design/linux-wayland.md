@@ -65,6 +65,19 @@ qingjian-linux-wayland ──Unix socket，protocol::linux（与 Fcitx5 插件�
 
 行内 preedit 放不放按帧里的 `preedit_mode`（`inline` / `window` / `both`），不按握手：握手里那份是 Server 启动时取的，热加载后会过期。
 
+不从合成器来、要前端自己发起的那几样，Server 一侧都已就绪（Linux 协议 v4，握手报 `LINUX_UI_PROTOCOL`；Fcitx 版的插件仍报 v3，Server 两版都收）：
+
+| 前端的操作 | 发给 Server 的 | Server 回 |
+|---|---|---|
+| 每次回包 | — | `KeyResult` / `Update` 上附 `mode`（`english` / `traditional` / `full_width` / `scheme`），托盘、中 / 英提示与主题的 `mode.*` 都照它画；切换的那一下另有 `english` |
+| popup 上点候选 / 翻页 | `Candidate{identity, index}` / `Page{identity, next}`，带画这一页的那次回包的身份 | `KeyResult`；帧换过了回 `Ignored` |
+| popup 上右键候选 | `Menu{identity, index}` | `{"Menu": {"items": [{"id", "label"}]}}`，空的就不弹；只是问，帧与身份都不变；过期回 `Ignored` |
+| 点菜单里的一项 | `MenuPick{identity, index, action}`，`action` 原样用 `id` | `KeyResult`，候选按做完的结果重排，帧的 `notice` 是那句提示（下一次按键清） |
+| 托盘切中 / 英、全角标点、简繁 | `Indicator(ToggleEnglish / TogglePunctuation / ToggleTraditional)` | `KeyResult`：切中 / 英时组句原样上屏、带 `english`；后两样写回配置 |
+| 选区翻译快捷键（`surrounding_text` 里有选区） | `Key{selection_supported: true}` | `RequestSelection{request}` → 前端发 `Selection{request, text}` → `KeyResult`（「翻译中…」，`translation_pending` 时接着轮询） |
+
+客户端（`qingjian_platform::protocol::linux::client::Connection`）对应 `candidate` / `page` / `menu` / `menu_pick` / `indicator` / `selection`，`key` / `key_flushing` 多一个 `selection_supported`。
+
 ## 按键
 
 - **grab 时机。** activate 生效后 grab；deactivate 之后如果还有键按着，先保持 grab、原样转发到全部抬起再 release，免得补发的抬键落到新焦点上。

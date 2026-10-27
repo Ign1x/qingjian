@@ -11,6 +11,7 @@ pub mod client;
 mod display;
 mod event;
 mod identity;
+#[cfg(target_os = "linux")]
 pub mod key;
 mod request;
 #[cfg(target_os = "linux")]

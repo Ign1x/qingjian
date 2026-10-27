@@ -3935,6 +3935,7 @@ dependencies = [
  "toml",
  "toml_edit",
  "tracing",
+ "xkeysym",
 ]
 
 [[package]]

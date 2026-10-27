@@ -53,6 +53,7 @@ fn virtual_key(keysym_value: u32, shift: bool) -> u32 {
         keysym::KP_BEGIN => 0x0c,
         keysym::ESCAPE => 0x1b,
         keysym::SHIFT_L | keysym::SHIFT_R => 0x10,
+        keysym::CONTROL_L | keysym::CONTROL_R => 0x11,
         keysym::PAGE_UP | keysym::KP_PAGE_UP => 0x21,
         keysym::PAGE_DOWN | keysym::KP_PAGE_DOWN => 0x22,
         keysym::END | keysym::KP_END => 0x23,
@@ -125,5 +126,137 @@ mod tests {
         let event = to_key_event(keysym::ISO_LEFT_TAB, 0);
         assert_eq!(event.virtual_key, 0x09);
         assert!(event.modifiers.shift);
+    }
+
+    /// Ctrl 键本身走 `0x11`：单击 Ctrl 切中 / 英（`[shortcut] switch_mode`）靠它认。
+    #[test]
+    fn control_keys_use_the_control_code() {
+        assert_eq!(to_key_event(keysym::CONTROL_L, 0).virtual_key, 0x11);
+        assert_eq!(to_key_event(keysym::CONTROL_R, 0).virtual_key, 0x11);
+    }
+
+    /// Super（Mod4）与 Hyper（Mod3）都算 `win`，与 Fcitx5 插件一样。
+    #[test]
+    fn super_and_hyper_both_count_as_win() {
+        assert!(to_key_event('a' as u32, 1 << 6).modifiers.win);
+        assert!(to_key_event('a' as u32, 1 << 5).modifiers.win);
+        assert!(
+            !to_key_event('a' as u32, 1 << 4).modifiers.win,
+            "Mod2 是 NumLock"
+        );
+    }
+
+    /// 字符按 keysym 查 Unicode：小键盘的运算符也有字符，控制字符没有。
+    #[test]
+    fn characters_follow_keysym_to_unicode() {
+        assert_eq!(to_key_event(keysym::KP_ADD, 0).character, Some('+'));
+        assert_eq!(to_key_event(keysym::KP_DECIMAL, 0).character, Some('.'));
+        assert_eq!(to_key_event(xkeysym::key::KP_Space, 0).character, Some(' '));
+        assert_eq!(to_key_event(xkeysym::key::KP_Equal, 0).character, Some('='));
+        // Latin-2 段的 Ą 与 Unicode 段的 中
+        assert_eq!(to_key_event(0x1a1, 0).character, Some('Ą'));
+        assert_eq!(to_key_event(0x0100_4e2d, 0).character, Some('中'));
+        for control in [
+            keysym::BACKSPACE,
+            keysym::RETURN,
+            keysym::ESCAPE,
+            keysym::DELETE,
+            keysym::TAB,
+        ] {
+            assert_eq!(to_key_event(control, 0).character, None, "{control:#x}");
+        }
+    }
+
+    /// 与 Fcitx5 插件的 `mapping.cpp` 逐条对照：那边的每个 `case FcitxKey_X: code = 0x..` 这里都要给出同一个键码，
+    /// Shift+数字的那串符号也要一样。那边加了新键而这里没跟上，这条就挂。
+    #[test]
+    fn table_matches_the_fcitx5_plugin() {
+        let path = concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../apps/linux/fcitx5/src/key/mapping.cpp"
+        );
+        let source = std::fs::read_to_string(path).expect("读 Fcitx5 插件的键表");
+        let mut checked = 0;
+        for line in source
+            .lines()
+            .filter(|line| line.contains("code = 0x") && line.contains("case "))
+        {
+            let code_at = line.find("code = 0x").expect("有键码");
+            let hex = &line[code_at + "code = 0x".len()..];
+            let hex = &hex[..hex.find(';').expect("键码以分号结尾")];
+            let code = u32::from_str_radix(hex, 16).expect("十六进制键码");
+            for rest in line[..code_at].split("FcitxKey_").skip(1) {
+                let name: String = rest
+                    .chars()
+                    .take_while(|c| c.is_ascii_alphanumeric() || *c == '_')
+                    .collect();
+                let value = fcitx_keysym(&name)
+                    .unwrap_or_else(|| panic!("对照表里没有 FcitxKey_{name}，补进 fcitx_keysym"));
+                assert_eq!(to_key_event(value, 0).virtual_key, code, "FcitxKey_{name}");
+                checked += 1;
+            }
+        }
+        assert!(
+            checked >= 30,
+            "只对上了 {checked} 个键，多半是 mapping.cpp 的写法变了"
+        );
+        let shifted = source
+            .split("shiftedDigits = \"")
+            .nth(1)
+            .and_then(|rest| rest.split('"').next())
+            .expect("Shift+数字那串符号");
+        assert_eq!(shifted.chars().collect::<Vec<_>>(), SHIFTED_DIGITS);
+        let win = source
+            .lines()
+            .find(|line| line.contains("\"win\""))
+            .expect("win 那一行");
+        assert!(
+            win.contains("Super") && win.contains("Hyper"),
+            "win 的认法变了：{win}"
+        );
+    }
+
+    /// `mapping.cpp` 里出现的 Fcitx keysym 名 → 值（与 X11 同名同值）。
+    fn fcitx_keysym(name: &str) -> Option<u32> {
+        use xkeysym::key;
+        Some(match name {
+            "BackSpace" => key::BackSpace,
+            "Tab" => key::Tab,
+            "ISO_Left_Tab" => key::ISO_Left_Tab,
+            "Return" => key::Return,
+            "KP_Enter" => key::KP_Enter,
+            "Escape" => key::Escape,
+            "Page_Up" => key::Page_Up,
+            "KP_Page_Up" => key::KP_Page_Up,
+            "Page_Down" => key::Page_Down,
+            "KP_Page_Down" => key::KP_Page_Down,
+            "End" => key::End,
+            "KP_End" => key::KP_End,
+            "Home" => key::Home,
+            "KP_Home" => key::KP_Home,
+            "Left" => key::Left,
+            "KP_Left" => key::KP_Left,
+            "Up" => key::Up,
+            "KP_Up" => key::KP_Up,
+            "Right" => key::Right,
+            "KP_Right" => key::KP_Right,
+            "Down" => key::Down,
+            "KP_Down" => key::KP_Down,
+            "Delete" => key::Delete,
+            "KP_Delete" => key::KP_Delete,
+            "KP_Insert" => key::KP_Insert,
+            "KP_Begin" => key::KP_Begin,
+            "Shift_L" => key::Shift_L,
+            "Shift_R" => key::Shift_R,
+            "Control_L" => key::Control_L,
+            "Control_R" => key::Control_R,
+            "KP_Multiply" => key::KP_Multiply,
+            "KP_Add" => key::KP_Add,
+            "KP_Separator" => key::KP_Separator,
+            "KP_Subtract" => key::KP_Subtract,
+            "KP_Decimal" => key::KP_Decimal,
+            "KP_Divide" => key::KP_Divide,
+            _ => return None,
+        })
     }
 }

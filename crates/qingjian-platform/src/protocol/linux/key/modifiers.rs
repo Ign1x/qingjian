@@ -21,6 +21,9 @@ const CONTROL: u32 = 1 << 2;
 /// Mod1，常规键盘布局上是 Alt。
 const MOD1: u32 = 1 << 3;
 
+/// Mod3：Fcitx5 把它当 Hyper（`KeyState::Hyper`），与 Super 一样算 `win`。
+const MOD3: u32 = 1 << 5;
+
 /// Mod4，常规键盘布局上是 Super（⊞ / ⌘ 那个键）。
 const MOD4: u32 = 1 << 6;
 
@@ -31,7 +34,7 @@ pub fn from_mask(state: u32) -> KeyModifiers {
         ctrl: state & CONTROL != 0,
         shift: state & SHIFT != 0,
         alt: state & MOD1 != 0,
-        win: state & MOD4 != 0,
+        win: state & (MOD4 | MOD3) != 0,
         caps: state & LOCK != 0,
         english_mode: false,
     }

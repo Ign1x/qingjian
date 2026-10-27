@@ -30,7 +30,7 @@
   （[讨论 #15805](https://github.com/AvaloniaUI/Avalonia/discussions/15805)）；Linux 上 `ShowActivated` 失效（[#17186](https://github.com/AvaloniaUI/Avalonia/issues/17186)）。
   是排除 WebView 之后最顺的现成框架，但要常驻 .NET 进程（NativeAOT 后仍几十 MB）、macOS 要改成进程外渲染、手机键盘进不去。
 - **WebView（Tauri 等）**：已排除，各平台 WebView 渲染不一致，且 Windows 依赖 WebView2 运行时（水杉 issue #68 就是缺它）。
-- **Linux**：输入法是 Fcitx5 / IBus 的插件，候选窗由框架画，我们只出引擎，显示面几乎为零。
+- **Linux**：fcitx 版是 Fcitx5 / IBus 的插件，候选窗由框架画，显示面几乎为零；Wayland 原生版（2026-10-27）自己当 input-method-v2 客户端，候选窗由本渲染器画，见 [linux-wayland.md](linux-wayland.md)。
 - **一个被修正的判断**：「候选窗必须原生」说得太死。Windows 候选窗已经由 Server 进程画、DLL 走 IPC 发帧，
   启动成本只付一次，延迟就是那趟 IPC；所以桌面端「常驻进程 + 自绘」在架构上成立。自绘渲染器正是利用这一点，而且不需要引入框架。
 
@@ -52,7 +52,7 @@
 |---|---|---|
 | Windows | 分层窗口 `UpdateLayeredWindow` 本来就吃位图，`server/src/ui/layered/` 的合成器换成贴渲染器输出 | 比 D2D 改动更小 |
 | macOS | NSPanel 上一个 CALayer，`contents` 设 CGImage；窗口层级 / Space 处理不变 | 几十行 |
-| Linux | 不用，Fcitx5 自己画 | 无 |
+| Linux | fcitx 版不用，框架自己画；Wayland 原生版贴到 `zwp_input_popup_surface_v2` 的 `wl_shm` 缓冲上 | 前端自己的 popup 与缓冲，见 [linux-wayland.md](linux-wayland.md) |
 | iOS / Android | 键盘 View 贴位图，命中测试在 Rust 里做 | 自绘位图占几 MB，符合内存上限 |
 
 技术选型：

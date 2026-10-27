@@ -144,6 +144,11 @@
     GNOME Wayland 上改在快捷键交给应用前先原样上屏，鼠标换框仍会丢，见 [notes/linux-bringup.md](../notes/linux-bringup.md)
   - ~~安装脚本按已装框架分支安装、Server 的启动策略~~：`install.sh --frontend auto` 已做，systemd 用户单元 `qingjian-server.service` 随装（`--enable-service` 顺手 enable），两个前端共用一个 Server
   - `[general] preedit` 三档在 IBus 面板下逐个真机验（它的面板能力比 fcitx5 弱），坑见 [notes/linux-bringup.md](../notes/linux-bringup.md)
+- [~] Linux Wayland 原生版（`apps/linux/wayland`，设计见 [design/linux-wayland.md](../design/linux-wayland.md)）：第一轮原型，Hyprland 真机验。还差：
+  - P1：按应用会话（`zwlr_foreign_toplevel_manager_v1` 取 app_id，`[apps]` 生效、按应用记中英）、选区翻译、中 / 英提示、Server 回包附当前模式、假合成器集成测试
+  - P2：鼠标点选与翻页、候选右键菜单（`LINUX_UI_PROTOCOL` 升版，Fcitx5 / Fcitx4 插件跟着改）、外观跟随系统（xdg-desktop-portal）、候选窗翻到光标上方时的排布、托盘、键位提示
+  - P3：`install.sh --frontend wayland`、systemd 用户服务、deb / rpm、CI、设置程序支持表区分 fcitx 版与 Wayland 版、用户文档
+  - sway / niri / labwc 上逐个真机验（第一轮只验了 Hyprland）
 - [ ] 设置项的平台缺口（设置程序 `apps/settings/src/support/` 表里标「待实现」的项，输入法接上之前设置里不显示；测试逐条对照这里）：
   - [ ] 辅码：Linux
   - [ ] 形码与自定义方案：Linux

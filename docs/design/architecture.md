@@ -530,5 +530,6 @@ CC-CEDICT 表（`dict-convert cedict`）保留为备用来源，覆盖面广但�
   词库、语言模型、神经模型、渲染器和字体都在 Server 里，不进 Fcitx5 这个所有输入法共用的进程；Server 崩了不带倒 Fcitx5。
 - Fcitx5 壳是一层薄 C++ 插件（addon ABI 是 C++ 虚类，纯 Rust 做不了），只做转发，判断都在 Server。
 - 候选窗自绘：Server 出位图并自己开窗（X11 / XWayland 先行），插件只报光标矩形与焦点。
+  Wayland 上改了路线（2026-10-27）：普通客户端开不了跟着光标的窗口，Wayland 原生版由前端自己当 input-method-v2 客户端，渲染器与字体在前端进程、词库与模型仍在 Server，见 [linux-wayland.md](linux-wayland.md)。
 - IBus 壳以后用 zbus 写成纯 Rust，共用同一个 Server；排在 Fcitx5 真机验收之后。
 - 三个平台的按键分流（macOS host / Windows Server / Linux Server）要抽成公共 crate，等 Linux 最小输入链路合入后做。

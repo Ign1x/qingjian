@@ -66,7 +66,7 @@ computer
 |---|---|---|
 | macOS | `objc2-app-kit`：非激活的 NSPanel + 自定义 NSView，用 NSAttributedString / Core Text 画行 | Squirrel 同款做法。窗口必须不抢焦点、浮在所有应用之上、瞬间出现，只有 AppKit 能稳定满足 |
 | Windows | Server 进程里 GDI 画到 layered window（`server/src/ui/layered/`） | 避开 WebView2 依赖（水杉 issue #68 就是安装环境缺 WebView2）。原计划改 Direct2D + DirectWrite，已被自绘渲染器取代 |
-| Linux | 自绘窗口（wayland-client / x11rb），不用 IBus / Fcitx 自带面板 | IBus 的 lookup table 没有 comment 字段，Fcitx5 有但样式受面板限制。kime 走的也是自绘 |
+| Linux | Wayland 原生版：input-method-v2 的 popup surface 上贴渲染器位图（[linux-wayland.md](linux-wayland.md)）；fcitx 版仍用 Fcitx / IBus 自带面板 | IBus 的 lookup table 没有 comment 字段，Fcitx5 有但样式受面板限制。kime 走的也是自绘 |
 
 macOS 面板的层级与 Space：层级 `kCGPopUpMenuWindowLevel`（101，与系统候选框同级；不能 `setFloatingPanel`，它会把层级改回 3，全屏应用里就看不见），
 collection behavior 是 CanJoinAllSpaces + FullScreenAuxiliary + Stationary。但 macOS 26 上 WindowServer 只把面板绑到它**创建时已有**的 Space：

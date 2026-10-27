@@ -20,6 +20,7 @@ README.md 只介绍项目（各语言译本在 [i18n/](i18n/)），所有技术�
 | [design/aux-code.md](design/aux-code.md) | 辅码（2026-09-14）：触发键与过滤语义、Rime 码表导入、笔画原生表与大陆序覆盖、候选注记与设置界面 |
 | [design/core-internals.md](design/core-internals.md) | Core 与显示层拆解（2026-09-23）：`Engine` 的字段分组与线程归属、一次按键的数据流、三条异步旁路、上屏写回、缓存，三个平台的显示层与还各写一份的地方 |
 | [design/voice-and-swipe.md](design/voice-and-swipe.md) | 语音与滑行输入（2026-10-20）：Rust 与平台壳的分工、语音结果怎么经 Core 上屏、识别方式接口 `Transcriber`、火山引擎豆包流式识别、入口与面板交互；滑行的范围、解码接口 `SwipeDecoder`、按词表打分的 `ShapeDecoder` 与判定 |
+| [design/linux-wayland.md](design/linux-wayland.md) | Linux Wayland 原生版（2026-10-27）：为什么分 fcitx 版与 Wayland 版、覆盖哪些合成器与应用、前端自己当 input-method-v2 客户端的进程与数据流、协议对照、按键转发与重复、popup 自绘与缩放、会话与隐私、已知限制与分期 |
 | [plan/roadmap.md](plan/roadmap.md) | 分阶段路线图、各阶段的依赖关系与已完成项 |
 | [plan/zh_tw_support_plan.md](plan/zh_tw_support_plan.md) | 繁体输出与台湾注音支持的分析与方案（贡献者 pinchiu，#22）：读音标准差异、台湾用语、简转繁一对多；两条路线 |
 | [plan/todo.md](plan/todo.md) | 待办清单，按「从自用到能给别人用」排 |

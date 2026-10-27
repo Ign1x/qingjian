@@ -1,0 +1,78 @@
+//! [`Output`] 的真实现：会话的决定变成 input-method-v2、虚拟键盘与候选窗上的请求。
+
+use wayland_client::EventQueue;
+use wayland_client::backend::WaylandError;
+
+use super::Wayland;
+use crate::session::{Modifiers, Output, Preedit};
+
+/// 处理一件事期间借来的 Wayland 一侧：状态与事件队列（`sync` 要读新事件）。
+pub struct Context<'a> {
+    pub wayland: &'a mut Wayland,
+
+    pub queue: &'a mut EventQueue<Wayland>,
+}
+
+impl Output for Context<'_> {
+    fn epoch(&self) -> u64 {
+        self.wayland.method.epoch
+    }
+
+    fn sync(&mut self) {
+        if let Err(error) = self.queue.flush() {
+            tracing::debug!(%error, "送请求失败");
+        }
+        if let Some(guard) = self.queue.prepare_read() {
+            match guard.read() {
+                Ok(_) => {}
+                Err(WaylandError::Io(error)) if error.kind() == std::io::ErrorKind::WouldBlock => {}
+                Err(error) => tracing::debug!(%error, "读合成器事件失败"),
+            }
+        }
+        if let Err(error) = self.queue.dispatch_pending(self.wayland) {
+            tracing::debug!(%error, "处理合成器事件失败");
+        }
+    }
+
+    fn grab(&mut self, on: bool) {
+        let wayland = &mut *self.wayland;
+        if on {
+            if wayland.grab.is_none() {
+                tracing::debug!("接管键盘");
+                wayland.grab = Some(wayland.input_method.grab_keyboard(&wayland.qh, ()));
+            }
+        } else if let Some(grab) = wayland.grab.take() {
+            tracing::debug!("交还键盘");
+            grab.release();
+        }
+    }
+
+    fn keymap(&mut self, keymap: &str) {
+        self.wayland.keyboard.keymap(keymap);
+    }
+
+    fn forward(&mut self, code: u32, pressed: bool, time: u32) {
+        self.wayland.keyboard.key(time, code, pressed);
+    }
+
+    fn modifiers(&mut self, modifiers: Modifiers) {
+        self.wayland.keyboard.modifiers(modifiers);
+    }
+
+    fn text(&mut self, commit: &str, preedit: &Preedit) {
+        let input_method = &self.wayland.input_method;
+        if !commit.is_empty() {
+            input_method.commit_string(commit.to_owned());
+        }
+        input_method.set_preedit_string(preedit.text.clone(), preedit.cursor, preedit.cursor);
+        input_method.commit(self.wayland.method.dones);
+    }
+
+    fn show(&mut self, frame: &qingjian_platform::protocol::Frame) -> Vec<(usize, usize)> {
+        self.wayland.show(frame)
+    }
+
+    fn hide(&mut self) {
+        self.wayland.hide();
+    }
+}

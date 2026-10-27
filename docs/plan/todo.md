@@ -149,6 +149,8 @@
   - P2：鼠标点选与翻页、候选右键菜单（`LINUX_UI_PROTOCOL` 升版，Fcitx5 / Fcitx4 插件跟着改）、外观跟随系统（xdg-desktop-portal）、候选窗翻到光标上方时的排布、托盘、键位提示
   - P3：`install.sh --frontend wayland`、systemd 用户服务、deb / rpm、CI、设置程序支持表区分 fcitx 版与 Wayland 版、用户文档
   - sway / niri / labwc 上逐个真机验（第一轮只验了 Hyprland）
+- [ ] 渲染器的译词编号把读音也算一号：`from_candidate` 把读音（emoji 跟着的词、问字的拼音）拼在注记最前面，渲染器按分隔符编号，真正的第 0 条义项成了第 1 号。
+  Windows 点带读音候选的译词可能点错义项（没验）；Wayland 前端在 `view::renumber_senses` 里先换回 Core 的编号（不然回执整份被 Server 拒掉），上游修了就删
 - [ ] 候选 → 渲染帧的换算收口：共享的 `qingjian_platform::display` 已有（Linux Wayland 前端在用），Windows Server（`ui/candidates/{row,render_data}.rs`）与 macOS（`candidates/row.rs` + `bitmap/convert.rs`）各自单独提 PR 改用它，改完删掉自己那份
 - [ ] 设置项的平台缺口（设置程序 `apps/settings/src/support/` 表里标「待实现」的项，输入法接上之前设置里不显示；测试逐条对照这里）：
   - [ ] 辅码：Linux

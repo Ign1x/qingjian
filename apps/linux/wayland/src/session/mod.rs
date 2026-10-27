@@ -1,0 +1,178 @@
+//! 输入法这一侧的全部判断：哪个键交给 Server、哪个原样转给应用，回包怎么落到应用里与候选窗上。
+//!
+//! 不碰 Wayland 对象，也不直接连 Server：两头各是一个 trait（[`Output`]、[`Server`]），
+//! 真实现在 `crate::wayland` 与 [`Link`]，测试里换成记录器，所以这里的规则都能脱离合成器验。
+//! 规则的来由见 `docs/design/linux-wayland.md`「协议对照」「按键」两节。
+
+mod focus;
+mod input;
+mod keyboard;
+mod keys;
+mod link;
+mod output;
+mod preedit;
+mod repeat;
+mod reply;
+mod server;
+
+#[cfg(test)]
+mod tests;
+
+pub use input::{Field, Input, Key, Modifiers, Surrounding};
+pub use link::Link;
+pub use output::Output;
+pub use preedit::Preedit;
+pub use server::Server;
+
+use std::time::{Duration, Instant};
+
+use qingjian_platform::protocol::Frame;
+use qingjian_platform::protocol::linux::AppSurrounding;
+
+use keys::Keys;
+use repeat::Repeat;
+
+/// 组句期间多久问一次 Server 有没有新帧（重排结果、云端候选都靠它），与两个现有前端一样。
+const POLL_INTERVAL: Duration = Duration::from_millis(80);
+
+/// 一个输入法实例在一个 seat 上的状态。
+pub struct Session<S> {
+    server: S,
+
+    /// 有输入框在要输入法。
+    active: bool,
+
+    /// 当前输入框的状态。
+    field: Field,
+
+    /// 键盘在我们手里。
+    grabbed: bool,
+
+    /// 按着的键。
+    keys: Keys,
+
+    /// 自己重复的那个键。
+    repeat: Repeat,
+
+    /// 最近一次给虚拟键盘的键位表；没有之前虚拟键盘上什么都不能发。
+    keymap: Option<String>,
+
+    /// 应用里现在的行内拼音（最后一次发出去的）。
+    preedit: Preedit,
+
+    /// 候选窗上现在画着的帧与它画出的义项；收着是 `None`。抬键的回包帧多半没变，没变就不重画。
+    drawn: Option<(Frame, Vec<(usize, usize)>)>,
+
+    /// 候选窗上那一帧的版本号；轮询回来版本号没变就不重画。
+    shown: Option<u64>,
+
+    /// 下一次轮询的时刻；没在组句是 `None`。
+    poll_at: Option<Instant>,
+}
+
+impl<S: Server> Session<S> {
+    pub fn new(server: S) -> Self {
+        Self {
+            server,
+            active: false,
+            field: Field::default(),
+            grabbed: false,
+            keys: Keys::default(),
+            repeat: Repeat::default(),
+            keymap: None,
+            preedit: Preedit::default(),
+            drawn: None,
+            shown: None,
+            poll_at: None,
+        }
+    }
+
+    /// 处理排到的一件事。
+    pub fn handle(&mut self, input: Input, out: &mut impl Output, now: Instant) {
+        match input {
+            Input::Activate(field) => self.activate(field, out),
+            Input::Deactivate => self.deactivate(out),
+            Input::Update(field) => self.update(field, out, now),
+            Input::Keymap(keymap) => self.keymap(keymap, out),
+            Input::Key(key) => self.key(key, out, now),
+            Input::Modifiers(modifiers) => self.modifiers(modifiers, out),
+            Input::Repeat { rate, delay } => self.repeat.configure(rate, delay),
+        }
+    }
+
+    /// 到点的事：按键重复、组句轮询、Server 断开后的重连；最后看看键盘该不该交还。
+    /// 主循环每处理完一批事件调一次。
+    pub fn tick(&mut self, out: &mut impl Output, now: Instant) {
+        if let Some(key) = self.repeat.due(now) {
+            self.repeat_key(key, out, now);
+        }
+        if self.poll_at.is_some_and(|at| at <= now) {
+            self.poll_at = None;
+            if self.serving() {
+                self.poll(out, now);
+            }
+        }
+        if self.reconnect_at().is_some_and(|at| at <= now) {
+            self.connect(out);
+        }
+        self.settle(out);
+    }
+
+    /// 下一件到点的事。
+    pub fn deadline(&self) -> Option<Instant> {
+        [self.repeat.deadline(), self.poll_at, self.reconnect_at()]
+            .into_iter()
+            .flatten()
+            .min()
+    }
+
+    /// 退出前：替转发过还按着的键补抬起（不然虚拟键盘上一直按着），交还键盘，收起候选窗。
+    pub fn shutdown(&mut self, out: &mut impl Output) {
+        for code in self.keys.drain_forwarded() {
+            out.forward(code, false, 0);
+        }
+        self.repeat.stop();
+        if self.grabbed {
+            out.grab(false);
+            self.grabbed = false;
+        }
+        self.hide(out);
+    }
+
+    /// 键交给 Server 处理：有输入框、不是密码框、Server 连着。否则拿着键盘也只原样转发。
+    fn serving(&self) -> bool {
+        self.active && !self.field.password && self.server.connected()
+    }
+
+    /// Server 断开、而输入框还等着输入法时，什么时候再去连。
+    fn reconnect_at(&self) -> Option<Instant> {
+        if !self.active || self.field.password || self.grabbed || self.server.connected() {
+            return None;
+        }
+        Some(self.server.retry_at().unwrap_or_else(Instant::now))
+    }
+
+    /// 不该再拿着键盘（没有输入框、密码框、Server 断了）而且没有按着的键，就交还给合成器。
+    /// 还按着的键要等它们抬起：抬起经虚拟键盘转出去，虚拟键盘上才不会卡住。
+    fn settle(&mut self, out: &mut impl Output) {
+        if self.grabbed && !self.serving() && self.keys.is_empty() {
+            self.repeat.stop();
+            out.grab(false);
+            self.grabbed = false;
+        }
+    }
+
+    /// 带给 Server 的光标前后文；敏感输入框不带。
+    fn surrounding(&self) -> Option<AppSurrounding> {
+        if self.field.sensitive {
+            return None;
+        }
+        let surrounding = self.field.surrounding.as_ref()?;
+        AppSurrounding::around(&surrounding.text, surrounding.cursor, surrounding.anchor)
+    }
+
+    /// 正在组句（应用里有拼音或候选窗开着）。
+    fn composing(&self) -> bool {
+        !self.preedit.text.is_empty() || self.drawn.is_some()
+    }
+}

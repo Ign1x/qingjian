@@ -1,0 +1,36 @@
+[package]
+name = "qingjian-linux-wayland"
+description = "Linux Wayland 原生前端：自己当 input-method-v2 客户端，候选窗用青简渲染器自绘，引擎在 Server 进程"
+version = "0.1.0-dev"
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[[bin]]
+name = "qingjian-linux-wayland"
+path = "src/main.rs"
+
+# 与 IBus 前端一样不扛 Engine：词库、排序、学习全在 Server 那一侧，这里只做协议翻译与画候选窗。
+# 连 Server 的客户端、键表与帧换算走 qingjian-platform（protocol::linux 与 display），与 IBus 前端共用。
+[dependencies]
+qingjian-platform = { workspace = true, features = ["render"] }
+qingjian-render.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+tracing-appender.workspace = true
+
+[lints]
+workspace = true
+
+# 只有测试要按名字引 core：协议帧里的候选就是 `qingjian_core::Candidate`，造测试数据绕不开它
+[dev-dependencies]
+qingjian-core.workspace = true
+
+[target.'cfg(target_os = "linux")'.dependencies]
+libc = "0.2.189"
+memmap2.workspace = true
+wayland-client = "0.31.15"
+wayland-protocols = { version = "0.32.13", features = ["client", "staging"] }
+wayland-protocols-misc = { version = "0.3.12", features = ["client"] }
+xkbcommon-dl = "0.4.2"

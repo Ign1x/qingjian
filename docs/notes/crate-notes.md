@@ -629,6 +629,26 @@ IBus 的组件 XML 与 systemd 单元里都写死了安装后的绝对路径，�
 - 端到端测试要等引擎激活再敲键：切引擎之后 daemon 还要走一遍 FocusOut → Enable → FocusIn，
   不等的话第一个字母会被 FocusOut 当「缓冲原样上屏」交出去（真人用的时候引擎早激活好了，撞不上）。
 
+## apps/linux/wayland
+
+Wayland 原生版的前端（设计见 `docs/design/linux-wayland.md`）：自己当 `zwp_input_method_v2` 客户端，连同一个 Server、说同一套协议，候选窗用渲染器自绘。
+不依赖 Engine；连接、键表与帧换算用 `qingjian_platform::protocol::linux::{client, key}` 与 `qingjian_platform::display`。
+
+- `session/`：全部判断，不碰 Wayland 也不直接连 Server——两头各是一个 trait（`Output`、`Server`），真实现是 `wayland::Context` 与 `Link`，
+  测试（`session/tests/`）换成脚本化的 Server 与记录输出的假合成器。要点：抬起跟着按下走（`keys/`：按下转发过的抬起一定转发，
+  哪怕 Server 对抬起回吃掉——单击 Shift 切中英就是这样；没见过按下的抬起照转、不报 Server）；
+  回包落地前先读一遍合成器的新事件、比焦点代次，换了就不上屏（wlroots 与 Hyprland 都不按 commit 的 serial 丢弃过期请求）；
+  上屏按字符边界切成不超过 4000 字节的块（一条消息超过约 4 KB 合成器断开连接），每次 commit 都带完整 preedit（合成器 commit 后把没设的 preedit 当空串）；
+  只在上屏或 preedit 变了时才发；抬键的回包帧内容没变就不重画，回执照发；被吃掉的键自己按 `repeat_info` 重复，删空后 Server 放行就转一次按下、把重复交还应用；
+  失活后还按着的键保持 grab 等它们抬起再交还键盘（抬起经虚拟键盘转出去，虚拟键盘上才不卡）；Server 连不上不 grab、2 秒退避后重连；密码框只报能力、不 grab。
+- `wayland/`：`method/` 是 input-method-v2 的双缓冲（`done` 计数即 commit 的 serial，激活 / 失活各给焦点代次加一，又激活一次先当失活）；
+  `grab.rs` 读键位表（`MAP_PRIVATE` 映射）、用 `xkb.rs`（xkbcommon-dl，运行时 dlopen）算 keysym 与 X11 掩码，按到达顺序排队；
+  `keyboard.rs` 是进程里唯一的虚拟键盘（与输入法同一条连接，合成器才不会把转出去的键又送回 grab）；`popup.rs` 有分数缩放时用 viewport、buffer scale 保持 1；
+  `shm.rs` 三块缓冲轮换；`context.rs` 实现 `Output`；`mod.rs` 是主循环（`poll` 等合成器事件或下一个到点的事，SIGINT / SIGTERM 退出前替按着的键补抬起）。
+- `view/`：`Painter`（字体库、渲染器、主题，配置与主题目录每秒查一次戳）、`bitmap.rs`（位图左上的阴影边裁到 4 点、补齐到整逻辑像素、RGBA → ARGB8888）、`senses`（从点击区域取画出的义项回执）。
+- 构建单独 `cargo build -p qingjian-linux-wayland`：和设置程序一起编时 winit 把 wayland-backend 统一成 dlopen libwayland 的那一种，NixOS 上找不到库。
+  libxkbcommon 总是运行时 dlopen，NixOS 上要 `LD_LIBRARY_PATH` 或打包时补 rpath（见 README）。
+
 ## 独立的选区翻译提供方
 
 Core 的 Engine::set_translation_predictor 与 translation_enabled 将显式选区翻译与普通联想分开；未配置时沿用原提供方，显式配置但不可用时不回落在线服务。手动选区保留首尾空白，私密输入及取消请求使迟到结果失效。

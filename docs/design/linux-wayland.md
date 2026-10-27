@@ -44,7 +44,7 @@ qingjian-linux-wayland ──Unix socket，protocol::linux（与 Fcitx5 插件�
 
 | 合成器给的（`done` 之后生效） | 前端做的 |
 |---|---|
-| 新的 activate | grab 键盘（密码框、Server 连不上时不 grab）；已经激活着又来一次算重置，报 `Reset` 并清掉 preedit；然后 `Focus{true}` |
+| 新的 activate | 报能力（变了才报），然后 `Focus{true}`，成功就 grab 键盘（密码框、Server 连不上时不 grab）；已经激活着又来一次（同一个应用里换了输入框）先按失活处理 |
 | deactivate | 挂空缓冲藏起 popup；`Focus{false}` + `Deactivate{focus_out: true, client_preedit: true, capability_changed: false}`：失焦后已经不能往原来的输入框上屏，组句丢弃 |
 | content_type | purpose password / pin 或 hint hidden_text → `Capabilities{password}`；hint sensitive_data → `sensitive`。每次 `done` 都重算（密码框点「显示密码」会改它） |
 | surrounding_text | 每键随 `Key` 带上光标两侧各 80 字（跳过选区，规则同 Fcitx5 的 `apps/linux/surrounding.h`，单位换成字节） |
@@ -83,11 +83,13 @@ qingjian-linux-wayland ──Unix socket，protocol::linux（与 Fcitx5 插件�
 - **一个 popup 用到进程退出。** wl_surface + `zwp_input_popup_surface_v2`，挂缓冲即显示、挂空缓冲即隐藏（同时 `Renderer::forget()`，下次出现不接着上次的动画）。
   第一轮输入区域设成空，鼠标穿透。
 - **位置由合成器定。** Hyprland（`InputMethodPopup.cpp`）把 popup 左上角贴在光标下沿，碰到屏幕底就翻到光标上方，碰到右沿往左推；
-  `text_input_rectangle` 是光标相对 popup 的矩形，从它能看出翻没翻。渲染器的位图带阴影边，候选框会比光标偏开 `content_x / content_y`，第一轮接受这点偏移。
+  `text_input_rectangle` 是光标相对 popup 的矩形，从它能看出翻没翻。渲染器的位图四周带二三十点的阴影边，原样贴上去候选框会离光标很远，
+  所以左边与上边的阴影裁到只剩 4 点（右下的阴影保留）；翻到光标上方时底边阴影仍在，候选框与光标之间会空出一截，按 `text_input_rectangle` 调排布留到 P2。
 - **缩放。** 有 `wp_fractional_scale_v1` 就按它给的缩放出位图，`wp_viewport` 设逻辑尺寸、`buffer_scale` 保持 1（Hyprland 拿「viewport 尺寸 ÷ buffer_scale」当 popup 尺寸去摆位置）；
   逻辑尺寸取 `ceil(像素 ÷ 缩放)`，位图透明补边到 `round(逻辑 × 缩放)`，保证 1:1 像素不糊。没有分数缩放就退回整数缩放。缩放变了按新缩放重画当前帧。
 - **像素格式。** 渲染器出预乘 RGBA；合成器支持 `ABGR8888`（内存序 R,G,B,A）就直接拷，否则换成 `ARGB8888`（B,G,R,A，与 Windows 那份换法相同）。
-- **展示回执。** 帧真正上屏（frame callback 回来）后回 `DisplayAcknowledged`：从 `Rendered::hits` 里的译词区域取（候选, 义项）对，最多 128 对（多了 Server 断开连接）。
+- **展示回执。** 贴图之后回 `DisplayAcknowledged`（与 Fcitx5 插件一样不等合成器真画出来）：从 `Rendered::hits` 里的译词区域取（候选, 义项）对，最多 128 对（多了 Server 断开连接）。
+  抬键的回包帧内容多半没变，没变就不重画，回执照发（展示身份换了）。
   fcitx 版只画第一条义项，这里画全部，所以每条都报，生词标记才会照常衰减。
 - **字体。** 与 Windows 同一流程：`[general] font` 空用 `FontLibrary::system("zh-CN")`，否则按字族名找文件；Linux 的「按字族名找文件」与清单路径缺失时的兜底走 fontconfig（见 crate-notes 的 bamboo-slip 一节）。
 - **主题。** `ThemeLibrary::load($XDG_DATA_HOME/qingjian/themes).resolve(id, 深浅)`，再套用户字号与动画开关；配置文件与主题目录每秒查一次戳，变了就重读。

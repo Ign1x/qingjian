@@ -14,7 +14,7 @@ members = [
     "crates/qingjian-render",
     "crates/bamboo-slip",
     "crates/qingjian-update",
-    "apps/linux/server", "apps/linux/ibus", "apps/android/core", "apps/cli", "apps/settings", "apps/macos", "apps/windows/server", "apps/windows/tsf", "apps/windows/settings", "tools/dict-convert", "tools/gloss-gen", "tools/release-sign",
+    "apps/linux/server", "apps/linux/ibus", "apps/linux/wayland", "apps/android/core", "apps/cli", "apps/settings", "apps/macos", "apps/windows/server", "apps/windows/tsf", "apps/windows/settings", "tools/dict-convert", "tools/gloss-gen", "tools/release-sign",
 ]
 
 [workspace.package]

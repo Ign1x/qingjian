@@ -32,6 +32,7 @@ apps/linux/scripts/install.sh --frontend wayland --enable-service    # 两个版
   在配置里加 `exec-once = systemctl --user import-environment WAYLAND_DISPLAY && systemctl --user start qingjian-wayland.service`（sway 写 `exec`）。
   先导入再起：合成器自己也会异步导入环境，赛跑输了单元的 `ConditionEnvironment` 不满足、不起。
 - 前端单独一次 `cargo build -p qingjian-linux-wayland`（见 crate-notes），装好的二进制只链 libc / libm / libgcc_s，libxkbcommon 运行时 dlopen。
+- 发行包是单独的 `qingjian-wayland`，不随包 enable，见 [linux-packaging.md](../../../docs/notes/linux-packaging.md)。
 - 卸载 `apps/linux/scripts/uninstall.sh`：先停这个前端、再停 Server，合成器配置里加的那一行要自己删。
 
 **NixOS**：libxkbcommon 不在缺省的库搜索路径里。install.sh 发现它只能从 `LD_LIBRARY_PATH` 找到时，把那个目录写进单元的 `Environment=`；

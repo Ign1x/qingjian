@@ -3,7 +3,8 @@
 `apps/linux/packaging/build.sh` 一条命令打两种包，给别的 Linux 机器装着试。
 这一页记两种包各装了什么、为什么这么分、怎么装，以及几处绕不过去的限制。
 flatpak 暂不做（2026-10-23）：输入法在沙箱里要靠宿主机上的登记脚本去写服务与 IBus 组件，等于绕开沙箱，出了问题也难查。
-用户级的源码安装（`apps/linux/scripts/install.sh`）另见 [linux-fcitx5.md](linux-fcitx5.md) 与 [linux-dual-frontend.md](linux-dual-frontend.md)。
+用户级的源码安装（`apps/linux/scripts/install.sh`）另见 [linux-fcitx5.md](linux-fcitx5.md) 与 [linux-dual-frontend.md](linux-dual-frontend.md)，
+Wayland 原生版的见 [apps/linux/wayland/README.md](../../apps/linux/wayland/README.md)。
 
 ## 打包
 
@@ -17,21 +18,39 @@ QINGJIAN_SAMPLE=1 apps/linux/packaging/build.sh   # 没有产品数据时只带�
 
 | 步骤 | 在哪做 | 为什么 |
 |---|---|---|
-| Rust 的 Server 与 IBus 前端 | Ubuntu 22.04 容器，编一次两种包共用 | 这两个只依赖 libc / libm / libgcc；在 glibc 2.35 上编，实际门槛是 `GLIBC_2.34`。工具链与 crate 缓存直接挂本机的 `~/.cargo` / `~/.rustup`；依赖树里有 `openssl-sys`，编译要 `libssl-dev`（最终二进制并不链 libssl） |
+| Rust 的 Server、IBus 前端与 Wayland 前端 | Ubuntu 22.04 容器，编一次两种包共用 | 这三个只依赖 libc / libm / libgcc；在 glibc 2.35 上编，实际门槛是 `GLIBC_2.34`。工具链与 crate 缓存直接挂本机的 `~/.cargo` / `~/.rustup`；依赖树里有 `openssl-sys`，编译要 `libssl-dev`（最终二进制并不链 libssl）。Wayland 前端单独一次 `cargo build`：与别的包同编时 cargo 合并依赖的特性，带进 winit 的包会把 wayland-backend 换成 dlopen libwayland 的那种（crate-notes 的 apps/linux/wayland 一节） |
 | fcitx5 插件（deb） | Debian 13 容器 | 插件要对着目标发行版自己的 fcitx5 编；`CMakeLists.txt` 要 5.1.8+，Ubuntu 24.04 只有 5.1.7 |
 | fcitx5 插件（rpm） | Fedora 42 容器 | 同上 |
 | 随包资源 | 本机，`files.py resources` | 与 `install.sh` 同一套产品数据校验（`tools/release/data.lock`）与布局 |
 
 ## 两种包各装了什么
 
-deb 与 rpm 都拆成两个包：
+deb 与 rpm 都拆成三个包：
 
 - **`qingjian`**：`/usr/bin/qingjian-linux-server`、`/usr/bin/qingjian-linux-ibus`、`/usr/share/qingjian/resources/`（词库等，
   Server 按「可执行文件上一层的 `share/qingjian/resources`」找到它）、`/usr/share/ibus/component/qingjian.xml`、
   `/usr/lib/systemd/user/qingjian-server.service`。装的时候 `systemctl --global enable` 让每个用户登录后自动起 Server。
 - **`qingjian-fcitx5`**：fcitx5 插件与两份描述文件，放 fcitx5 自己的插件目录（Debian 是 `/usr/lib/<多架构>/fcitx5/`，Fedora 是 `/usr/lib64/fcitx5/`）。
+- **`qingjian-wayland`**（2026-10-28 起）：Wayland 原生版的前端 `/usr/bin/qingjian-linux-wayland` 与
+  `/usr/lib/systemd/user/qingjian-wayland.service`（与 `install.sh` 同一个模板，见 [design/linux-wayland.md](../design/linux-wayland.md)）。
+  依赖 `qingjian` 同版本；libxkbcommon 是前端运行时 dlopen 的，自动推出的依赖里没有，手写：deb `libxkbcommon0`，rpm 写 soname `libxkbcommon.so.0()(64bit)`
+  （Fedora 的 `libxkbcommon` 与 openSUSE 的 `libxkbcommon0` 都提供它）。字体（Noto Sans CJK、Noto Color Emoji、fontconfig）只放 Recommends：
+  缺了候选窗画不好中文与表情，但前端照样能起。
 
 IBus 前端没有额外依赖，跟 Server 同包；它的组件 XML 在系统目录，IBus 直接认，不用 `install.sh` 那套 environment.d。
+
+### Wayland 前端为什么单独一个包，而且不随包启用
+
+- **两个版本是二选一的**：同一个 seat 只能有一个输入法，fcitx5 的 waylandim 开着时 Wayland 前端收到 `unavailable` 退出；
+  KDE、GNOME 根本没有它要的协议。跟 Server 同包的话，装 IBus / fcitx5 的人也拿到一个用不上、还得解释的服务；拆开后装哪个包就是选哪个版本。
+- **依赖不同**：只有它要 libxkbcommon 与自绘候选窗的字体，不该压到只用 IBus 的人头上。
+- **不 `--global enable`**：Server 的单元对所有用户全局 enable，Wayland 前端不能这么做——在 GNOME / KDE 会话、或还开着 fcitx5 的会话里，
+  每次登录都会起一个必然失败的前端。装包只把单元放进 `/usr/lib/systemd/user/`，要用的用户自己 `systemctl --user enable --now qingjian-wayland.service`，
+  第一次装时 postinst / `%post` 打印这句与「关掉 fcitx5」。单元 `WantedBy=graphical-session.target`：niri（niri-session）、uwsm 这类会启动它的会话里 enable 就随登录起来，
+  Hyprland / sway 直接启动的要在配置里 `systemctl --user start`（用户文档 [Linux](../user/platforms/linux.md) 的 Wayland 原生版一节有各合成器的写法）。
+- **升级与卸载**：postinst / `%post` 对每个已登录用户 `daemon-reload` 后 `try-restart`（只重启正开着的，换上新的二进制）；
+  prerm / `%preun` 卸载时 `--global disable`（管理员手动全局 enable 过时清掉）并 stop 每个已登录用户的实例。
+  用户自己 enable 留在 `~/.config/systemd/user/graphical-session.target.wants/` 的链接包管理器不碰，卸载后是一个悬空链接，systemd 忽略它。
 
 ## 装法
 
@@ -43,16 +62,19 @@ IBus 要重新登录一次（或 `ibus restart`）才看得到新引擎。
 ```bash
 sudo apt install ./qingjian_<版本>_amd64.deb                 # IBus 用户
 sudo apt install ./qingjian_<版本>_amd64.deb ./qingjian-fcitx5_<版本>_amd64.deb   # fcitx5 用户
+sudo apt install ./qingjian_<版本>_amd64.deb ./qingjian-wayland_<版本>_amd64.deb  # Wayland 原生版（Hyprland、sway、niri…）
 ```
 
 `qingjian` 只要 `libc6 (>= 2.34)`，Debian 12、Ubuntu 22.04 / 24.04 也装得上（IBus）；
-`qingjian-fcitx5` 要 `libfcitx5core7 (>= 5.1.12)`，只有 Debian 13、Ubuntu 25.04 及以后。
+`qingjian-fcitx5` 要 `libfcitx5core7 (>= 5.1.12)`，只有 Debian 13、Ubuntu 25.04 及以后；
+`qingjian-wayland` 与 `qingjian` 一样只看 glibc（另加 `libxkbcommon0`），能不能用看合成器：sway 要 1.10 起才有候选窗。
 
 ### Fedora 42 及以后（rpm）
 
 ```bash
 sudo dnf install ./qingjian-<版本>.x86_64.rpm
 sudo dnf install ./qingjian-<版本>.x86_64.rpm ./qingjian-fcitx5-<版本>.x86_64.rpm
+sudo dnf install ./qingjian-<版本>.x86_64.rpm ./qingjian-wayland-<版本>.x86_64.rpm
 ```
 
 KDE Plasma（Wayland）上输入法由 KWin 拉起，默认是 fcitx5：「系统设置 → 键盘 → 虚拟键盘」里选 IBus Wayland
@@ -63,6 +85,8 @@ KDE Plasma（Wayland）上输入法由 KWin 拉起，默认是 fcitx5：「系�
 
 - IBus：「设置 → 键盘 → 输入源」添加「青简」（GNOME），或 `ibus engine qingjian`。
 - fcitx5：`fcitx5-configtool` 里取消「仅显示当前语言」，添加「青简」。
+- Wayland 原生版：关掉 fcitx5（或它的「Wayland 输入法前端」附加组件），`systemctl --user enable --now qingjian-wayland.service`；
+  Hyprland / sway 另在配置里起它，见用户文档。起不来的原因：`journalctl --user -u qingjian-wayland`（退出码 1 不重启，见单元模板的注释）。
 - 配置：`~/.config/qingjian/config.toml`，保存后约一秒内生效（`preedit` 与 `input_log` 两项要重启 Server）。
 - 自检（不经过输入法框架，直接问 Server）：`qingjian-linux-ibus --check nihao`。
 - Server 状态与日志：`systemctl --user status qingjian-server`、`journalctl --user -u qingjian-server`。
@@ -85,10 +109,12 @@ apps/linux/packaging/smoke/run.sh                 # 五个发行版都跑；给�
 ```
 
 把 `target/linux-pkg/out/` 的 deb / rpm 拿到 Debian 13、Ubuntu 26.04、Fedora 42、最新 Fedora、openSUSE Tumbleweed 的干净容器里：
-装两个包，看 `systemctl --global` 自启登记、IBus 组件的 `<exec>` 指向的文件在不在、fcitx5 插件缺不缺库，
+装三个包，看 `systemctl --global` 自启登记、IBus 组件的 `<exec>` 指向的文件在不在、fcitx5 插件缺不缺库，
+Wayland 前端能执行（`--version`；容器里没有合成器，跑不了真的）、手写的 libxkbcommon 依赖真把 `libxkbcommon.so.0` 装上了、它的单元在而没有被全局 enable，
 起 Server 用包里的 `qingjian-linux-ibus --check nihao` 打一串键（走真前端那套客户端代码，不另抄协议），
 等本地整句模型加载完，卸载后看自启登记与组件清掉没有；哪一项不对退出码非 0。每个容器要装发行版的依赖，跑一遍五六分钟。
 2026-10-14 五个都过（data-v7）：候选「你好 👋 (＾▽＾)ノ 你好好 你好像…」，含章·通变加载并预热。
+2026-10-28 加了 `qingjian-wayland` 之后还没在容器里跑过：打包与自检脚本只过了 `bash -n` 与 shellcheck，下次打包时先跑一遍 smoke。
 
 ### fcitx5 的依赖与切换框架
 
@@ -105,7 +131,7 @@ Debian 13、Ubuntu 26.04、Fedora 42 容器里看过；`dpkg -i` 不补依赖，
   2026-09-23 在 Ubuntu 24.04 上踩过：10:51 装包、10:52 重新登录，用户实例是 10:46 起的一直没换，Server 一次都没起，
   切到青简打字没有候选。所以 postinst / `%post` 对 `loginctl list-users` 里的每个用户 `systemctl --user -M 用户@ restart`，
   prerm / `%preun` 同样 stop。
-- **与用户级安装冲突**：`install.sh` 装在 `~/.local` 的那一份也叫 `qingjian-server.service`，组件名也相同。
+- **与用户级安装冲突**：`install.sh` 装在 `~/.local` 的那一份也叫 `qingjian-server.service`，组件名也相同（Wayland 前端的 `qingjian-wayland.service` 同理）。
   用户目录的单元优先于系统目录的，两份同时在时生效的是用户目录那份；装发行包之前先跑 `apps/linux/scripts/uninstall.sh`。
   2026-09-23 本机踩过：装了 deb 没卸 `~/.local` 那份，IBus 拉起的是 deb 的新前端（协议 7），跑着的却是用户目录单元起的旧 Server
   （协议 6），开会话就被断开、按键全部放行，切到青简打不出字；前端的输出进了 `/dev/null`，`--check` 按 PATH 又先找到 `~/.local/bin`

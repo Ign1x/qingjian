@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# 在 Fedora 42 容器里跑（build.sh 调，仓库挂在 /src）：编 fcitx5 插件摆进 $stage/root，再用 qingjian.spec 出两个 rpm。
-# Server、IBus 前端与词库 build.sh 已经摆好在 $stage/root。
+# 在 Fedora 42 容器里跑（build.sh 调，仓库挂在 /src）：编 fcitx5 插件摆进 $stage/root，再用 qingjian.spec 出三个 rpm。
+# Server、IBus 前端、Wayland 前端与词库 build.sh 已经摆好在 $stage/root。
 set -euo pipefail
 stage=/src/target/linux-pkg/rpm
 root="$stage/root"
@@ -10,7 +10,8 @@ build="$stage/fcitx5-build"
 cmake -S /src/apps/linux/fcitx5 -B "$build" -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=OFF >/dev/null
 cmake --build "$build" --parallel >/dev/null
 install -Dm755 "$build/qingjian.so" "$root$libdir/fcitx5/qingjian.so"
-strip --strip-unneeded "$root$libdir/fcitx5/qingjian.so" "$root/usr/bin/qingjian-linux-server" "$root/usr/bin/qingjian-linux-ibus"
+strip --strip-unneeded "$root$libdir/fcitx5/qingjian.so" "$root/usr/bin/qingjian-linux-server" "$root/usr/bin/qingjian-linux-ibus" \
+  "$root/usr/bin/qingjian-linux-wayland"
 install -Dm644 /src/apps/linux/fcitx5/data/addon/qingjian.conf "$root/usr/share/fcitx5/addon/qingjian.conf"
 install -Dm644 /src/apps/linux/fcitx5/data/inputmethod/qingjian.conf "$root/usr/share/fcitx5/inputmethod/qingjian.conf"
 # 宿主机 umask 是 002 时拷出来的是 664 / 775

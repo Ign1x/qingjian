@@ -615,11 +615,17 @@ v4 的两样给 Rust 前端：候选右键菜单（`dispatch/menu.rs`，与 Wind
 在 `qingjian_platform::protocol::linux`，不在 Server crate 里——与 Windows 的 TSF DLL 同一条理由：
 **前端不能因为要用协议类型就拖进 Engine 的依赖树**（Server 依赖 core / dictionary / lm / neural，前端一个都不要）。
 
-`scripts/install.sh` 按机器上有哪个框架装对应的前端（`--frontend auto|fcitx5|ibus|both`，缺省 auto = 能装的都装），
-`files.py` 只按给的路径照做（清单带 SHA256，装前逐个核对目标不是别人的文件）。三处值得记：
+`scripts/install.sh` 按机器上有哪个框架装对应的前端（`--frontend auto|fcitx5|ibus|both|wayland`，可用逗号连写，缺省 auto = 能装的 fcitx 版前端都装），
+`files.py` 只按给的路径照做（清单带 SHA256，装前逐个核对目标不是别人的文件）。几处值得记：
 IBus 的组件 XML 与 systemd 单元里都写死了安装后的绝对路径，所以由 install.sh 按 prefix 生成好再交给 `files.py`；**IBus 不读 `~/.local/share/ibus/component/`**，只认 `IBUS_COMPONENT_PATH`，所以另装一个 environment.d 片段把用户目录加在**最前面**——两个目录里有同名组件时以排在前面的为准，装过旧版 deb 的机器上新装的才会生效（这两条都在 IBus 1.5.34 上实测过）；
 `XMODIFIERS` 只用来提示「你在用的那个框架这次没装上」，不决定装什么（装完再切框架是常事，两支并存不冲突）；
-卸载要先 `systemctl --user disable --now` 再删文件，单元文件没了 systemd 就不认这个名字、停不掉的 Server 会一直占着 socket。
+卸载要先 `systemctl --user disable --now` 再删文件，单元文件没了 systemd 就不认这个名字、停不掉的 Server 会一直占着 socket（Wayland 前端是 Server 的客户端，先停它）。
+**Wayland 原生版不进 auto**：同一个 seat 只能有一个输入法，装它就得关掉 fcitx5 的 waylandim，要明确选 `wayland`；装完打印这条与各合成器的自启写法，
+会话的 `GTK_IM_MODULE` / `QT_IM_MODULE` 是 fcitx / ibus 时另外提醒。前端单独一次 `cargo build -p qingjian-linux-wayland`（与设置程序同一次编，winit 会把 wayland-backend 统一成 dlopen libwayland 的那种）。
+单元 `qingjian-wayland.service`（模板 `scripts/qingjian-wayland.service.in`）Wants / After Server，PartOf / After / WantedBy `graphical-session.target`，
+`ConditionEnvironment=WAYLAND_DISPLAY`，`Restart=on-failure` + `RestartPreventExitStatus=1`：前端起不来（缺协议、seat 被占、没有 libxkbcommon）都退出码 1，重启没用。
+它运行时按 `libxkbcommon.so.0` dlopen，装前用 python 的 ctypes 照样 dlopen 一次；缺省库路径里没有、只能从 `LD_LIBRARY_PATH` 找到时（NixOS）把那个目录写进单元的 `Environment=`。
+字体检查与 bamboo-slip 一样，固定路径一个都不在时问 fontconfig（`fc-match` / `fc-list :lang=…`）；Wayland 原生版自己画候选窗，所以装它时中文字体算缺依赖、不只是提示。
 
 ## apps/linux/ibus
 

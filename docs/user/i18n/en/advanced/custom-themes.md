@@ -4,8 +4,9 @@ order: 3
 description: "Making your own candidate-window theme: where to put it, changing colours on top of a built-in theme, and how to write gradients and images, shadows, sizes and weights, fonts, text outlines, decorations, input status, the floating status bar, transitions and looping animations, and when changes take effect."
 ---
 
-A theme decides how the candidate window looks. A theme looks the same on macOS and Windows, and only applies when 设置 → 外观 → 渲染引擎 (Settings → Appearance → Rendering engine) is set to 青简渲染器 (Qingjian renderer).
+A theme decides how the candidate window looks. A theme looks the same on macOS, Windows and the Linux Wayland native edition, and only applies when 设置 → 外观 → 渲染引擎 (Settings → Appearance → Rendering engine) is set to 青简渲染器 (Qingjian renderer); the Wayland native edition always uses it.
 For choosing a built-in theme, see [Appearance and themes](../personalize/appearance.md#Themes); this page is for people who want to make their own. Theme files are written in JSON.
+On Linux, the fcitx edition's candidate panel is drawn by Fcitx / IBus, so themes and font sizes only affect the settings app's own look and preview; the Wayland native edition's candidate window is drawn by Qingjian, so themes and font sizes apply there too.
 
 ## Where to put it
 
@@ -245,5 +246,5 @@ Decorations can keep moving gently, such as drifting petals or a breathing glow.
 ## When changes take effect
 
 - A newly added theme appears among the theme cards after you reopen Settings.
-- Changes to the theme in use: after saving `theme.json`, they take effect within about a second while you're typing, so you can see your edits as you go.
+- Changes to the theme in use: after saving `theme.json`, they take effect within about a second while you're typing, so you can see your edits as you go (with the Linux fcitx edition this changes the settings app's own look and preview, and the candidate panel follows Fcitx / IBus; the Wayland native edition's candidate window also updates within about a second).
 - If a theme file has mistakes, that theme doesn't appear in the list; if the theme in use can't be read, the candidate window falls back to 青简绿. The reason is recorded in the runtime log (see [Runtime logs](data-files.md#Runtime-logs)).

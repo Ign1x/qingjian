@@ -2,7 +2,8 @@
 # 把 build.sh 打好的 deb / rpm 拿到几个发行版的干净容器里装一遍并自检（install.sh），不碰本机：
 #   apps/linux/packaging/smoke/run.sh                 全部发行版
 #   apps/linux/packaging/smoke/run.sh fedora:42       只跑给出的镜像
-# 每个发行版打印：装上的版本、systemd 自启登记、IBus 组件、插件缺不缺库、打 nihao 的候选、本地整句模型加载、卸载后是否清干净。
+# 每个发行版打印：装上的版本、systemd 自启登记、IBus 组件、插件缺不缺库、Wayland 前端能不能执行与 libxkbcommon 在不在、
+# 打 nihao 的候选、本地整句模型加载、卸载后是否清干净。
 # 容器里没有图形会话，真会话里切到青简打字还是要人在机器上试。
 set -euo pipefail
 here=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)

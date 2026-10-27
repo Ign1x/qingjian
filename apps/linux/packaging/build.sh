@@ -6,9 +6,9 @@
 #   QINGJIAN_SAMPLE=1 apps/linux/packaging/build.sh   只带样例词库（没有产品数据时）
 #
 # 产物在 target/linux-pkg/out/。全部在容器里编，只要 docker（免 sudo）：
-# - Rust 的 Server 与 IBus 前端在 Ubuntu 22.04 里编一次（glibc 2.35），两种包共用，老一点的发行版也跑得起来；
+# - Rust 的 Server、IBus 前端与 Wayland 前端在 Ubuntu 22.04 里编一次（glibc 2.35），两种包共用，老一点的发行版也跑得起来；
 # - fcitx5 插件要对着目标发行版自己的 fcitx5 编（CMakeLists 要 5.1.8+），deb 在 Debian 13、rpm 在 Fedora 42 里编。
-# 每种包里 Server 与数据一个包、fcitx5 插件一个包（IBus 前端没有额外依赖，跟 Server 同包）。
+# 每种包里 Server 与数据一个包、fcitx5 插件一个包、Wayland 原生版的前端一个包（IBus 前端没有额外依赖，跟 Server 同包）。
 # 设计与限制见 docs/notes/linux-packaging.md；打完用 smoke/run.sh 在几个发行版的干净容器里装一遍自检。
 set -euo pipefail
 root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../../.." && pwd)
@@ -50,15 +50,21 @@ in_container() {
   docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp "${env[@]}" -v "$root:/src" -w /src "$tag" "$@"
 }
 
-echo '==> Rust：Server 与 IBus 前端（Ubuntu 22.04）'
+echo '==> Rust：Server、IBus 前端与 Wayland 前端（Ubuntu 22.04）'
 rust_image=$(image rust 'FROM ubuntu:22.04
 RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends build-essential pkg-config libssl-dev ca-certificates && rm -rf /var/lib/apt/lists/*')
 # 工具链与 crate 缓存直接用本机的（rustc 自己只要 glibc 2.17），仓库的 rust-toolchain.toml 照样生效
 cargo_home=${CARGO_HOME:-$HOME/.cargo}
 rustup_home=${RUSTUP_HOME:-$HOME/.rustup}
-docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -e CARGO_HOME=/cargo -e RUSTUP_HOME=/rustup \
-  -e CARGO_TARGET_DIR=/src/target/linux-pkg/cargo -v "$root:/src" -v "$cargo_home:/cargo" -v "$rustup_home:/rustup" -w /src \
-  "$rust_image" /cargo/bin/cargo build --release --locked -p qingjian-linux-server -p qingjian-linux-ibus
+cargo_release() {
+  docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -e CARGO_HOME=/cargo -e RUSTUP_HOME=/rustup \
+    -e CARGO_TARGET_DIR=/src/target/linux-pkg/cargo -v "$root:/src" -v "$cargo_home:/cargo" -v "$rustup_home:/rustup" -w /src \
+    "$rust_image" /cargo/bin/cargo build --release --locked "$@"
+}
+cargo_release -p qingjian-linux-server -p qingjian-linux-ibus
+# Wayland 前端单独编一次：一起编时 cargo 合并依赖的特性，别的包带进来的 winit 会把 wayland-backend 换成
+# dlopen libwayland 的那种；单独编是纯 Rust 的，运行时只 dlopen libxkbcommon（依赖在 deb / rpm 里手写）
+cargo_release -p qingjian-linux-wayland
 bin="$work/cargo/release"
 
 echo '==> 随包资源'
@@ -88,15 +94,27 @@ stage_core() {
   done
 }
 
+# Wayland 原生版那个包摆进 $1：前端与它的 systemd 用户单元。单元不随包 enable，见 docs/notes/linux-packaging.md
+stage_wayland() {
+  local dest=$1
+  install -Dm755 "$bin/qingjian-linux-wayland" "$dest/usr/bin/qingjian-linux-wayland"
+  mkdir -p "$dest/usr/lib/systemd/user"
+  sed 's|@EXEC@|/usr/bin/qingjian-linux-wayland|' "$root/apps/linux/scripts/qingjian-wayland.service.in" \
+    > "$dest/usr/lib/systemd/user/qingjian-wayland.service"
+}
+
 build_deb() {
   echo '==> deb（Debian 13）'
-  local tag stage="$work/deb" core
+  local tag stage="$work/deb" core wayland
   tag=$(image deb 'FROM debian:trixie
 RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends cmake g++ make pkg-config dpkg-dev file libfcitx5core-dev libfcitx5utils-dev libfcitx5config-dev nlohmann-json3-dev && rm -rf /var/lib/apt/lists/*')
   rm -rf "$stage"
   core="$stage/qingjian"
   stage_core "$core"
   install -Dm644 "$root/LICENSE" "$core/usr/share/doc/qingjian/copyright"
+  wayland="$stage/qingjian-wayland"
+  stage_wayland "$wayland"
+  install -Dm644 "$root/LICENSE" "$wayland/usr/share/doc/qingjian-wayland/copyright"
   in_container "$tag" DEB_VERSION="$deb_version" bash /src/apps/linux/packaging/deb/assemble.sh
   rm -f "$out"/*.deb
   cp "$stage"/*.deb "$out/"
@@ -109,6 +127,7 @@ build_rpm() {
 RUN dnf install -y --setopt=install_weak_deps=False rpm-build cmake gcc-c++ make pkgconf-pkg-config fcitx5-devel json-devel systemd-rpm-macros && dnf clean all')
   rm -rf "$stage"
   stage_core "$stage/root"
+  stage_wayland "$stage/root"
   install -Dm644 "$root/LICENSE" "$stage/root/usr/share/licenses/qingjian/LICENSE"
   in_container "$tag" RPM_VERSION="$upstream" RPM_RELEASE="$rpm_release" bash /src/apps/linux/packaging/rpm/assemble.sh
   rm -f "$out"/*.rpm

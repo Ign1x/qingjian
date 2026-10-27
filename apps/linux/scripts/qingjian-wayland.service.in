@@ -1,0 +1,25 @@
+[Unit]
+# 青简 Wayland 原生版的前端：自己当输入法（input-method-v2），引擎在 qingjian-server.service 那个 Server 里。
+# @EXEC@ 由 install.sh / 打包脚本按安装路径填好。发行包不 --global enable：同一个 seat 只能有一个输入法，
+# GNOME / KDE 上也起不来，要用的用户自己 enable（见 docs/notes/linux-packaging.md）。
+Description=青简输入法 Wayland 原生版
+Documentation=https://qingjian.app
+Wants=qingjian-server.service
+After=qingjian-server.service
+PartOf=graphical-session.target
+After=graphical-session.target
+# 会话没把 WAYLAND_DISPLAY 交给 systemd（X11 会话、合成器没导入环境）时不起，不留一次失败
+ConditionEnvironment=WAYLAND_DISPLAY
+ConditionUser=!@system
+
+[Service]
+Type=simple
+ExecStart=@EXEC@
+# 崩了自己起来；退出码 1 是起不来的原因（合成器没有 input-method-v2、seat 被 fcitx5 这类输入法占着、
+# 没有 libxkbcommon、与合成器的连接断了），重启也没用，原因在 journalctl --user -u qingjian-wayland
+Restart=on-failure
+RestartSec=2
+RestartPreventExitStatus=1
+
+[Install]
+WantedBy=graphical-session.target

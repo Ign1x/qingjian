@@ -5,6 +5,7 @@
 
 mod connection;
 mod error;
+mod menu;
 mod reply;
 
 #[cfg(test)]

@@ -623,7 +623,7 @@ IBus 的组件 XML 与 systemd 单元里都写死了安装后的绝对路径，�
 **Wayland 原生版不进 auto**：同一个 seat 只能有一个输入法，装它就得关掉 fcitx5 的 waylandim，要明确选 `wayland`；装完打印这条与各合成器的自启写法，
 会话的 `GTK_IM_MODULE` / `QT_IM_MODULE` 是 fcitx / ibus 时另外提醒。前端单独一次 `cargo build -p qingjian-linux-wayland`（与设置程序同一次编，winit 会把 wayland-backend 统一成 dlopen libwayland 的那种）。
 单元 `qingjian-wayland.service`（模板 `scripts/qingjian-wayland.service.in`）Wants / After Server，PartOf / After / WantedBy `graphical-session.target`，
-`ConditionEnvironment=WAYLAND_DISPLAY`，`Restart=on-failure` + `RestartPreventExitStatus=1`：前端起不来（缺协议、seat 被占、没有 libxkbcommon）都退出码 1，重启没用。
+`ConditionEnvironment=WAYLAND_DISPLAY`，`Restart=on-failure` + `RestartPreventExitStatus=2`：前端起不来（缺协议、seat 被占、没有 libxkbcommon、连不上合成器）退出码 2，重启没用；运行中与合成器的连接断了、协议出错是 1，照常重启（`Error::exit_code`）。
 它运行时按 `libxkbcommon.so.0` dlopen，装前用 python 的 ctypes 照样 dlopen 一次；缺省库路径里没有、只能从 `LD_LIBRARY_PATH` 找到时（NixOS）把那个目录写进单元的 `Environment=`。
 字体检查与 bamboo-slip 一样，固定路径一个都不在时问 fontconfig（`fc-match` / `fc-list :lang=…`）；Wayland 原生版自己画候选窗，所以装它时中文字体算缺依赖、不只是提示。
 

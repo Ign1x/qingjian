@@ -26,9 +26,8 @@ apps/linux/scripts/install.sh --frontend wayland --enable-service    # 两个版
 - 装上 Server、设置程序、这个前端，以及两个 systemd 用户单元：`qingjian-server.service` 与 `qingjian-wayland.service`
   （模板 `apps/linux/scripts/qingjian-wayland.service.in`：Wants / After Server；PartOf / After / WantedBy `graphical-session.target`；
   会话没把 `WAYLAND_DISPLAY` 导入 systemd 时不起）。`--enable-service` 把两个都 `enable --now`。
-- **重启策略**：`Restart=on-failure` 但 `RestartPreventExitStatus=1`。前端起不来的原因（合成器缺协议、seat 被占、没有 libxkbcommon）都退出码 1，
-  重启也没用，原因在 `journalctl --user -u qingjian-wayland`；panic（101）与被信号杀掉照常重启。代价是跑着跑着被合成器断开（同样是 1）也不重启，
-  要 `systemctl --user restart qingjian-wayland`。
+- **重启策略**：`Restart=on-failure` 但 `RestartPreventExitStatus=2`。前端起不来的原因（合成器缺协议、seat 被占、没有 libxkbcommon、连不上合成器）都退出码 2，
+  重启也没用，原因在 `journalctl --user -u qingjian-wayland`；跑着跑着与合成器的连接断了、协议出错是 1，与 panic（101）、被信号杀掉一样照常重启。
 - **随桌面启动**：niri（`niri-session`）、uwsm 这类会启动 `graphical-session.target` 的会话里 enable 就够；Hyprland、sway 直接启动时没有这个 target，
   在配置里加 `exec-once = systemctl --user import-environment WAYLAND_DISPLAY && systemctl --user start qingjian-wayland.service`（sway 写 `exec`）。
   先导入再起：合成器自己也会异步导入环境，赛跑输了单元的 `ConditionEnvironment` 不满足、不起。

@@ -27,3 +27,18 @@ pub enum Error {
     #[error("wayland connection: {0}")]
     Connection(#[from] wayland_client::backend::WaylandError),
 }
+
+impl Error {
+    /// 进程的退出码：2 是这个桌面 / 会话跑不了（缺协议、seat 被别的输入法占着、没有 libxkbcommon、连不上合成器），
+    /// 重启也没用，systemd 单元据此不再重启（`RestartPreventExitStatus=2`）；1 是跑着跑着出的错（合成器断开、协议错误），可以重启。
+    pub fn exit_code(&self) -> i32 {
+        match self {
+            Self::Xkb
+            | Self::Connect(_)
+            | Self::Globals(_)
+            | Self::Missing(_)
+            | Self::Unavailable => 2,
+            Self::Dispatch(_) | Self::Connection(_) => 1,
+        }
+    }
+}

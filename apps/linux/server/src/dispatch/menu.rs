@@ -17,7 +17,10 @@ impl Router {
         let Some(candidate) = self.menu_candidate(index) else {
             return Vec::new();
         };
-        candidate_menu::actions(&self.engine, &candidate, &self.configured_phrases())
+        let Some(phrases) = self.configured_phrases() else {
+            return Vec::new();
+        };
+        candidate_menu::actions(&self.engine, &candidate, &phrases)
             .into_iter()
             .map(|action| MenuItem {
                 id: action.id(),
@@ -34,7 +37,9 @@ impl Router {
         let Some(candidate) = self.menu_candidate(index) else {
             return false;
         };
-        let phrases = self.configured_phrases();
+        let Some(phrases) = self.configured_phrases() else {
+            return false;
+        };
         if !candidate_menu::actions(&self.engine, &candidate, &phrases).contains(&action) {
             return false;
         }
@@ -48,7 +53,8 @@ impl Router {
         );
         // 不等热加载那一秒：短语当场换上，下面重排就按新的来
         if outcome.phrases_changed
-            && let Err(error) = self.engine.set_custom_phrases(self.configured_phrases())
+            && let Some(phrases) = self.configured_phrases()
+            && let Err(error) = self.engine.set_custom_phrases(phrases)
         {
             tracing::warn!(%error, "置顶后的自定义短语未应用");
         }
@@ -68,11 +74,19 @@ impl Router {
         self.layout_candidate(self.highlight / page_size * page_size + index)
     }
 
-    /// 配置文件里的自定义短语；没开热加载（测试）或读不了时为空。
-    fn configured_phrases(&self) -> Vec<CustomPhrase> {
-        self.config_path()
-            .and_then(|path| Config::load(path).ok())
-            .map(|config| config.custom_phrases)
-            .unwrap_or_default()
+    /// 配置文件里的自定义短语；没开热加载（测试）时为空表。
+    /// 配置文件读不了（改到一半存下的坏文件）是 `None`：这时不能弹菜单——置顶是「读出短语表、加一条、整表写回」，
+    /// 拿空表当底子写回去会把用户已有的自定义短语全部抹掉。
+    fn configured_phrases(&self) -> Option<Vec<CustomPhrase>> {
+        let Some(path) = self.config_path() else {
+            return Some(Vec::new());
+        };
+        match Config::load(path) {
+            Ok(config) => Some(config.custom_phrases),
+            Err(error) => {
+                tracing::warn!(%error, "配置文件读不了，这次不弹候选菜单");
+                None
+            }
+        }
     }
 }

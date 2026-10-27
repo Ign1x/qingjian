@@ -248,12 +248,11 @@ fn shared_client_drives_the_candidate_menu_against_the_real_server() {
 
     // 右键：问这一格能做什么，帧不变；点「降权」做完带提示、换一帧
     let menu = connection.menu(session, identity.clone(), slot).unwrap();
-    let labels: Vec<_> = menu.menu.iter().map(|item| item.label.as_str()).collect();
+    let labels: Vec<_> = menu.iter().map(|item| item.label.as_str()).collect();
     assert!(
         labels.contains(&"降权") && labels.contains(&"删除"),
         "{labels:?}"
     );
-    assert!(menu.identity.is_none());
     let picked = connection
         .menu_pick(
             session,
@@ -267,9 +266,48 @@ fn shared_client_drives_the_candidate_menu_against_the_real_server() {
     assert!(notice.contains("你好"), "{notice}");
     assert!(picked.revision() > Some(identity.revision));
     let stale = connection.menu(session, identity, slot).unwrap();
-    assert!(stale.menu.is_empty(), "过期的帧问不到菜单");
+    assert!(stale.is_empty(), "过期的帧问不到菜单");
 
     connection.close_session(session).unwrap();
+    drop(connection);
+    drop(server);
+    let _ = std::fs::remove_dir_all(&directory);
+}
+
+/// 同一条连接上两个应用各一个会话（Wayland 前端按应用分会话就是这样）：在 A 里切到英文，B 仍是中文，
+/// 切回 A 时它还记得英文——中 / 英按会话记，`OpenSession.app` 原样带到 Server。
+#[test]
+fn modes_are_kept_per_app_session_on_one_connection() {
+    let (server, directory, _path, mut connection, first) =
+        start("per-app", "[shortcut]\nswitch_mode = \"shift\"\n");
+    let second = connection
+        .open_session("per-app-b", Some("org.gnome.TextEditor"))
+        .unwrap();
+    connection
+        .capabilities(second, Capabilities::default())
+        .unwrap();
+
+    connection
+        .key(first, to_key_event(keysym::SHIFT_L, 0), false, None, false)
+        .unwrap();
+    let toggled = connection
+        .key(first, to_key_event(keysym::SHIFT_L, 1), true, None, false)
+        .unwrap();
+    assert_eq!(toggled.english, Some(true));
+
+    connection.focus(first, false).unwrap();
+    connection.focus(second, true).unwrap();
+    let typed = type_text(&mut connection, second, "ni");
+    assert_eq!(typed.outcome, KeyOutcome::Consumed, "B 没被 A 的切换带走");
+    assert!(typed.mode.as_ref().is_some_and(|mode| !mode.english));
+    connection.reset(second).unwrap();
+
+    connection.focus(second, false).unwrap();
+    let back = connection.focus(first, true).unwrap();
+    assert!(
+        back.mode.as_ref().is_some_and(|mode| mode.english),
+        "A 还记得英文"
+    );
     drop(connection);
     drop(server);
     let _ = std::fs::remove_dir_all(&directory);

@@ -204,3 +204,38 @@ fn pin_writes_the_phrase_and_puts_it_first() {
     );
     std::fs::remove_dir_all(directory).unwrap();
 }
+
+/// 配置文件改到一半存下了坏文件（类型不对的合法 TOML）：不弹菜单、点了也不做——
+/// 置顶是读出短语表加一条再整表写回，拿空表当底子会把用户已有的自定义短语全抹掉。
+#[test]
+fn a_broken_config_never_loses_custom_phrases() {
+    let directory =
+        std::env::temp_dir().join(format!("qingjian-linux-menu-broken-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&directory);
+    std::fs::create_dir_all(&directory).unwrap();
+    let path = directory.join("config.toml");
+    let good = "[general]\n\n[[custom_phrases]]\ncode = \"wo\"\ntext = \"我的签名\"\n";
+    std::fs::write(&path, good).unwrap();
+    let mut router = router();
+    router.watch_config(
+        &Config::load(&path).unwrap(),
+        path.clone(),
+        directory.clone(),
+        directory.clone(),
+    );
+    let identity = compose(&mut router, 1, "ni")["identity"].clone();
+    assert!(labels(&menu(&mut router, &identity, 1)).contains(&"置顶".to_owned()));
+
+    let broken =
+        "[general]\npage_size = \"九\"\n\n[[custom_phrases]]\ncode = \"wo\"\ntext = \"我的签名\"\n";
+    std::fs::write(&path, broken).unwrap();
+    assert!(labels(&menu(&mut router, &identity, 1)).is_empty());
+    let picked = pick(&mut router, &identity, 1, CandidateAction::Pin);
+    assert_ne!(picked["KeyResult"]["outcome"], "Consumed", "{picked}");
+    assert_eq!(
+        std::fs::read_to_string(&path).unwrap(),
+        broken,
+        "坏文件原样留着，等用户改好"
+    );
+    std::fs::remove_dir_all(directory).unwrap();
+}

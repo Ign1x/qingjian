@@ -15,11 +15,11 @@ ConditionUser=!@system
 [Service]
 Type=simple
 ExecStart=@EXEC@
-# 崩了自己起来；退出码 1 是起不来的原因（合成器没有 input-method-v2、seat 被 fcitx5 这类输入法占着、
-# 没有 libxkbcommon、与合成器的连接断了），重启也没用，原因在 journalctl --user -u qingjian-wayland
+# 崩了或与合成器的连接断了（退出码 1）自己起来；退出码 2 是这个桌面跑不了（合成器没有 input-method-v2、
+# seat 被 fcitx5 这类输入法占着、没有 libxkbcommon、连不上合成器），重启也没用，原因在 journalctl --user -u qingjian-wayland
 Restart=on-failure
 RestartSec=2
-RestartPreventExitStatus=1
+RestartPreventExitStatus=2
 
 [Install]
 WantedBy=graphical-session.target

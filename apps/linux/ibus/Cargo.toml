@@ -29,4 +29,4 @@ workspace = true
 [dev-dependencies]
 qingjian-core.workspace = true
 # 对着真 ibus-daemon 的端到端测试要自己当一回 IBus 客户端
-futures-util = { version = "0.3.34", default-features = false }
+futures-util.workspace = true

@@ -14,10 +14,11 @@ use std::time::Duration;
 
 use serde_json::{Value, json};
 
+use super::menu::menu_items;
 use super::{ClientError, Reply};
 use crate::protocol::linux::{
     AppSurrounding, Capabilities, DisplayAcknowledged, DisplayIdentity, LINUX_UI_PROTOCOL,
-    LinuxEvent, ModeCommand, socket_path,
+    LinuxEvent, MenuItem, ModeCommand, socket_path,
 };
 use crate::protocol::{
     ClientMessage, KeyEvent, KeyOutcome, PROTOCOL_VERSION, SessionId, read_message, write_message,
@@ -231,15 +232,16 @@ impl Connection {
         self.event(session, LinuxEvent::Page { identity, next })
     }
 
-    /// 右键了当前页第 `index` 格（Linux 协议 v4 起）：回包的 [`Reply::menu`] 是这格能做的几项，空的就不弹菜单。
+    /// 右键了当前页第 `index` 格（Linux 协议 v4 起）：回这格能做的几项，空的就不弹菜单（问的那一帧已经过期也是空的）。
     /// 只是问一句，帧与展示身份都不变。`identity` 的规矩同 [`Self::candidate`]。
     pub fn menu(
         &mut self,
         session: SessionId,
         identity: DisplayIdentity,
         index: usize,
-    ) -> Result<Reply, ClientError> {
-        self.event(session, LinuxEvent::Menu { identity, index })
+    ) -> Result<Vec<MenuItem>, ClientError> {
+        let message = json!({"LinuxEvent": {"session": session, "event": LinuxEvent::Menu { identity, index }}});
+        menu_items(self.request(&message)?)
     }
 
     /// 右键菜单里点了一项（v4 起）：`action` 原样用 [`MenuItem::id`](crate::protocol::linux::MenuItem::id)，

@@ -40,11 +40,10 @@ fn panel_calls_carry_the_display_identity() {
     assert_eq!(clicked.outcome, KeyOutcome::Consumed);
     connection.page(session, identity(), true).expect("翻页");
     let menu = connection.menu(session, identity(), 1).expect("右键");
-    let labels: Vec<_> = menu.menu.iter().map(|item| item.label.as_str()).collect();
+    let labels: Vec<_> = menu.iter().map(|item| item.label.as_str()).collect();
     assert_eq!(labels, ["降权", "删除"]);
-    assert!(menu.identity.is_none(), "问菜单不换帧，没有新的展示身份");
     connection
-        .menu_pick(session, identity(), 1, menu.menu[0].id)
+        .menu_pick(session, identity(), 1, menu[0].id)
         .expect("点菜单项");
 
     connection.close_session(session).expect("关会话");

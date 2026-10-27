@@ -81,6 +81,8 @@ tokio = { version = "1.53.1", features = ["rt", "time"] }
 
 # Linux IBus 前端：IBus 走 D-Bus，纯 Rust
 zbus = { version = "5.19.0", default-features = false, features = ["tokio"] }
+# IBus 前端的端到端测试与 Wayland 前端的 portal 线程用它的流与组合子
+futures-util = { version = "0.3.34", default-features = false }
 # Linux 前端的 keysym → Unicode：与 Fcitx5 的 Key::keySymToUnicode 同一张表（同源于 xkbcommon），纯 Rust
 xkeysym = "0.2.1"
 

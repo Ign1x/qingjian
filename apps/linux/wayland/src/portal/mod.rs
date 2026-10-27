@@ -147,10 +147,14 @@ async fn call(
     method: &'static str,
     body: &(&str, &str),
 ) -> zbus::Result<OwnedValue> {
-    proxy
-        .call_with_flags(method, MethodFlags::NoAutoStart.into(), body)
-        .await?
-        .ok_or(zbus::Error::InvalidReply)
+    // 连接上设的 method_timeout 只管 `Connection::call_method`，`call_with_flags` 不经过它，超时得自己套
+    let reply = tokio::time::timeout(
+        TIMEOUT,
+        proxy.call_with_flags(method, MethodFlags::NoAutoStart.into(), body),
+    )
+    .await
+    .map_err(|_| zbus::Error::InputOutput(Arc::new(std::io::ErrorKind::TimedOut.into())))??;
+    reply.ok_or(zbus::Error::InvalidReply)
 }
 
 /// 记下 portal 给的一项；是认得的设置、且值变了时返回它。

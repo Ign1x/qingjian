@@ -135,6 +135,7 @@ qingjian-linux-wayland ──Unix socket，protocol::linux（与 Fcitx5 插件�
   `[apps]` 不生效、中 / 英状态共用，英文候选不出（Server 对没报应用名的会话按不给处理）。没有这个全局对象时启动日志记一句。
 - 密码框（见协议对照）先报 `Capabilities{password: true}` 让 Server 丢弃输入、进隐私模式，之后不 grab，键盘直接归应用；还没用过的应用里的密码框不为它开会话。
 - Server 连不上时不 grab；连接出错就清掉 preedit、藏起 popup、release grab，2 秒内不再重试——Server 主线程卡住时连接照样能建，但每个请求都要等满 200 ms 超时，不退避的话每键都卡。
+  一次往返失败（哪怕只是一次 200 ms 超时）就扔掉整条连接，Server 关掉它上面的全部会话：所有应用的中 / 英状态都回到缺省，不只是 LRU 关掉与 Server 重启这两种。
 - 日志不记按键、字符、上屏文字与前后文。foreign-toplevel 也报窗口标题，不读；app_id 只在 debug 级日志里出现。
 
 ## 已知限制
@@ -149,13 +150,14 @@ qingjian-linux-wayland ──Unix socket，protocol::linux（与 Fcitx5 插件�
 ## 分期
 
 - **第一轮**：本文 + 可用原型（上面除「分期」外的全部）。
-- **P1 补齐 fcitx 版已有的**：~~按应用会话~~（已做，见「会话与隐私」）；
-  选区翻译（`surrounding_text` 里的选区 → `Selection`）；中 / 英提示（`KeyResult.english` → `Renderer::render_status` 在 popup 里亮一秒）；
-  Server 回包附当前模式（`handle_linux` 加字段，像 `translation_pending` 一样只增不改，Fcitx5 插件不读不受影响）；用 `wayland-server` 写假合成器集成测试。
-- **P2 macOS / Windows 级特性**：鼠标点选（`Rendered::hit_at` → `Candidate` / `Page`，先验合成器肯不肯把指针事件给 popup）；
-  候选右键菜单（`Renderer::render_menu` 画在同一个 popup 里，与 macOS / Windows 一样自绘；要加 Linux 菜单事件，`LINUX_UI_PROTOCOL` 升版，Fcitx5 / Fcitx4 插件跟着改）；
-  按 `text_input_rectangle` 判断翻没翻；托盘（StatusNotifierItem + DBusMenu，原生菜单）；键位提示画进同一个 popup。
-- **P3 发布**：`install.sh --frontend wayland`、systemd 用户服务（`PartOf=graphical-session.target`）、deb / rpm、CI、设置程序支持表区分两个版本、用户文档。
+- **第二轮第一批（已做）**：按应用会话（见「会话与隐私」）；外观跟随系统（见「显示」）；Linux 协议 v4 的 Server 一侧——回包附当前模式（`mode`，只增不改）、
+  托盘用的切换命令（`Indicator`）、候选右键菜单（`Menu` / `MenuPick`）、共用客户端的点选、翻页与选区翻译，Fcitx5 / Fcitx4 插件仍报 v3、不用改（见协议对照）；
+  `install.sh --frontend wayland`、systemd 用户服务（退出码 2 不重启）、deb / rpm 另出 `qingjian-wayland` 包、用户文档；对着假合成器与假 Server 的黑盒测试。
+- **第二轮第二批**：前端接上 v4——鼠标点选与滚轮翻页（`Rendered::hit_at` → `Candidate` / `Page`，先验合成器肯不肯把指针事件给 popup）、
+  候选右键菜单（`Renderer::render_menu` 画在同一个 popup 里，与 macOS / Windows 一样自绘）、中 / 英提示（`Renderer::render_status` 在 popup 里亮一秒）与主题里的模式、
+  托盘（StatusNotifierItem + DBusMenu，原生菜单）、选区翻译；Server 补齐设置程序里 Linux 标「待实现」的输入功能（辅码、形码、自动加空格、翻页与高亮键、
+  全半角与简繁快捷键、小键盘数字、按应用记中英、横排矩阵、拼音行声调、键位提示、实验模型）。
+- **之后**：按 `text_input_rectangle` 判断翻没翻、调排布；设置程序支持表区分两个版本；CI 跑黑盒测试（要 libxkbcommon 与 libwayland-client）。
 
 ## 验证
 

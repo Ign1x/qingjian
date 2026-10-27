@@ -41,7 +41,7 @@ fn run() -> i32 {
         Err(error) => {
             tracing::error!(%error, "Wayland 前端退出");
             eprintln!("qingjian-linux-wayland: {error}");
-            1
+            error.exit_code()
         }
     }
 }

@@ -2,9 +2,9 @@
 
 use super::support::{KEY_A, Request, Rig, Setup};
 
-/// 同一个 seat 上已经有输入法（fcitx5 的 waylandim 开着）：合成器回 unavailable，退出码 1 并说明原因。
+/// 同一个 seat 上已经有输入法（fcitx5 的 waylandim 开着）：合成器回 unavailable，退出码 2（这个会话跑不了，systemd 不再重启）并说明原因。
 #[test]
-fn unavailable_seat_exits_with_one() {
+fn unavailable_seat_exits_with_two() {
     let mut rig = Rig::spawn(Setup {
         unavailable: true,
         ..Setup::default()
@@ -12,7 +12,7 @@ fn unavailable_seat_exits_with_one() {
     let Some(exit) = rig.frontend.exit() else {
         return;
     };
-    assert_eq!(exit.code, Some(1), "{}", exit.stderr);
+    assert_eq!(exit.code, Some(2), "{}", exit.stderr);
     assert!(
         exit.stderr
             .contains("another input method already holds the seat"),
@@ -21,9 +21,9 @@ fn unavailable_seat_exits_with_one() {
     );
 }
 
-/// KWin、GNOME 这类没有 input-method-v2 的合成器：退出码 1，提示改用 fcitx 版。
+/// KWin、GNOME 这类没有 input-method-v2 的合成器：退出码 2，提示改用 fcitx 版。
 #[test]
-fn missing_input_method_manager_exits_with_one() {
+fn missing_input_method_manager_exits_with_two() {
     let mut rig = Rig::spawn(Setup {
         input_method: false,
         ..Setup::default()
@@ -31,7 +31,7 @@ fn missing_input_method_manager_exits_with_one() {
     let Some(exit) = rig.frontend.exit() else {
         return;
     };
-    assert_eq!(exit.code, Some(1), "{}", exit.stderr);
+    assert_eq!(exit.code, Some(2), "{}", exit.stderr);
     assert!(
         exit.stderr
             .contains("the compositor does not offer zwp_input_method_manager_v2"),

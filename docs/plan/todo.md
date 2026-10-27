@@ -144,12 +144,13 @@
     GNOME Wayland 上改在快捷键交给应用前先原样上屏，鼠标换框仍会丢，见 [notes/linux-bringup.md](../notes/linux-bringup.md)
   - ~~安装脚本按已装框架分支安装、Server 的启动策略~~：`install.sh --frontend auto` 已做，systemd 用户单元 `qingjian-server.service` 随装（`--enable-service` 顺手 enable），两个前端共用一个 Server
   - `[general] preedit` 三档在 IBus 面板下逐个真机验（它的面板能力比 fcitx5 弱），坑见 [notes/linux-bringup.md](../notes/linux-bringup.md)
-- [~] Linux Wayland 原生版（`apps/linux/wayland`，设计见 [design/linux-wayland.md](../design/linux-wayland.md)）：第一轮原型，Hyprland 真机验。还差：
-  - P1：~~按应用会话~~（已做，见下一条）、选区翻译、中 / 英提示、Server 回包附当前模式、假合成器集成测试
-  - 按应用会话（`zwlr_foreign_toplevel_manager_v1` 取活动窗口的 app_id，一个应用一个 Server 会话）待真会话验：两个应用里各自切中英、来回切换各自记住，
-    `[apps]` 英文候选名单里的应用出英文候选，切窗口时不白换会话（`RUST_LOG=debug` 看「活动窗口换了应用」）；sway / niri / labwc 上报活动窗口与激活输入框的先后
-  - P2：鼠标点选与翻页、候选右键菜单（`LINUX_UI_PROTOCOL` 升版，Fcitx5 / Fcitx4 插件跟着改）、外观跟随系统（xdg-desktop-portal）、候选窗翻到光标上方时的排布、托盘、键位提示
-  - P3：`install.sh --frontend wayland`、systemd 用户服务、deb / rpm、CI、设置程序支持表区分 fcitx 版与 Wayland 版、用户文档
+- [~] Linux Wayland 原生版（`apps/linux/wayland`，设计见 [design/linux-wayland.md](../design/linux-wayland.md)）：原型可用，Hyprland 真机验过。已做：按应用会话、外观跟随系统、
+  Linux 协议 v4 的 Server 一侧（回包带模式、托盘切换命令、候选右键菜单，Fcitx5 / Fcitx4 插件不用改）、安装脚本与 systemd 用户服务、deb / rpm、用户文档、黑盒测试。还差：
+  - 前端接上 v4：鼠标点选与滚轮翻页、候选右键菜单、中 / 英提示与主题里的模式、托盘、选区翻译
+  - 按应用会话与跟随深浅待真会话验：两个应用里各自切中英、来回切换各自记住，`[apps]` 英文候选名单里的应用出英文候选，
+    切窗口时不白换会话（`RUST_LOG=debug` 看「活动窗口换了应用」）；桌面切深浅时候选窗一秒内跟着换；sway / niri / labwc 上报活动窗口与激活输入框的先后
+  - 按 `text_input_rectangle` 判断候选窗翻没翻到光标上方、调排布；设置程序支持表区分 fcitx 版与 Wayland 版；CI 跑黑盒测试
+  - 预编译 tarball（`package.sh`）还只有 Fcitx5 版；deb / rpm 的 `qingjian-wayland` 包还没在容器里真打过、没跑 smoke
   - sway / niri / labwc 上逐个真机验（第一轮只验了 Hyprland）
   - 连发按键时每个键都画一帧：重主题（樱花）release 版 1.5 倍下每帧十几毫秒，跟得上；真不够时改成一批事件处理完只画最后一帧
 - [ ] 渲染器的译词编号把读音也算一号：`from_candidate` 把读音（emoji 跟着的词、问字的拼音）拼在注记最前面，渲染器按分隔符编号，真正的第 0 条义项成了第 1 号。

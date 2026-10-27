@@ -2,8 +2,8 @@
 
 use serde_json::json;
 
+use crate::protocol::linux::InputMode;
 use crate::protocol::linux::client::{ClientError, Reply};
-use crate::protocol::linux::{InputMode, MenuItem};
 use crate::protocol::{Frame, KeyOutcome};
 
 /// 回包上 Linux Server 另附的几样：展示身份整份读出来、切换中 / 英时的 `english`、帧上的 `translation_pending`、模式。
@@ -74,35 +74,6 @@ fn mode_rides_on_updates_and_is_optional() {
     assert_eq!(old.outcome, KeyOutcome::Consumed);
 }
 
-/// 右键菜单的回包读成 `menu`；按键与上屏都是缺省（放行、不上屏），前端只拿它弹菜单。
-#[test]
-fn menu_reply_lists_items() {
-    let reply = Reply::from_value(json!({"Menu": {"session": 1, "items": [
-        {"id": 1, "label": "置顶"},
-        {"id": 5, "label": "删除"},
-    ]}}))
-    .expect("菜单回包");
-    assert_eq!(
-        reply.menu,
-        [
-            MenuItem {
-                id: 1,
-                label: "置顶".to_owned()
-            },
-            MenuItem {
-                id: 5,
-                label: "删除".to_owned()
-            },
-        ]
-    );
-    assert_eq!(reply.outcome, KeyOutcome::Passthrough);
-    assert!(reply.commit.is_none());
-    assert!(matches!(
-        Reply::from_value(json!({"Menu": {"session": 1}})),
-        Err(ClientError::Unexpected(_))
-    ));
-}
-
 /// `RequestSelection` 读成请求编号：按键先当放行，真正吃不吃看回了选区之后的那次回包。
 #[test]
 fn selection_request_carries_its_number() {
@@ -110,7 +81,6 @@ fn selection_request_carries_its_number() {
         .expect("选区请求");
     assert_eq!(reply.selection_request, Some(4));
     assert_eq!(reply.outcome, KeyOutcome::Passthrough);
-    assert!(reply.menu.is_empty());
 }
 
 /// `Ignored` 当没事发生（放行）；`Committed` 这类 Linux 事件不会收到的回包报意外，不当成按键结果。

@@ -86,7 +86,7 @@ KDE Plasma（Wayland）上输入法由 KWin 拉起，默认是 fcitx5：「系�
 - IBus：「设置 → 键盘 → 输入源」添加「青简」（GNOME），或 `ibus engine qingjian`。
 - fcitx5：`fcitx5-configtool` 里取消「仅显示当前语言」，添加「青简」。
 - Wayland 原生版：关掉 fcitx5（或它的「Wayland 输入法前端」附加组件），`systemctl --user enable --now qingjian-wayland.service`；
-  Hyprland / sway 另在配置里起它，见用户文档。起不来的原因：`journalctl --user -u qingjian-wayland`（退出码 1 不重启，见单元模板的注释）。
+  Hyprland / sway 另在配置里起它，见用户文档。起不来的原因：`journalctl --user -u qingjian-wayland`（退出码 2 是这个桌面跑不了，不重启；1 是运行中出错，会重启；见单元模板的注释）。
 - 配置：`~/.config/qingjian/config.toml`，保存后约一秒内生效（`preedit` 与 `input_log` 两项要重启 Server）。
 - 自检（不经过输入法框架，直接问 Server）：`qingjian-linux-ibus --check nihao`。
 - Server 状态与日志：`systemctl --user status qingjian-server`、`journalctl --user -u qingjian-server`。

@@ -110,8 +110,16 @@ qingjian-linux-wayland ──Unix socket，protocol::linux（与 Fcitx5 插件�
   fcitx 版只画第一条义项，这里画全部，所以每条都报，生词标记才会照常衰减。
 - **字体。** 与 Windows 同一流程：`[general] font` 空用 `FontLibrary::system("zh-CN")`，否则按字族名找文件；Linux 的「按字族名找文件」与清单路径缺失时的兜底走 fontconfig（见 crate-notes 的 bamboo-slip 一节）。
 - **主题。** `ThemeLibrary::load($XDG_DATA_HOME/qingjian/themes).resolve(id, 深浅)`，再套用户字号与动画开关；配置文件与主题目录每秒查一次戳，变了就重读。
-  外观 `System` 第一轮按浅色（跟随系统要读 xdg-desktop-portal，见分期）。
   Hyprland 的 `decoration:blur:input_methods = true` 会给 popup 加背景模糊，配半透明背景的主题就是毛玻璃效果。
+- **外观跟随系统。** 帧里的外观是 `System` 时深浅看桌面：后台线程在会话总线上读 xdg-desktop-portal Settings 的 `org.freedesktop.appearance` `color-scheme`，
+  1（偏好深色）为深色，0（无偏好）、2（偏好浅色）与不认识的值为浅色。先订 `SettingChanged` 再读初值（读的途中改了也漏不掉），之后跟着信号变；
+  读用 `ReadOne`，第 1 版的 portal 没有它，退回 `Read`（值多包一层 variant）。
+  读的时候不让总线按需拉起 portal：输入法在会话里起得早，这时 `WAYLAND_DISPLAY` 可能还没交给 D-Bus 的激活环境，拉起来的 portal 后端连不上合成器；
+  portal 不在就等它上线（`NameOwnerChanged`）再读，重启后也重读一遍。画每一帧只读原子量，不碰 D-Bus；
+  桌面换了深浅，在每秒查戳的那一次发现、重画当前帧，所以至多晚一秒；浅色、深色两个固定外观不受桌面影响。
+  减少动态效果（`Renderer::set_reduce_motion`）看同一命名空间的 `reduced-motion`（1 为减少）与 GNOME 系后端转出的 `org.gnome.desktop.interface` `enable-animations`，
+  任一要求减少就不播过渡与循环动画，开关变了也重画当前帧（循环动画要停下或接着播）。
+  没有会话总线、没有 portal 或它给不出 `color-scheme` 时按浅色，日志记一条 info；这些都在后台线程里，不耽误启动。
 
 ## 会话与隐私
 
@@ -146,18 +154,22 @@ qingjian-linux-wayland ──Unix socket，protocol::linux（与 Fcitx5 插件�
   Server 回包附当前模式（`handle_linux` 加字段，像 `translation_pending` 一样只增不改，Fcitx5 插件不读不受影响）；用 `wayland-server` 写假合成器集成测试。
 - **P2 macOS / Windows 级特性**：鼠标点选（`Rendered::hit_at` → `Candidate` / `Page`，先验合成器肯不肯把指针事件给 popup）；
   候选右键菜单（`Renderer::render_menu` 画在同一个 popup 里，与 macOS / Windows 一样自绘；要加 Linux 菜单事件，`LINUX_UI_PROTOCOL` 升版，Fcitx5 / Fcitx4 插件跟着改）；
-  外观跟随系统（xdg-desktop-portal `org.freedesktop.appearance` 的 `color-scheme`）；按 `text_input_rectangle` 判断翻没翻；托盘（StatusNotifierItem + DBusMenu，原生菜单）；键位提示画进同一个 popup。
+  按 `text_input_rectangle` 判断翻没翻；托盘（StatusNotifierItem + DBusMenu，原生菜单）；键位提示画进同一个 popup。
 - **P3 发布**：`install.sh --frontend wayland`、systemd 用户服务（`PartOf=graphical-session.target`）、deb / rpm、CI、设置程序支持表区分两个版本、用户文档。
 
 ## 验证
 
-能自动跑的都是纯逻辑（按键表、抬键与重复、`content_type` 映射、偏移换算与前后文截取、4 KB 切块、像素换算与补边、回包身份判断、活动窗口的跟踪、按应用分会话），
+能自动跑的都是纯逻辑（按键表、抬键与重复、`content_type` 映射、偏移换算与前后文截取、4 KB 切块、像素换算与补边、回包身份判断、活动窗口的跟踪、按应用分会话、外观偏好的取值与要不要重画），
 不要合成器，CI 照跑；按应用分会话另有一组对着走真 socket 的假 Server 测连接上的消息。
+portal 的 D-Bus 往来另有对着私有 dbus-daemon 上假 portal 的测试（`ReadOne`、第 1 版的 `Read`、`SettingChanged`、不按需拉起、portal 后上线），
+要 dbus-daemon，缺省不跑：`cargo test -p qingjian-linux-wayland -- --ignored portal`。
 只能真会话验的，在 Hyprland 上逐个应用过：foot / kitty、GTK4、Firefox、Chromium（`--enable-wayland-ime`）、Qt6——
-打字上屏、数字选词、翻页、Shift 切换后 Shift 不卡、组句中按住退格、Ctrl+C 先上原文、NumLock、密码框、组句中切窗口、整句重排换帧、1.5 倍缩放不糊、热加载换主题、Server 中途重启、
-两个应用里各自切中 / 英后来回切换各自记住、`[apps]` 英文候选名单里的应用出英文候选（按应用分会话还没在真会话里验过）。
+打字上屏、数字选词、翻页、Shift 切换后 Shift 不卡、组句中按住退格、Ctrl+C 先上原文、NumLock、密码框、组句中切窗口、整句重排换帧、1.5 倍缩放不糊、热加载换主题、桌面切深浅、Server 中途重启、
+两个应用里各自切中 / 英后来回切换各自记住、`[apps]` 英文候选名单里的应用出英文候选（按应用分会话与跟随深浅还没在真会话里验过）。
 嵌套 sway 1.12（headless 后端，不开窗口、不碰宿主会话）+ foot 1.28 + wtype 已经过了一遍（2026-10-28）：
 连发与按人速打字的行内拼音、空格 / 数字 / 翻页选词、Esc、回车上原文、退格、单击 Shift 切中英、组句中 Ctrl+A 先上原文、空闲时 Ctrl+C 原样交给应用、
 1.5 倍缩放、Server 中途停掉键照常直通与重启后自动接上、按住退格的重复与删空后交还应用、组句中切换窗口、改配置换主题（樱花主题）、第二个输入法收到 `unavailable`。
 release 版每帧渲染内置主题几毫秒、樱花主题 1.5 倍下 9–21 毫秒。Hyprland 嵌套跑不起来（它要 xdg_wm_base v6、headless 后端没有 GPU 分配器），只能在真会话里验；
 foot 不报前后文、内容类型总是 terminal，密码框与前后文要换 GTK4 应用验。真会话的结果见 `apps/linux/wayland/README.md`。
+外观跟随系统只对着 Hyprland 会话里在跑的 portal（第 2 版、gtk 后端）读过初值（2026-10-28：`color-scheme` 为 1、`enable-animations` 为 true，没有 `reduced-motion`），
+桌面切深浅时候选窗跟着换还没在真会话里验。

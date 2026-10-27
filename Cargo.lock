@@ -3867,6 +3867,7 @@ dependencies = [
 name = "qingjian-linux-wayland"
 version = "0.1.0-dev"
 dependencies = [
+ "futures-util",
  "libc",
  "memmap2",
  "qingjian-core",
@@ -3874,6 +3875,7 @@ dependencies = [
  "qingjian-render",
  "serde_json",
  "thiserror 2.0.21",
+ "tokio",
  "tracing",
  "tracing-appender",
  "tracing-subscriber",
@@ -3882,6 +3884,7 @@ dependencies = [
  "wayland-protocols-misc",
  "wayland-protocols-wlr",
  "xkbcommon-dl",
+ "zbus",
 ]
 
 [[package]]

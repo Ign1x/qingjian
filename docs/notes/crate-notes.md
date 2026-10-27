@@ -664,7 +664,15 @@ Wayland 原生版的前端（设计见 `docs/design/linux-wayland.md`）：自�
   `grab.rs` 读键位表（`MAP_PRIVATE` 映射）、用 `xkb.rs`（xkbcommon-dl，运行时 dlopen）算 keysym 与 X11 掩码，按到达顺序排队；
   `keyboard.rs` 是进程里唯一的虚拟键盘（与输入法同一条连接，合成器才不会把转出去的键又送回 grab）；`popup.rs` 有分数缩放时用 viewport、buffer scale 保持 1；
   `shm.rs` 三块缓冲轮换；`context.rs` 实现 `Output`；`mod.rs` 是主循环（`poll` 等合成器事件或下一个到点的事，SIGINT / SIGTERM 退出前替按着的键补抬起）。
-- `view/`：`Painter`（字体库、渲染器、主题，配置与主题目录每秒查一次戳）、`bitmap.rs`（位图左上的阴影边裁到 4 点、补齐到整逻辑像素、RGBA → ARGB8888）、`senses`（从点击区域取画出的义项回执）。
+- `view/`：`Painter`（字体库、渲染器、主题，配置与主题目录每秒查一次戳；外观「跟随系统」按 `portal::Desktop` 取深浅，桌面的偏好变得影响到画着的那一帧时 `reload` 也返回 `true`）、
+  `bitmap.rs`（位图左上的阴影边裁到 4 点、补齐到整逻辑像素、RGBA → ARGB8888）、`senses`（从点击区域取画出的义项回执）。
+- `portal/`：外观跟随系统。`watch()` 起后台线程 `qingjian-portal`，里面一个单线程 tokio 运行时跑 zbus
+  （不开 zbus 的 blocking-api：它的阻塞调用另起一个按核数开线程的运行时；zbus 连 Unix socket 时借 tokio 的阻塞线程池开一个线程，闲 10 秒自己退掉）。
+  先订 `SettingChanged` 与 portal 的上下线（`Proxy::receive_owner_changed`），再读 `color-scheme`、`reduced-motion` 与 GNOME 的 `enable-animations`
+  （`ReadOne` 回 `UnknownMethod` 就退回 `Read`，`Setting::parse` 剥掉多包的那层 variant）；调用都带 `NoAutoStart`，portal 不在时总线直接回 `ServiceUnknown`，
+  等它上线再读（为什么不拉起见设计文档「显示」）；方法调用 25 秒超时。`Desktop` 是三个原子量，`Preference` 是某一刻的值，
+  `Preference::redraws` 定画着的帧要不要重画（只有「跟随系统」的帧跟着换深浅；减少动态效果变了总要重画，循环动画要停下或接着播）。
+  测试：`tests/values.rs` 不连 D-Bus；`tests/bus.rs` 起私有 dbus-daemon（自带配置，服务目录里只有一个记下「被拉起过」的假服务）挂假 portal，缺省不跑。
 - 构建单独 `cargo build -p qingjian-linux-wayland`：和设置程序一起编时 winit 把 wayland-backend 统一成 dlopen libwayland 的那一种，NixOS 上找不到库。
   libxkbcommon 总是运行时 dlopen，NixOS 上要 `LD_LIBRARY_PATH` 或打包时补 rpath（见 README）。
 

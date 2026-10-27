@@ -37,3 +37,8 @@ wayland-protocols = { version = "0.32.13", features = ["client", "staging"] }
 wayland-protocols-misc = { version = "0.3.12", features = ["client"] }
 wayland-protocols-wlr = { version = "0.3.12", features = ["client"] }
 xkbcommon-dl = "0.4.2"
+# 外观跟随系统：后台线程上一个单线程 tokio 运行时跑 zbus，读 xdg-desktop-portal 的 Settings、跟着 SettingChanged。
+# 不开 zbus 的 blocking-api：它的阻塞调用另起一个按核数开线程的运行时
+futures-util = { version = "0.3.34", default-features = false }
+tokio.workspace = true
+zbus.workspace = true

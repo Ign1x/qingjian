@@ -10,6 +10,8 @@ mod error;
 #[cfg(target_os = "linux")]
 mod paths;
 #[cfg(target_os = "linux")]
+mod portal;
+#[cfg(target_os = "linux")]
 mod session;
 #[cfg(target_os = "linux")]
 mod view;
@@ -31,7 +33,8 @@ fn run() -> i32 {
         return 0;
     }
     let _guard = init_logging(args.iter().any(|arg| arg == "--stderr"));
-    let painter = view::Painter::new(paths::config_path(), Some(paths::themes_dir()));
+    let desktop = portal::watch();
+    let painter = view::Painter::new(paths::config_path(), Some(paths::themes_dir()), desktop);
     let socket = qingjian_platform::protocol::linux::socket_path();
     match wayland::run(painter, socket) {
         Ok(()) => 0,

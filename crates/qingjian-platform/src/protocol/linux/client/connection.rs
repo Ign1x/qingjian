@@ -17,8 +17,8 @@ use serde_json::{Value, json};
 use super::menu::menu_items;
 use super::{ClientError, Reply};
 use crate::protocol::linux::{
-    AppSurrounding, Capabilities, DisplayAcknowledged, DisplayIdentity, LINUX_UI_PROTOCOL,
-    LinuxEvent, MenuItem, ModeCommand, socket_path,
+    AppSurrounding, Capabilities, DisplayAcknowledged, DisplayIdentity, Features,
+    LINUX_UI_PROTOCOL, LinuxEvent, MenuItem, ModeCommand, socket_path,
 };
 use crate::protocol::{
     ClientMessage, KeyEvent, KeyOutcome, PROTOCOL_VERSION, SessionId, read_message, write_message,
@@ -42,6 +42,9 @@ pub struct Connection {
 
     /// 下一个会话编号（连接内局部，Server 会映射成全局的）。
     next_session: u64,
+
+    /// 每个会话握手时报的显示能力。
+    features: Features,
 }
 
 impl Connection {
@@ -68,7 +71,14 @@ impl Connection {
             stream,
             generation: GENERATION.fetch_add(1, Ordering::Relaxed),
             next_session: 1,
+            features: Features::default(),
         })
+    }
+
+    /// 之后开的会话握手时报这些显示能力（缺省全关，借框架面板显示的前端不用调）。
+    pub fn with_features(mut self, features: Features) -> Self {
+        self.features = features;
+        self
     }
 
     /// 给一个输入上下文开会话：`OpenSession` 之后立刻握 `LinuxHello`。
@@ -95,6 +105,7 @@ impl Connection {
             "context": context,
             "generation": self.generation,
             "version": LINUX_UI_PROTOCOL,
+            "features": self.features,
         }});
         let reply = self.request(&hello)?;
         if reply.get("LinuxHello").is_none() {

@@ -1,7 +1,8 @@
 //! 同用户连接内复用独立会话，拒绝未协商输入，关闭通知不产生回包。
 use super::{NEXT_SESSION, Request, dispatch, dispatch_json, session::Session};
 use qingjian_platform::protocol::linux::{
-    DisplayAcknowledged, DisplayIdentity, LINUX_UI_PROTOCOL, LINUX_UI_PROTOCOL_MIN, LinuxEvent,
+    DisplayAcknowledged, DisplayIdentity, Features, LINUX_UI_PROTOCOL, LINUX_UI_PROTOCOL_MIN,
+    LinuxEvent,
 };
 use qingjian_platform::protocol::{
     ClientMessage, Frame, PROTOCOL_VERSION, SessionId, read_message, write_message,
@@ -56,6 +57,14 @@ pub(super) fn serve_connection(
             else {
                 break;
             };
+            // 显示能力只增不改：没报（C++ 插件）按全关，报了却解不出是协议错误
+            let features = match request.get("features") {
+                None | Some(Value::Null) => Features::default(),
+                Some(value) => match serde_json::from_value::<Features>(value.clone()) {
+                    Ok(features) => features,
+                    Err(_) => break,
+                },
+            };
             if sessions.values().any(|s| {
                 s.identity
                     .as_ref()
@@ -73,7 +82,7 @@ pub(super) fn serve_connection(
             };
             dispatch_json(
                 &sender,
-                json!({"DisplayReporting": {"session": session.global, "identity": identity}}),
+                json!({"DisplayReporting": {"session": session.global, "identity": identity, "features": features}}),
             );
             session.identity = Some(identity);
             session.version = version;

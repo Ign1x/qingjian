@@ -9,6 +9,9 @@ pub(crate) struct SessionInfo {
     /// 新 Linux 客户端已协商显示回报。
     pub(crate) display_identity: Option<qingjian_platform::protocol::linux::DisplayIdentity>,
 
+    /// 前端握手时报的显示能力（横排矩阵、键位提示），没握手或没报为全关。
+    pub(crate) features: qingjian_platform::protocol::linux::Features,
+
     /// 待确认的当前候选帧。
     pub(crate) display_frame: Option<qingjian_platform::protocol::Frame>,
 
@@ -54,6 +57,7 @@ impl SessionInfo {
             disabled: false,
             active: true,
             display_identity: None,
+            features: Default::default(),
             display_frame: None,
             last_frame: None,
             private: true,

@@ -145,6 +145,37 @@ fn hello_accepts_every_supported_version_and_echoes_it() {
     }
 }
 
+/// 握手里的显示能力：没报照常握手（C++ 插件），报了解不出当协议错误断开。
+#[test]
+fn hello_features_are_optional_but_must_parse() {
+    for (features, accepted) in [
+        (None, true),
+        (Some(json!(null)), true),
+        (Some(json!({"grid": true})), true),
+        (
+            Some(json!({"grid": true, "key_hint": true, "later": 1})),
+            true,
+        ),
+        (Some(json!({"grid": "yes"})), false),
+    ] {
+        let (mut client, connection, worker) = serve();
+        exchange(
+            &mut client,
+            json!({"OpenSession": {"session": 1, "app": null, "protocol": PROTOCOL_VERSION}}),
+        )
+        .expect("开会话");
+        let mut hello = json!({"version": LINUX_UI_PROTOCOL, "session": 1, "generation": 1, "context": "features-test"});
+        if let Some(features) = &features {
+            hello["features"] = features.clone();
+        }
+        let reply = exchange(&mut client, json!({ "LinuxHello": hello }));
+        assert_eq!(reply.is_some(), accepted, "{features:?}");
+        drop(client);
+        connection.join().unwrap();
+        worker.join().unwrap();
+    }
+}
+
 /// 会话只能发它握手那一版里有的事件：v3 的会话发托盘切换当协议错误断开，v4 的会话照常切。
 #[test]
 fn newer_events_need_the_newer_handshake() {

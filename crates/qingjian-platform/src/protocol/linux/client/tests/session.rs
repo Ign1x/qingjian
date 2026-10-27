@@ -5,7 +5,7 @@ use serde_json::json;
 use super::fake_server;
 use crate::protocol::linux::client::{ClientError, Connection};
 use crate::protocol::linux::key::to_key_event;
-use crate::protocol::linux::{Capabilities, InputMode, LINUX_UI_PROTOCOL};
+use crate::protocol::linux::{Capabilities, Features, InputMode, LINUX_UI_PROTOCOL};
 use crate::protocol::{KeyOutcome, PROTOCOL_VERSION};
 
 /// 整条链路：开会话 → 报能力 → 按键 → 关会话，顺序与字段都要对得上 Server 的要求。
@@ -57,12 +57,42 @@ fn handshake_then_key_round_trips() {
         "代次要大于 0"
     );
     assert_eq!(hello["context"], json!("/ibus/context/1"));
+    // 显示能力缺省全关：借框架面板显示的前端什么都不用设
+    assert_eq!(hello["features"], json!({"grid": false, "key_hint": false}));
 
     // 能力必须排在按键前面：Server 在收到它之前不收按键
     assert!(seen[2]["LinuxEvent"]["event"]["Capabilities"].is_object());
     let key = &seen[3]["LinuxEvent"]["event"]["Key"];
     assert_eq!(key["event"]["virtual_key"], json!('n' as u32));
     assert_eq!(key["selection_supported"], json!(false));
+}
+
+/// 自绘候选窗的前端报的显示能力，这条连接上开的每个会话握手时都带上。
+#[test]
+fn features_go_with_every_handshake() {
+    let (path, received, server) = fake_server(None);
+    let features = Features {
+        grid: true,
+        key_hint: true,
+    };
+    let mut connection = Connection::connect_at(&path)
+        .expect("连上假 Server")
+        .with_features(features);
+    connection.open_session("app-1", None).expect("第一个");
+    connection.open_session("app-2", None).expect("第二个");
+    drop(connection);
+    server.join().expect("假 Server 收工");
+    let _ = std::fs::remove_file(&path);
+
+    let seen = received.lock().expect("取回收到的消息");
+    let hellos: Vec<_> = seen
+        .iter()
+        .filter_map(|message| message.get("LinuxHello"))
+        .collect();
+    assert_eq!(hellos.len(), 2);
+    for hello in hellos {
+        assert_eq!(hello["features"], json!(features));
+    }
 }
 
 /// 连不上就是连不上，不要在这里重试或者吞掉错误：上层按这个决定要不要放行按键。

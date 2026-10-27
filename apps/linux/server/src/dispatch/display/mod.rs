@@ -1,11 +1,13 @@
 //! Linux 版本化显示初始化与实际呈现确认，Windows 协议保持不变。
 mod annotation;
+#[cfg(test)]
+mod tests;
 
 use self::annotation::annotate_frame;
 use super::{Answer, Router};
 use qingjian_core::Translation;
 use qingjian_platform::protocol::linux::{
-    DisplayAcknowledged, DisplayIdentity, LINUX_UI_PROTOCOL_MIN, LinuxEvent, LinuxRequest,
+    DisplayAcknowledged, DisplayIdentity, Features, LINUX_UI_PROTOCOL_MIN, LinuxEvent, LinuxRequest,
 };
 use qingjian_platform::protocol::{ClientMessage, ServerMessage, SessionId};
 use serde_json::{Value, json};
@@ -22,8 +24,13 @@ impl Router {
             let session: SessionId = serde_json::from_value(body.get("session")?.clone()).ok()?;
             let identity: DisplayIdentity =
                 serde_json::from_value(body.get("identity")?.clone()).ok()?;
+            let features: Features = body
+                .get("features")
+                .and_then(|value| serde_json::from_value(value.clone()).ok())
+                .unwrap_or_default();
             let info = self.sessions.get_mut(&session)?;
             info.display_identity = Some(identity);
+            info.features = features;
             info.display_frame = None;
             info.last_frame = None;
             if self.focused == Some(session) {

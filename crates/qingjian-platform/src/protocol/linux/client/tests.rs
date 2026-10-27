@@ -87,7 +87,7 @@ fn handshake_then_key_round_trips() {
     assert_eq!(capabilities.outcome, KeyOutcome::Consumed);
 
     let key = to_key_event('n' as u32, 0);
-    let reply = connection.key(session, key, false).expect("报按键");
+    let reply = connection.key(session, key, false, None).expect("报按键");
     assert_eq!(reply.outcome, KeyOutcome::Consumed);
     assert!(reply.commit.is_none());
 
@@ -152,7 +152,7 @@ fn closed_server_is_reported() {
 
     let key = to_key_event('n' as u32, 0);
     let error = connection
-        .key(session, key, false)
+        .key(session, key, false, None)
         .expect_err("对端没了要报错");
     assert!(
         matches!(error, ClientError::Closed | ClientError::Codec(_)),
@@ -172,11 +172,11 @@ fn poll_reads_display_revision() {
         .expect("报能力");
 
     let typed = connection
-        .key(session, to_key_event('n' as u32, 0), false)
+        .key(session, to_key_event('n' as u32, 0), false, None)
         .expect("按键");
-    assert_eq!(typed.revision, Some(7));
+    assert_eq!(typed.revision(), Some(7));
     let polled = connection.poll(session).expect("轮询");
-    assert_eq!(polled.revision, Some(8));
+    assert_eq!(polled.revision(), Some(8));
 
     connection.close_session(session).expect("关会话");
     drop(connection);
@@ -186,4 +186,43 @@ fn poll_reads_display_revision() {
         seen.contains(&json!({"Poll": {"session": session}})),
         "轮询要发 Poll：{seen:?}"
     );
+}
+
+/// 回包上 Linux Server 另附的三样：展示身份整份读出来、切换中 / 英时的 `english`、帧上的 `translation_pending`。
+#[test]
+fn reply_reads_linux_extras() {
+    let mut frame = serde_json::to_value(Frame::default()).expect("帧");
+    frame["translation_pending"] = json!(true);
+    let reply = super::Reply::from_value(json!({"KeyResult": {
+        "session": 1,
+        "outcome": KeyOutcome::Passthrough,
+        "commit": "nihao",
+        "frame": frame,
+        "english": true,
+        "identity": {"generation": 3, "context": "wayland", "revision": 9},
+    }}))
+    .expect("合法回包");
+    assert_eq!(reply.commit.as_deref(), Some("nihao"));
+    assert_eq!(reply.english, Some(true));
+    assert!(reply.translation_pending);
+    let identity = reply.identity.expect("身份");
+    assert_eq!(
+        (
+            identity.generation,
+            identity.context.as_str(),
+            identity.revision
+        ),
+        (3, "wayland", 9)
+    );
+}
+
+/// `Ignored` 当没事发生（放行）；`RequestSelection` 这类没接的回包报意外，不当成按键结果。
+#[test]
+fn reply_rejects_what_it_does_not_handle() {
+    let ignored = super::Reply::from_value(json!({"Ignored": {"session": 1}})).expect("Ignored");
+    assert_eq!(ignored.outcome, KeyOutcome::Passthrough);
+    assert!(ignored.identity.is_none());
+    let selection =
+        super::Reply::from_value(json!({"RequestSelection": {"session": 1, "request": 4}}));
+    assert!(matches!(selection, Err(ClientError::Unexpected(_))));
 }

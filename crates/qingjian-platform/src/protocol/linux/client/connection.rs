@@ -15,7 +15,10 @@ use std::time::Duration;
 use serde_json::{Value, json};
 
 use super::{ClientError, Reply};
-use crate::protocol::linux::{Capabilities, LINUX_UI_PROTOCOL, LinuxEvent, socket_path};
+use crate::protocol::linux::{
+    AppSurrounding, Capabilities, DisplayAcknowledged, DisplayIdentity, LINUX_UI_PROTOCOL,
+    LinuxEvent, socket_path,
+};
 use crate::protocol::{
     ClientMessage, KeyEvent, KeyOutcome, PROTOCOL_VERSION, SessionId, read_message, write_message,
 };
@@ -106,19 +109,23 @@ impl Connection {
     }
 
     /// 报一次按键。`release` 是抬键——中 / 英切换要认 Shift 的抬起，所以抬键也得报。
+    ///
+    /// `surrounding` 是光标两侧的文字（见 [`AppSurrounding::around`]），云联想拿它当上文；
+    /// 拿不到或者是敏感输入框就给 `None`。
     pub fn key(
         &mut self,
         session: SessionId,
         event: KeyEvent,
         release: bool,
+        surrounding: Option<AppSurrounding>,
     ) -> Result<Reply, ClientError> {
-        // 还不报光标前后文，也不接选区翻译的回传
+        // 还不接选区翻译的回传：报了 true 才会收到 RequestSelection，那要另一套应答
         self.event(
             session,
             LinuxEvent::Key {
                 event,
                 release,
-                surrounding: None,
+                surrounding,
                 selection_supported: false,
             },
         )
@@ -135,9 +142,10 @@ impl Connection {
         session: SessionId,
         event: KeyEvent,
         release: bool,
+        surrounding: Option<AppSurrounding>,
     ) -> Result<Reply, ClientError> {
         let shortcut = !release && event.modifiers.has_command_key();
-        let reply = self.key(session, event, release)?;
+        let reply = self.key(session, event, release, surrounding)?;
         if !shortcut || reply.outcome != KeyOutcome::Passthrough || reply.frame.preedit.is_empty() {
             return Ok(reply);
         }
@@ -185,6 +193,23 @@ impl Connection {
     pub fn poll(&mut self, session: SessionId) -> Result<Reply, ClientError> {
         let message = serde_json::to_value(ClientMessage::Poll { session })?;
         Reply::from_value(self.request(&message)?)
+    }
+
+    /// 回报这一帧真正画出来的译词义项：`(候选在本页的位置, 义项编号)`，生词标记据此衰减。没有回包。
+    ///
+    /// `identity` 原样用那一帧回包上的；对不上当前帧的 Server 整条丢掉。一次最多 128 对，多了 Server 断开连接。
+    pub fn acknowledge(
+        &mut self,
+        session: SessionId,
+        identity: DisplayIdentity,
+        senses: Vec<(usize, usize)>,
+    ) -> Result<(), ClientError> {
+        let message = DisplayAcknowledged {
+            session,
+            identity,
+            senses,
+        };
+        self.notify(&json!({ "DisplayAcknowledged": message }))
     }
 
     /// 关掉一个会话。没有回包。

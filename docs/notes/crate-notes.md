@@ -313,7 +313,9 @@ id 不能撞拼音侧的写法与日志里的 `wubi`（`is_valid_id`），因为
 `protocol::linux` 是 Linux Server ↔ 各前端的扩展（`LinuxEvent` / `DisplayIdentity` / `LINUX_UI_PROTOCOL` 与 socket 路径），
 两个 Rust 前端（IBus、Wayland）共用的部分也在这里：`client`（一条 Unix socket 一问一答，`Connection` / `Reply` / `ClientError`；
 **哪些消息有回包是协议的一部分**——`OpenSession` 与 `LinuxEvent` 有，`CloseSession` 与展示回执没有，读多了卡住、读少了下一次答复串位；超时 200 ms，与 Fcitx5 插件一致；
-`key_flushing` 是组句中快捷键先上原文再放行的那一套）与 `key`（keysym + X11 修饰键掩码 → `KeyEvent`，**与 `apps/linux/fcitx5/src/key/mapping.cpp` 必须一字不差**：
+`key_flushing` 是组句中快捷键先上原文再放行的那一套；`Reply` 里的展示身份、`english`、帧上的 `translation_pending` 是 Linux Server 另附在原始 JSON 上的，按原始 JSON 取；
+`acknowledge` 回报画出来的义项（没有回包，一次最多 128 对）；`AppSurrounding::around` 按 UTF-8 字节偏移截光标两侧各 80 字，规则同 `apps/linux/surrounding.h`；
+`apps/linux/server/tests/client.rs` 拿它对着真 Server 走握手、按键、轮询、回执、冲洗与 Shift 切换）与 `key`（keysym + X11 修饰键掩码 → `KeyEvent`，**与 `apps/linux/fcitx5/src/key/mapping.cpp` 必须一字不差**：
 几个前端喂同一个 Server 同一套 `[shortcut]`，不一致同一个键在不同框架下行为就不同；最容易错的是 Shift+数字：X11 给的 keysym 是 `@`，
 而译词 / 删候选快捷键按物理数字行认，要折回 `0x32`，`character` 仍留 `@`；`character` 按 keysym 查 Unicode（`xkeysym`，与 Fcitx5 的 `Key::keySymToUnicode` 同一张表，小键盘运算符也有字符），
 Ctrl 键本身 `0x11`、Super 与 Hyper（Mod3）都算 `win`；`mapping.rs` 的测试逐条读 `mapping.cpp` 对照，那边加了键这边就挂）。`client` 与 `key` 只在 Linux 上编（要 `SO_PEERCRED`）。

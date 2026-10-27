@@ -114,6 +114,7 @@ impl IBusEngine {
                 return false;
             }
         };
+        let revision = reply.revision();
         if let Some(text) = reply.commit.filter(|text| !text.is_empty())
             && let Err(error) = Self::commit_text(emitter, variant::text(&text)).await
         {
@@ -125,7 +126,7 @@ impl IBusEngine {
         self.poller.follow(
             &mut polling,
             &reply.frame,
-            reply.revision,
+            revision,
             emitter,
             &self.client,
             &self.context,
@@ -155,7 +156,7 @@ impl IBusEngine {
         let event = to_key_event(keyval, state);
         let consumed = self
             .apply(&emitter, "按键", |connection, session| {
-                connection.key_flushing(session, event, release)
+                connection.key_flushing(session, event, release, None)
             })
             .await;
         // 排错时要看的是**事件之间的交错**（焦点、能力、按键谁先谁后），少了这一条就只能靠猜

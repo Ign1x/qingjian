@@ -109,8 +109,8 @@ async fn run(
                     return;
                 }
             };
-        tracing::trace!(revision = ?reply.revision, shown = state.shown, "轮询");
-        let Some(revision) = reply.revision.filter(|revision| *revision > state.shown) else {
+        tracing::trace!(revision = ?reply.revision(), shown = state.shown, "轮询");
+        let Some(revision) = reply.revision().filter(|revision| *revision > state.shown) else {
             continue;
         };
         state.shown = revision;

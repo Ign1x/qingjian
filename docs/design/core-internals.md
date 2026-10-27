@@ -237,6 +237,8 @@ Linux 在 `apps/linux/server/src/protocol/` 另有一套 JSON 消息，候选连
    现状：Windows 在行里显示辅码而 macOS 没有（macOS 也还没接辅码），macOS 把自定义短语截成 60 字预览而 Windows 不截，
    云端标记 macOS 在 `host/presenting` 里另设、Windows 在转换时就设，Linux 只取第一条义项。
    收口方向：`from_candidate` 写一份放进共享 crate，macOS 删掉自己的 `Frame` / `Row` 直接用 `qingjian_render` 的（`convert.rs` 文件头已经这么写）。
+   共享的那份已经有了（2026-10-27）：`qingjian_platform::display`（`render` 特性，照 Windows 那份写，Linux Wayland 前端在用）；
+   Windows 与 macOS 改用它各自单独提 PR，改完删掉自己那份。
 2. **按键分流。** macOS `apps/macos/src/imk/controller/{text,command}.rs`、Windows `apps/windows/server/src/dispatch/key/`、
    Linux `apps/linux/server/src/dispatch/key/`。后两份文件结构一模一样，Linux 那份是从 Windows 复制的，已经分叉：
    Windows 有辅码的四处分支，Linux 有 Delete 向后删。两个 Server 吃的都是 `qingjian_platform::protocol::KeyEvent`，

@@ -319,6 +319,9 @@ id 不能撞拼音侧的写法与日志里的 `wubi`（`is_valid_id`），因为
 几个前端喂同一个 Server 同一套 `[shortcut]`，不一致同一个键在不同框架下行为就不同；最容易错的是 Shift+数字：X11 给的 keysym 是 `@`，
 而译词 / 删候选快捷键按物理数字行认，要折回 `0x32`，`character` 仍留 `@`；`character` 按 keysym 查 Unicode（`xkeysym`，与 Fcitx5 的 `Key::keySymToUnicode` 同一张表，小键盘运算符也有字符），
 Ctrl 键本身 `0x11`、Super 与 Hyper（Mod3）都算 `win`；`mapping.rs` 的测试逐条读 `mapping.cpp` 对照，那边加了键这边就挂）。`client` 与 `key` 只在 Linux 上编（要 `SO_PEERCRED`）。
+`display`（`render` 特性）是自绘候选窗的壳共用的「协议帧 → `qingjian_render::Frame`」：候选折成行（读音、全部义项、词性开关、假名注音、生词 `Tone::Fresh`、云标、辅码）、
+拼音行按 `preedit_mode` 决定画不画（带调拼音另给的 `window_preedit` 优先）、`usize::MAX` 不高亮、多页才画 `1/6`、矩阵只标高亮那一行的序号；
+照 Windows Server 的 `ui/candidates/{row,render_data}.rs` 写，Linux Wayland 前端在用，Windows 与 macOS 待改用。TSF DLL 不开这个特性，依赖树不变。
 
 ## crates/qingjian-render
 

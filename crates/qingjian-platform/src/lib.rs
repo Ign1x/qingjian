@@ -9,6 +9,8 @@ pub mod code_schemes;
 pub mod code_tables;
 mod config;
 pub mod dirs;
+#[cfg(feature = "render")]
+pub mod display;
 mod error;
 pub mod extra_dictionaries;
 pub mod logs;

@@ -1,6 +1,6 @@
 [package]
 name = "qingjian-platform"
-description = "平台相关但不依赖系统 API 的部分：配置文件读写"
+description = "平台相关但不依赖系统 API 的部分：配置文件读写、壳与 Server 之间的协议、自绘壳共用的帧换算"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -19,6 +19,11 @@ thiserror.workspace = true
 toml.workspace = true
 toml_edit.workspace = true
 tracing.workspace = true
+# 自绘候选窗的壳共用的帧换算（`display` 模块）；不画候选的（TSF DLL）不开
+qingjian-render = { workspace = true, optional = true }
+
+[features]
+render = ["dep:qingjian-render"]
 
 # Linux 的 socket 路径按 euid 隔离私有临时目录、前端客户端核对对端 uid（SO_PEERCRED）；
 # keysym → Unicode 给 Linux 前端共用的键表

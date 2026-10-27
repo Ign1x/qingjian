@@ -3,7 +3,7 @@ use super::{
     Router,
     key::{Effect, codes},
 };
-use qingjian_platform::protocol::linux::{DisplayIdentity, LinuxEvent, LinuxRequest};
+use qingjian_platform::protocol::linux::{DisplayIdentity, LinuxEvent, LinuxRequest, ModeCommand};
 use qingjian_platform::protocol::{KeyOutcome, ServerMessage, SessionId};
 
 impl Router {
@@ -207,6 +207,28 @@ impl Router {
                 if self.valid_panel_event(session, &identity) {
                     self.page(if next { 1 } else { -1 });
                     outcome = KeyOutcome::Consumed;
+                }
+            }
+            LinuxEvent::Indicator(command) => {
+                // 托盘点的是这个会话：中 / 英要交出的是它的组句，先装进 Engine
+                self.ensure_focus(session);
+                match command {
+                    ModeCommand::ToggleEnglish => {
+                        if self.config.english_mode {
+                            self.sessions.get_mut(&session)?.switch_tap = None;
+                            commit = self.toggle_english(session);
+                            switched = Some(self.sessions[&session].english);
+                            outcome = KeyOutcome::Consumed;
+                        }
+                    }
+                    ModeCommand::TogglePunctuation => {
+                        self.toggle_punctuation(session);
+                        outcome = KeyOutcome::Consumed;
+                    }
+                    ModeCommand::ToggleTraditional => {
+                        self.toggle_traditional();
+                        outcome = KeyOutcome::Consumed;
+                    }
                 }
             }
         }

@@ -16,7 +16,7 @@ pub fn router() -> Router {
     })
 }
 pub fn router_with(config: RouterConfig) -> Router {
-    let mut router = Router::new(
+    router_on(
         Engine::new(
             Dictionary::parse("你好\tni hao\t100\n你\tni\t80\n泥\tni\t70\n拟\tni\t60\n").unwrap(),
         ),
@@ -24,7 +24,11 @@ pub fn router_with(config: RouterConfig) -> Router {
             page_size: 1,
             ..config
         },
-    );
+    )
+}
+/// 会话 1、2 都握好手、报过能力（普通输入框）的 Router。
+pub fn router_on(engine: Engine, config: RouterConfig) -> Router {
+    let mut router = Router::new(engine, config);
     for id in [1, 2] {
         router.handle(ClientMessage::OpenSession {
             session: SessionId(id),

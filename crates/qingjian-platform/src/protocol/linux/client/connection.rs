@@ -17,7 +17,7 @@ use serde_json::{Value, json};
 use super::{ClientError, Reply};
 use crate::protocol::linux::{
     AppSurrounding, Capabilities, DisplayAcknowledged, DisplayIdentity, LINUX_UI_PROTOCOL,
-    LinuxEvent, socket_path,
+    LinuxEvent, ModeCommand, socket_path,
 };
 use crate::protocol::{
     ClientMessage, KeyEvent, KeyOutcome, PROTOCOL_VERSION, SessionId, read_message, write_message,
@@ -224,6 +224,16 @@ impl Connection {
         next: bool,
     ) -> Result<Reply, ClientError> {
         self.event(session, LinuxEvent::Page { identity, next })
+    }
+
+    /// 托盘 / 状态显示面上切模式（v4 起）。回包像按键那样落地：切了中 / 英时 `english` 有值（拿它弹提示），
+    /// 组句中的拼音原样上屏在 `commit` 里；`mode` 是切完的模式。
+    pub fn indicator(
+        &mut self,
+        session: SessionId,
+        command: ModeCommand,
+    ) -> Result<Reply, ClientError> {
+        self.event(session, LinuxEvent::Indicator(command))
     }
 
     /// 组句期间取一次最新的帧：本地整句模型的重排结果从这里来（Server 不推送）。

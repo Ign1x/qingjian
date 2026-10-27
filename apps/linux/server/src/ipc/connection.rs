@@ -1,7 +1,7 @@
 //! 同用户连接内复用独立会话，拒绝未协商输入，关闭通知不产生回包。
 use super::{NEXT_SESSION, Request, dispatch, dispatch_json, session::Session};
 use qingjian_platform::protocol::linux::{
-    DisplayAcknowledged, DisplayIdentity, LINUX_UI_PROTOCOL, LinuxEvent,
+    DisplayAcknowledged, DisplayIdentity, LINUX_UI_PROTOCOL, LINUX_UI_PROTOCOL_MIN, LinuxEvent,
 };
 use qingjian_platform::protocol::{
     ClientMessage, Frame, PROTOCOL_VERSION, SessionId, read_message, write_message,
@@ -47,13 +47,20 @@ pub(super) fn serve_connection(
             else {
                 break;
             };
-            if request.get("version").and_then(|v| v.as_u64()) != Some(u64::from(LINUX_UI_PROTOCOL))
-                || sessions.values().any(|s| {
-                    s.identity
-                        .as_ref()
-                        .is_some_and(|i| i.context == context || i.generation != generation)
-                })
-            {
+            // 还认的老版本照常握手（Fcitx5 / Fcitx4 插件写死 3），回包回显前端报的那一版
+            let Some(version) = request
+                .get("version")
+                .and_then(|v| v.as_u64())
+                .and_then(|v| u32::try_from(v).ok())
+                .filter(|v| (LINUX_UI_PROTOCOL_MIN..=LINUX_UI_PROTOCOL).contains(v))
+            else {
+                break;
+            };
+            if sessions.values().any(|s| {
+                s.identity
+                    .as_ref()
+                    .is_some_and(|i| i.context == context || i.generation != generation)
+            }) {
                 break;
             }
             let Some(session) = sessions.get_mut(&local).filter(|s| s.identity.is_none()) else {
@@ -69,8 +76,10 @@ pub(super) fn serve_connection(
                 json!({"DisplayReporting": {"session": session.global, "identity": identity}}),
             );
             session.identity = Some(identity);
+            session.version = version;
             let mut reply = settings.clone();
             reply["session"] = json!(local);
+            reply["version"] = json!(version);
             Some(json!({"LinuxHello": reply}))
         } else if let Some(request) = value.get("DisplayAcknowledged") {
             let Ok(mut ack) = serde_json::from_value::<DisplayAcknowledged>(request.clone()) else {
@@ -110,7 +119,10 @@ pub(super) fn serve_connection(
                 continue;
             };
             let capabilities = matches!(event, LinuxEvent::Capabilities(_));
-            if session.identity.is_none() || (!session.capabilities && !capabilities) {
+            if session.identity.is_none()
+                || (!session.capabilities && !capabilities)
+                || event.since() > session.version
+            {
                 break;
             }
             session.capabilities |= capabilities;
@@ -156,6 +168,7 @@ pub(super) fn serve_connection(
                         Session {
                             global,
                             identity: None,
+                            version: 0,
                             capabilities: false,
                         },
                     );

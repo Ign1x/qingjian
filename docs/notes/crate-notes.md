@@ -310,14 +310,17 @@ id 不能撞拼音侧的写法与日志里的 `wubi`（`is_valid_id`），因为
 协议版本见 `PROTOCOL_VERSION`，`PreeditKind::AuxCode` 对应 Core 的 `MarkedKind::AuxCode`，`Frame.aux_code_show` 随帧下发显示码开关，
 `Frame.translation_pos` 随帧下发「译词是否带词性标注」（`[general] translation_pos`，缺省开；与 `aux_code_show` 同款普通 `#[serde(default)]`——帧只由 Server 自己的候选窗消费、DLL 不读该字段，加这种纯字段不 bump 协议版本，枚举变体才必须 bump）；
 `Frame.columns` / `column_ems` 随帧下发横排矩阵视口，带 `serde(default)` 新老互通，DLL 不画候选读不到也照旧）。
-`protocol::linux` 是 Linux Server ↔ 各前端的扩展（`LinuxEvent` / `DisplayIdentity` / `InputMode` / `LINUX_UI_PROTOCOL` 与 socket 路径），
+`protocol::linux` 是 Linux Server ↔ 各前端的扩展（`LinuxEvent` / `DisplayIdentity` / `InputMode` / `ModeCommand` / `LINUX_UI_PROTOCOL` 与 socket 路径）。
+**版本**：`LINUX_UI_PROTOCOL` 是 4（v4 多了托盘切换 `Indicator`），Server 收 `LINUX_UI_PROTOCOL_MIN`（3）到 4 的 `LinuxHello`、回包回显前端报的那一版，
+Fcitx5 / Fcitx4 插件写死 3、不用跟着改；一个会话只能发它握手那一版里有的事件（`LinuxEvent::since`），多发的断开；`OpenSession` 回包的 `linux_ui.version` 固定报 3（那时还没握手，插件要它等于 3）；
+回包上只增不改的字段（`identity`、`mode`、`translation_pending`、`annotation`）不升版。规则写在常量旁边，`apps/linux/server/tests/protocol.rs` 读两个插件的源码核对它们报的版本 Server 还认。
 两个 Rust 前端（IBus、Wayland）共用的部分也在这里：`client`（一条 Unix socket 一问一答，`Connection` / `Reply` / `ClientError`；
 **哪些消息有回包是协议的一部分**——`OpenSession` 与 `LinuxEvent` 有，`CloseSession` 与展示回执没有，读多了卡住、读少了下一次答复串位；超时 200 ms，与 Fcitx5 插件一致；
 `key_flushing` 是组句中快捷键先上原文再放行的那一套；`Reply` 里的展示身份、`english`、`mode`（`InputMode`，主题要非空的方案名时用 `scheme_name`）、帧上的 `translation_pending` 是 Linux Server 另附在原始 JSON 上的，按原始 JSON 取；
 `key` 报了 `selection_supported` 才会收到选区翻译的 `RequestSelection`（读成 `Reply::selection_request`，读出选区用 `selection` 回，那一键吃不吃以那次的回包为准；IBus 报 false）；
 `candidate` / `page` 原样带画那一页的展示身份，帧换过了 Server 回 `Ignored`（读成什么都不做的缺省答复）；
-`acknowledge` 回报画出来的义项（没有回包，一次最多 128 对）；`AppSurrounding::around` 按 UTF-8 字节偏移截光标两侧各 80 字，规则同 `apps/linux/surrounding.h`；
-`apps/linux/server/tests/client.rs` 拿它对着真 Server 走握手、按键、轮询、回执、冲洗与 Shift 切换）与 `key`（keysym + X11 修饰键掩码 → `KeyEvent`，**与 `apps/linux/fcitx5/src/key/mapping.cpp` 必须一字不差**：
+`indicator` 是托盘切中 / 英、全角标点与简繁（`ModeCommand`）；`acknowledge` 回报画出来的义项（没有回包，一次最多 128 对）；`AppSurrounding::around` 按 UTF-8 字节偏移截光标两侧各 80 字，规则同 `apps/linux/surrounding.h`；
+`apps/linux/server/tests/client.rs` 拿它对着真 Server 走握手、按键、轮询、回执、冲洗、Shift 切换与托盘切换）与 `key`（keysym + X11 修饰键掩码 → `KeyEvent`，**与 `apps/linux/fcitx5/src/key/mapping.cpp` 必须一字不差**：
 几个前端喂同一个 Server 同一套 `[shortcut]`，不一致同一个键在不同框架下行为就不同；最容易错的是 Shift+数字：X11 给的 keysym 是 `@`，
 而译词 / 删候选快捷键按物理数字行认，要折回 `0x32`，`character` 仍留 `@`；`character` 按 keysym 查 Unicode（`xkeysym`，与 Fcitx5 的 `Key::keySymToUnicode` 同一张表，小键盘运算符也有字符），
 Ctrl 键本身 `0x11`、Super 与 Hyper（Mod3）都算 `win`；`mapping.rs` 的测试逐条读 `mapping.cpp` 对照，那边加了键这边就挂）。`client` 与 `key` 只在 Linux 上编（要 `SO_PEERCRED`）。
@@ -597,14 +600,16 @@ Windows 可选的 `[shortcut] toggle_punctuation` 经 `InputSettings` 下发，�
 启动与热加载共用 `assembly::attach_cloud`（签名与 Windows 的 `dispatch::attach_cloud` 对齐：`[predict]` 配置 + 用量文件路径）；切换服务先取消旧请求与选区翻译，重建所有会话的本地候选布局以清除旧云词，保留本地高亮，聚焦会话再发新请求。无密钥时退回本地，不预留云词槽。按需联想在 `LinuxEvent::Key` 里拦 `[shortcut] predict` 组合键（按字符匹配，`.` 的键码与 Delete 冲突），结果按模型顺序置顶；自动请求由 `RouterConfig::cloud_enabled` 门控，`automatic = false` 时只剩按需触发。插件把缺失的可选 `kind` / `sentence` 按本地候选 / 无整句处理。
 插件在清空预编辑之前上屏；上屏回调重入后核对生命周期和帧身份，跳过过期重画而不撤销或重复提交，见 [Linux 协议与状态](linux-fcitx5.md#协议与状态)。
 
-Unix socket 用共享长度前缀与 Frame（当前公共版本 9，与 `PROTOCOL_VERSION` 同步，Fcitx5 插件里写死在 `qingjian.cpp` 的 OpenSession）；插件复用一条连接，每个上下文独立会话。Linux v3 扩展逐会话握手、确认 Sensitive/Password/Disable 后接受按下/释放、焦点和点击事实。
+Unix socket 用共享长度前缀与 Frame（当前公共版本 9，与 `PROTOCOL_VERSION` 同步，Fcitx5 插件里写死在 `qingjian.cpp` 的 OpenSession）；插件复用一条连接，每个上下文独立会话。Linux 扩展逐会话握手（收 v3 与 v4，版本规则见 crates/qingjian-platform 一节）、确认 Sensitive/Password/Disable 后接受按下/释放、焦点和点击事实。
 候选回报绑定连接代次、上下文和服务端帧序号，仅当前聚焦页的有效释义进入 `note_displayed`，不把生成帧算作已展示。
 Linux 回包由 `dispatch/display/annotation` 给释义添加可选 `annotation`（词性与汉字段假名，`[general] translation_pos` 关掉时不带词性），Fcitx5 面板优先显示它；原始译文和快捷键提交不变，旧 Server 缺该字段时插件回退到 `text`。
 每个 `KeyResult` / `Update` 另附这个会话的 `mode`（`dispatch/mode.rs`：`english` / `traditional` / `full_width` 取当前中英那一份 / `scheme`），方案名按 `scheme_label(config.scheme, None, None)` 算：
 Linux 还不装用户双拼与形码方案（没有 `SchemeSlot`），引擎按全拼跑的那些方案名也按全拼（空串）。插件不读它。
+v4 给 Rust 前端的托盘切换（`Indicator`）：中 / 英与切换键同一条路（组句原样上屏、回包带 `english`，`english_mode` 关着不切），全角标点切当前模式那一份、简繁在简体与上次用的繁体之间切（同 Windows 的简繁快捷键），
+后两样当场改内存并写回配置（`[general] full_width_punctuation` / `english_full_width_punctuation` / `traditional_variant` / `last_traditional`），热加载读回来的是同一个值。
 `[general] preedit` 使用已有 `both` / `inline` / `window`；没有新增 Linux 自绘配置。详见 [linux-fcitx5.md](linux-fcitx5.md)。
 
-线上类型（`LinuxEvent` / `Capabilities` / `DisplayIdentity` / `DisplayAcknowledged` / `InputMode` / `LINUX_UI_PROTOCOL` / `socket_path`）
+线上类型（`LinuxEvent` / `Capabilities` / `DisplayIdentity` / `DisplayAcknowledged` / `InputMode` / `ModeCommand` / `LINUX_UI_PROTOCOL` / `socket_path`）
 在 `qingjian_platform::protocol::linux`，不在 Server crate 里——与 Windows 的 TSF DLL 同一条理由：
 **前端不能因为要用协议类型就拖进 Engine 的依赖树**（Server 依赖 core / dictionary / lm / neural，前端一个都不要）。
 

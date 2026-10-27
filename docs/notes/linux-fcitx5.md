@@ -32,9 +32,10 @@ CTest 的 `real-server` 实际运行 Rust Server 并通过 InputContext 输入�
 
 同用户 Unix socket，长度前缀为 4 字节小端，单消息上限 16 MiB；每次插件收发共用 200 ms 截止时间。
 插件只持有一条连接和一个 I/O watcher，每个 InputContext 分配独立、递增的 session ID。
-每个会话先 `OpenSession` 校验共享协议版本（`PROTOCOL_VERSION`），再协商 `LinuxHello` v3，携带 session/generation/context，返回会话编号和既有预编辑设置。
-首次能力确认前不接受输入；握手与能力状态逐会话保存。同一连接支持超过 64 个上下文，64 条连接的资源保护不限制单连接会话数。
-Linux 的首个回包仍是含 `linux_ui` 的 `Update`，不额外发送 Windows DLL 使用的 `SessionOpened`；旧版插件的协议 7 / 8 连接会被拒绝，升级时需同时更新 Server 与插件。
+每个会话先 `OpenSession` 校验共享协议版本（`PROTOCOL_VERSION`），再协商 `LinuxHello`，携带 version/session/generation/context，返回会话编号、回显的版本和既有预编辑设置。
+插件报 v3；Server 收 v3 到 `LINUX_UI_PROTOCOL`（现为 4）之间的版本，v4 多出的事件只给 Rust 前端，插件不发、不用跟着升。
+首次能力确认前不接受输入；握手与能力状态逐会话保存，会话发了它握手那一版里没有的事件就断开。同一连接支持超过 64 个上下文，64 条连接的资源保护不限制单连接会话数。
+Linux 的首个回包仍是含 `linux_ui` 的 `Update`，不额外发送 Windows DLL 使用的 `SessionOpened`；`linux_ui.version` 固定报 3（握手之前 Server 不知道前端是哪一版）。旧版插件的协议 7 / 8 连接会被拒绝，升级时需同时更新 Server 与插件。
 旧版本或损坏响应关闭连接、清空显示并放行当前输入；重连创建全新输入状态，旧提交不会重放。
 插件先交付有效上屏，再清空或更新预编辑，避免 Chromium 原生 Wayland 在这两步倒置时重复上屏（#213）。
 上屏与显示回调都可能同步重入；上屏前和重画前检查上下文存活、连接代次、生命周期、显示修订号与帧身份，以及焦点和能力。
@@ -46,6 +47,7 @@ Fcitx5 的 `AltTriggerKeys`（缺省 `Shift_L`）在 PreInputMethod 阶段处理
 共享连接故障先让全部会话失效，再清理各自显示；清理回调期间不重连。
 
 LinuxEvent 转发能力、按下 / 释放、焦点、停用原因、客户端预编辑事实、带帧身份的候选点击和翻页。按键事件可带应用前后文；旧插件省略此字段时 Server 仍可解析。焦点恢复与候选点击不会复用旧前后文。
+v4 另有托盘切换（插件不发）：`Indicator` 切中 / 英、全角标点或简繁，回 `KeyResult`，切了中 / 英带 `english`。
 每个 `KeyResult` / `Update` 另附当前模式 `mode`（`english` / `traditional` / `full_width` / `scheme`），与 `annotation` 一样是只增不改的字段，插件不读。
 选区翻译使用 `[shortcut] translate_selection`（Linux 缺省 `Alt + Shift + T`）；新插件在按键事件标记 `selection_supported`，Server 只向支持的插件返回 `RequestSelection`，兼容旧插件。插件从有效的 `surroundingText()` 读取最多 500 字选区并回 `LinuxEvent::Selection`。评审候选无预编辑，返回帧的 `translation_pending` 让插件在「翻译中…」期间轮询；提交前再次核对选区文字和光标位置。焦点、隐私、Reset、停用会取消翻译。
 空能力是普通输入；Sensitive 可组句但不学习、不记输入文本；Password / Disable 优先禁用并丢弃输入。

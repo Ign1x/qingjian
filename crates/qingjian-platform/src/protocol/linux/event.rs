@@ -1,5 +1,5 @@
 //! Linux 事件：释放、焦点、能力与候选回调不改 Windows 消息格式。
-use super::{AppSurrounding, Capabilities, DisplayIdentity};
+use super::{AppSurrounding, Capabilities, DisplayIdentity, ModeCommand};
 use crate::protocol::KeyEvent;
 use serde::{Deserialize, Serialize};
 
@@ -50,4 +50,24 @@ pub enum LinuxEvent {
 
         next: bool,
     },
+
+    /// 托盘 / 状态显示面上切模式：回 `KeyResult`，切了中 / 英时带 `english`。
+    Indicator(ModeCommand),
+}
+
+impl LinuxEvent {
+    /// 这个事件从哪一版 Linux 协议起有：会话握手报的版本低于它，Server 当协议错误断开。
+    pub fn since(&self) -> u32 {
+        match self {
+            Self::Capabilities(_)
+            | Self::Reset
+            | Self::Key { .. }
+            | Self::Selection { .. }
+            | Self::Deactivate { .. }
+            | Self::Focus { .. }
+            | Self::Candidate { .. }
+            | Self::Page { .. } => 3,
+            Self::Indicator(_) => 4,
+        }
+    }
 }

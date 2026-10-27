@@ -1,4 +1,5 @@
 //! Linux 首版按键与候选配置。
+use qingjian_core::TraditionalVariant;
 use qingjian_platform::protocol::KeyModifiers;
 use qingjian_platform::{
     Appearance, AppsConfig, Config, KeyCombo, LayoutMode, PreeditMode, Scheme, SwitchKeys,
@@ -51,6 +52,9 @@ pub struct RouterConfig {
 
     /// 英文模式的那一份（`[general] english_full_width_punctuation`）。
     pub english_full_width: bool,
+
+    /// 托盘切回繁体时用的字形（`[general] last_traditional`），切到简体时记下切走前那一档。
+    pub last_traditional: TraditionalVariant,
 
     /// 拼音侧方案（`[general] scheme`），回包的 `mode.scheme` 按它算方案名。
     pub scheme: Scheme,
@@ -115,6 +119,7 @@ impl From<&Config> for RouterConfig {
             shift_letter_compose: config.general.shift_letter.compose(),
             full_width: config.general.full_width_punctuation,
             english_full_width: config.general.english_full_width_punctuation,
+            last_traditional: config.general.last_traditional(),
             scheme: config.general.scheme(),
             punct_commits: config.general.punct_commits,
             apps: config.apps.clone(),

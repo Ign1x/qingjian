@@ -1,4 +1,8 @@
 //! 共享长度前缀协议的内存回环。
+use qingjian_core::Engine;
+use qingjian_dictionary::Dictionary;
+use qingjian_linux_server::{Router, RouterConfig};
+use qingjian_platform::protocol::linux::{LINUX_UI_PROTOCOL, LINUX_UI_PROTOCOL_MIN};
 use qingjian_platform::protocol::{
     ClientMessage, KeyEvent, KeyModifiers, PROTOCOL_VERSION, ServerMessage, SessionId,
     read_message, write_message,
@@ -84,4 +88,27 @@ fn fcitx5_plugin_opens_sessions_with_the_current_protocol() {
         source.contains(&expected),
         "qingjian.cpp 的 OpenSession 应写 {expected}"
     );
+}
+
+/// Fcitx5 / Fcitx4 插件把 Linux 协议版本写死成 3：握手报它，OpenSession 与握手的回包都要它原样回来。
+/// Linux 协议升版后 Server 仍得认它（`LINUX_UI_PROTOCOL_MIN`），`OpenSession` 回包的 `linux_ui.version` 也得报它。
+#[test]
+fn fcitx_plugins_handshake_with_a_version_the_server_still_accepts() {
+    const { assert!(LINUX_UI_PROTOCOL_MIN <= LINUX_UI_PROTOCOL) };
+    for plugin in ["fcitx5", "fcitx4"] {
+        let path = format!(
+            "{}/../{plugin}/src/qingjian.cpp",
+            env!("CARGO_MANIFEST_DIR")
+        );
+        let source = std::fs::read_to_string(&path).unwrap();
+        let hello = format!("{{\"LinuxHello\", {{{{\"version\", {LINUX_UI_PROTOCOL_MIN}}}");
+        assert!(source.contains(&hello), "{plugin} 的握手应写 {hello}");
+        let opened = format!(".at(\"linux_ui\").at(\"version\") != {LINUX_UI_PROTOCOL_MIN}");
+        assert!(
+            source.contains(&opened),
+            "{plugin} 核对 linux_ui 应写 {opened}"
+        );
+    }
+    let router = Router::new(Engine::new(Dictionary::default()), RouterConfig::default());
+    assert_eq!(router.display_settings()["version"], LINUX_UI_PROTOCOL_MIN);
 }

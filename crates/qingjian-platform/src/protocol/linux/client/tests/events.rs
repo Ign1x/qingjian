@@ -1,11 +1,11 @@
-//! 点选、翻页与选区翻译：每个调用发出去的都是 Server 认得的那种 `LinuxEvent`。
+//! 点选、翻页、托盘切换与选区翻译：每个调用发出去的都是 Server 认得的那种 `LinuxEvent`。
 
 use serde_json::{Value, json};
 
 use super::fake_server;
 use crate::protocol::linux::client::Connection;
 use crate::protocol::linux::key::to_key_event;
-use crate::protocol::linux::{Capabilities, DisplayIdentity, LinuxEvent};
+use crate::protocol::linux::{Capabilities, DisplayIdentity, LinuxEvent, ModeCommand};
 use crate::protocol::{KeyOutcome, SessionId};
 
 fn identity() -> DisplayIdentity {
@@ -51,6 +51,30 @@ fn panel_calls_carry_the_display_identity() {
     assert!(matches!(
         event(&seen, 4, session),
         LinuxEvent::Page { next: true, .. }
+    ));
+}
+
+/// 托盘切换发的是 `Indicator`，回包像按键一样落地、附上切完的模式。
+#[test]
+fn indicator_sends_the_mode_command() {
+    let (path, received, server) = fake_server(None);
+    let mut connection = Connection::connect_at(&path).expect("连上假 Server");
+    let session = connection.open_session("/ibus/context/1").expect("开会话");
+    connection
+        .capabilities(session, Capabilities::default())
+        .expect("报能力");
+    let toggled = connection
+        .indicator(session, ModeCommand::ToggleTraditional)
+        .expect("托盘切简繁");
+    assert!(toggled.mode.is_some());
+
+    drop(connection);
+    server.join().expect("假 Server 收工");
+    let _ = std::fs::remove_file(&path);
+    let seen = received.lock().expect("取回收到的消息");
+    assert!(matches!(
+        event(&seen, 3, session),
+        LinuxEvent::Indicator(ModeCommand::ToggleTraditional)
     ));
 }
 

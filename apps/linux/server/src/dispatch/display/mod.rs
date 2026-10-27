@@ -5,14 +5,16 @@ use self::annotation::annotate_frame;
 use super::Router;
 use qingjian_core::Translation;
 use qingjian_platform::protocol::linux::{
-    DisplayAcknowledged, DisplayIdentity, LINUX_UI_PROTOCOL, LinuxEvent, LinuxRequest,
+    DisplayAcknowledged, DisplayIdentity, LINUX_UI_PROTOCOL_MIN, LinuxEvent, LinuxRequest,
 };
 use qingjian_platform::protocol::{ClientMessage, ServerMessage, SessionId};
 use serde_json::{Value, json};
 
 impl Router {
+    /// `OpenSession` 回包的 `linux_ui`，`LinuxHello` 的回包在它上面换上会话编号与握手的版本。
+    /// 这里的版本固定报还认的最老一版：握手之前不知道前端是哪一版，Fcitx5 / Fcitx4 插件要它等于 3。
     pub fn display_settings(&self) -> Value {
-        json!({"version": LINUX_UI_PROTOCOL, "preedit": self.config.preedit})
+        json!({"version": LINUX_UI_PROTOCOL_MIN, "preedit": self.config.preedit})
     }
 
     pub fn handle_linux(&mut self, value: Value) -> Option<Value> {

@@ -26,7 +26,7 @@ pub struct Reply {
     /// 点选、翻页与展示回执要原样带回去，Server 据此丢掉过期的那些。
     pub identity: Option<DisplayIdentity>,
 
-    /// 这次按键切了中 / 英：`Some(true)` 切到英文。只在切换的那一下有，前端拿它弹提示。
+    /// 这次切了中 / 英：`Some(true)` 切到英文。只在切换的那一下有（切换键或托盘），前端拿它弹提示。
     pub english: Option<bool>,
 
     /// 选区翻译还在等结果：preedit 与候选都空着也得接着轮询（Linux Server 在帧上另附的字段）。

@@ -1,9 +1,9 @@
 //! Server 对一次事件的答复。
 
-use qingjian_platform::protocol::{Frame, KeyOutcome, ServerMessage};
 use serde_json::Value;
 
-use crate::error::IbusError;
+use super::ClientError;
+use crate::protocol::{Frame, KeyOutcome, ServerMessage};
 
 /// 一次事件之后 Server 让前端做的事。
 ///
@@ -41,7 +41,7 @@ impl Reply {
     /// 从 Server 的一条回包里读出来。
     ///
     /// 正常是 `KeyResult`，轮询回 `Update`；会话已经不在了 Server 回 `Ignored`（旧回调的延迟通知，当作没事发生）。
-    pub fn from_value(value: Value) -> Result<Self, IbusError> {
+    pub fn from_value(value: Value) -> Result<Self, ClientError> {
         if value.get("Ignored").is_some() {
             return Ok(Self::default());
         }
@@ -69,7 +69,7 @@ impl Reply {
                 revision,
                 ..Self::default()
             }),
-            _ => Err(IbusError::Unexpected(value.to_string())),
+            _ => Err(ClientError::Unexpected(value.to_string())),
         }
     }
 }

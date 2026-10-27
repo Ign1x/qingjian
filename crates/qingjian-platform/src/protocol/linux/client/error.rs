@@ -1,12 +1,12 @@
-//! 前端这一侧会出的错。
+//! Linux 前端连 Server 时会出的错。
 
-use qingjian_platform::protocol::CodecError;
+use crate::protocol::CodecError;
 
-/// IBus 前端的错误。
+/// 前端与 Server 之间的错误。
 ///
 /// 这里没有「引擎出错」这一类：引擎在 Server 进程里，前端只会在连接与协议上出问题。
 #[derive(Debug, thiserror::Error)]
-pub enum IbusError {
+pub enum ClientError {
     /// 连不上 Server 的 socket（多半是 Server 没启动）。
     #[error("connect to server at {path}: {source}")]
     Connect {

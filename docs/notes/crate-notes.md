@@ -310,6 +310,12 @@ id 不能撞拼音侧的写法与日志里的 `wubi`（`is_valid_id`），因为
 协议版本见 `PROTOCOL_VERSION`，`PreeditKind::AuxCode` 对应 Core 的 `MarkedKind::AuxCode`，`Frame.aux_code_show` 随帧下发显示码开关，
 `Frame.translation_pos` 随帧下发「译词是否带词性标注」（`[general] translation_pos`，缺省开；与 `aux_code_show` 同款普通 `#[serde(default)]`——帧只由 Server 自己的候选窗消费、DLL 不读该字段，加这种纯字段不 bump 协议版本，枚举变体才必须 bump）；
 `Frame.columns` / `column_ems` 随帧下发横排矩阵视口，带 `serde(default)` 新老互通，DLL 不画候选读不到也照旧）。
+`protocol::linux` 是 Linux Server ↔ 各前端的扩展（`LinuxEvent` / `DisplayIdentity` / `LINUX_UI_PROTOCOL` 与 socket 路径），
+两个 Rust 前端（IBus、Wayland）共用的部分也在这里：`client`（一条 Unix socket 一问一答，`Connection` / `Reply` / `ClientError`；
+**哪些消息有回包是协议的一部分**——`OpenSession` 与 `LinuxEvent` 有，`CloseSession` 与展示回执没有，读多了卡住、读少了下一次答复串位；超时 200 ms，与 Fcitx5 插件一致；
+`key_flushing` 是组句中快捷键先上原文再放行的那一套）与 `key`（keysym + X11 修饰键掩码 → `KeyEvent`，**与 `apps/linux/fcitx5/src/key/mapping.cpp` 必须一字不差**：
+几个前端喂同一个 Server 同一套 `[shortcut]`，不一致同一个键在不同框架下行为就不同；最容易错的是 Shift+数字：X11 给的 keysym 是 `@`，
+而译词 / 删候选快捷键按物理数字行认，要折回 `0x32`，`character` 仍留 `@`）。`client` 只在 Linux 上编（要 `SO_PEERCRED`）。
 
 ## crates/qingjian-render
 
@@ -599,12 +605,9 @@ IBus 的组件 XML 与 systemd 单元里都写死了安装后的绝对路径，�
 第二个前端（IBus），与 `fcitx5` 平级：同一个 Server、同一套协议。按键、焦点、重置与面板三样已经通，
 对着真 ibus-daemon 验过（`tests/ibus_engine.rs`）。密码框（`SetContentType`）代码有但没验过。
 
-- `client/`：一条 Unix socket，一问一答。**哪些消息有回包是协议的一部分**——`OpenSession` 与 `LinuxEvent` 有，
-  `CloseSession` 与展示回执没有；读多了卡住，读少了下一次答复串位。`Shared` 是 `Arc<Mutex<Option<Connection>>>`：
-  锁毒化后取回数据接着用，出错就扔掉连接下次重连（会话要重开）。超时 200 ms，与 Fcitx5 插件一致。
-- `key/`：keysym + X11 修饰键掩码 → `KeyEvent`。**这张表与 `apps/linux/fcitx5/src/key/mapping.cpp` 必须一字不差**，
-  两个前端喂同一个 Server 同一套 `[shortcut]`，不一致同一个键在两个框架下行为就不同。
-  最容易错的是 Shift+数字：X11 给的 keysym 是 `@`，而译词 / 删候选快捷键按物理数字行认，要折回 `0x32`，`character` 仍留 `@`。
+- 连接与键表是与 Wayland 前端共用的 `qingjian_platform::protocol::linux::{client, key}`（见 crates/qingjian-platform 一节）。
+  这里只剩 `client/shared.rs`：`Shared` 是 `Arc<Mutex<Option<Connection>>>`，锁毒化后取回数据接着用，出错就扔掉连接下次重连（会话要重开），
+  能力跨重连缓存、重开会话先补报；`key.rs` 只认 IBus 自己的抬键位（第 30 位）。
 - `ibus/`：D-Bus 那一层。`engine.rs` 每个输入上下文一个对象（对象路径当 Server 那边的上下文标识），
   `variant.rs` 拼 IBus 的 GVariant 对象，`view.rs` 把帧折成 preedit / 候选表 / 辅助行三样，
   `service.rs` 找总线地址（`IBUS_ADDRESS` → 按 ibus 的规则算地址文件名 → 扫目录只认 PID 还活着的）。

@@ -18,9 +18,7 @@ use std::sync::{Arc, Mutex, MutexGuard};
 
 use qingjian_platform::protocol::SessionId;
 use qingjian_platform::protocol::linux::Capabilities;
-
-use super::Connection;
-use crate::error::IbusError;
+use qingjian_platform::protocol::linux::client::{ClientError, Connection};
 
 /// 共用的连接句柄。
 #[derive(Clone, Default)]
@@ -50,8 +48,8 @@ impl Shared {
     pub fn with_session<T>(
         &self,
         context: &str,
-        action: impl FnOnce(&mut Connection, SessionId) -> Result<T, IbusError>,
-    ) -> Result<T, IbusError> {
+        action: impl FnOnce(&mut Connection, SessionId) -> Result<T, ClientError>,
+    ) -> Result<T, ClientError> {
         let mut state = self.lock();
         match Self::ensure_session(&mut state, context) {
             Ok(session) => {
@@ -73,7 +71,7 @@ impl Shared {
         &self,
         context: &str,
         capabilities: Capabilities,
-    ) -> Result<bool, IbusError> {
+    ) -> Result<bool, ClientError> {
         {
             let mut state = self.lock();
             if state.capabilities.get(context) == Some(&capabilities) {
@@ -110,7 +108,7 @@ impl Shared {
     }
 
     /// 连接与会话都就位，返回会话编号。
-    fn ensure_session(state: &mut State, context: &str) -> Result<SessionId, IbusError> {
+    fn ensure_session(state: &mut State, context: &str) -> Result<SessionId, ClientError> {
         if state.connection.is_none() {
             state.connection = Some(Connection::connect()?);
             // 连接换了，旧会话编号在新连接上没有意义
@@ -129,7 +127,7 @@ impl Shared {
     }
 
     /// 出错之后把连接与会话表一起扔掉，错误原样交出去。
-    fn drop_connection(state: &mut State, error: IbusError) -> IbusError {
+    fn drop_connection(state: &mut State, error: ClientError) -> ClientError {
         tracing::warn!(%error, "与 Server 的连接出错，丢弃后下次重连");
         state.connection = None;
         state.sessions.clear();

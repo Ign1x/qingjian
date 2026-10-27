@@ -1,9 +1,9 @@
 //! X11 keysym：常量与「这个 keysym 敲出来是哪个字符」。
 //!
-//! IBus 的 `ProcessKeyEvent` 直接给 keysym。取值来自 X11 的 `keysymdef.h`，
-//! 是三十年没动过的公开常量，不值得为它引一个依赖。
+//! IBus 的 `ProcessKeyEvent` 直接给 keysym，Wayland 前端用 xkbcommon 按键码算出 keysym。
+//! 取值来自 X11 的 `keysymdef.h`，是三十年没动过的公开常量，不值得为它引一个依赖。
 //!
-//! 这里只列 [`super::mapping`] 用得到的那些：功能键区、小键盘、两个 Shift。
+//! 这里只列 [`super::to_key_event`] 用得到的那些：功能键区、小键盘、两个 Shift。
 
 /// 功能键区（`0xff00` 起）。
 pub const BACKSPACE: u32 = 0xff08;

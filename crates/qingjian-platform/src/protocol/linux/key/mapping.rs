@@ -5,11 +5,10 @@
 //! 行为就不一样（最容易出问题的是翻页键与 Shift+数字）。改这里要同时改那边。
 //!
 //! 虚拟键码用 Windows 那套值（`0x08` 退格、`0x25` 左…），来源见
-//! [`qingjian_platform::protocol::KeyEvent`]：Server 的按键分流是照它写的，Linux 这边照抄。
-
-use qingjian_platform::protocol::KeyEvent;
+//! [`crate::protocol::KeyEvent`]：Server 的按键分流是照它写的，Linux 这边照抄。
 
 use super::{keysym, modifiers};
+use crate::protocol::KeyEvent;
 
 /// Shift + 数字行敲出来的符号，按数字 0–9 排。
 ///
@@ -17,9 +16,9 @@ use super::{keysym, modifiers};
 /// 所以这里把它折回 `0x32`，`character` 仍保留 `@` 不动——上屏的还是符号本身。
 const SHIFTED_DIGITS: [char; 10] = [')', '!', '@', '#', '$', '%', '^', '&', '*', '('];
 
-/// 把 IBus 给的一次按键翻成 [`KeyEvent`]。
+/// 把一次按键（keysym + X11 修饰键掩码）翻成 [`KeyEvent`]。
 ///
-/// `state` 是 X11 的修饰键掩码（IBus 的 `IBusModifierType` 与它同值）。
+/// `state` 是 X11 的修饰键掩码（IBus 的 `IBusModifierType` 与它同值，Wayland 前端按 xkb 的修饰键状态拼）。
 /// `english_mode` 由调用方按当前中 / 英状态补，这一层不知道输入法的模式。
 pub fn to_key_event(keysym_value: u32, state: u32) -> KeyEvent {
     let mut modifiers = modifiers::from_mask(state);

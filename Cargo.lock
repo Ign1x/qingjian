@@ -3834,12 +3834,8 @@ name = "qingjian-linux-ibus"
 version = "0.1.0-dev"
 dependencies = [
  "futures-util",
- "libc",
  "qingjian-core",
  "qingjian-platform",
- "serde",
- "serde_json",
- "thiserror 2.0.21",
  "tokio",
  "tracing",
  "tracing-subscriber",

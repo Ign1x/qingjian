@@ -1,9 +1,9 @@
 //! 与 Server 的一条 Unix socket 连接。
 //!
-//! 一个进程一条连接，进程里每个 IBus 输入上下文在这条连接上开一个会话
-//! （Server 侧按「连接代次 + 上下文」隔离，见 `qingjian_platform::protocol::linux`）。
+//! 一个进程一条连接，进程里每个输入上下文在这条连接上开一个会话
+//! （Server 侧按「连接代次 + 上下文」隔离，见 [`crate::protocol::linux`]）。IBus 前端与 Wayland 前端共用。
 //!
-//! 收发是同步的一问一答，与 Fcitx5 插件的 `ipc/connection.cpp` 同一套：
+//! 收发是同步的一问一答，与 Fcitx5 插件的 `apps/linux/fcitx5/src/ipc/connection.cpp` 同一套：
 //! **哪些消息有回包是协议的一部分**——`LinuxEvent` 与 `OpenSession` 有，
 //! `CloseSession` 与展示回执没有。读多了会卡住，读少了下一次答复会串位。
 
@@ -12,16 +12,13 @@ use std::os::unix::net::UnixStream;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Duration;
 
-use qingjian_platform::protocol::linux::{
-    Capabilities, LINUX_UI_PROTOCOL, LinuxEvent, socket_path,
-};
-use qingjian_platform::protocol::{
-    ClientMessage, KeyEvent, PROTOCOL_VERSION, SessionId, read_message, write_message,
-};
 use serde_json::{Value, json};
 
-use super::Reply;
-use crate::error::IbusError;
+use super::{ClientError, Reply};
+use crate::protocol::linux::{Capabilities, LINUX_UI_PROTOCOL, LinuxEvent, socket_path};
+use crate::protocol::{
+    ClientMessage, KeyEvent, KeyOutcome, PROTOCOL_VERSION, SessionId, read_message, write_message,
+};
 
 /// 一次收发的截止时间，与 Fcitx5 插件的 200 毫秒一致：输入法卡在 IO 上比丢一次按键更糟，
 /// 超时就当连接坏了断开，下一次按键重连。
@@ -48,20 +45,20 @@ impl Connection {
     ///
     /// 连上之后核对对端是不是同一个用户：socket 在 `$XDG_RUNTIME_DIR` 下本来就是私有的，
     /// 但路径可以被 `QINGJIAN_SOCKET` 换掉，所以与 Server 侧一样两头都查一次。
-    pub fn connect() -> Result<Self, IbusError> {
+    pub fn connect() -> Result<Self, ClientError> {
         Self::connect_at(&socket_path())
     }
 
     /// 连指定路径上的 Server。测试用假 Server 时走这条，不去动进程级的环境变量。
-    pub fn connect_at(path: &std::path::Path) -> Result<Self, IbusError> {
-        let stream = UnixStream::connect(path).map_err(|source| IbusError::Connect {
+    pub fn connect_at(path: &std::path::Path) -> Result<Self, ClientError> {
+        let stream = UnixStream::connect(path).map_err(|source| ClientError::Connect {
             path: path.display().to_string(),
             source,
         })?;
         stream.set_read_timeout(Some(TIMEOUT)).ok();
         stream.set_write_timeout(Some(TIMEOUT)).ok();
         if !same_user(&stream) {
-            return Err(IbusError::UntrustedPeer);
+            return Err(ClientError::UntrustedPeer);
         }
         Ok(Self {
             stream,
@@ -70,14 +67,14 @@ impl Connection {
         })
     }
 
-    /// 给一个 IBus 输入上下文开会话：`OpenSession` 之后立刻握 `LinuxHello`。
+    /// 给一个输入上下文开会话：`OpenSession` 之后立刻握 `LinuxHello`。
     ///
     /// `context` 是这个上下文的标识（Server 要求非空、不超过 64 字节、同连接内不重复），
-    /// 用 IBus 的输入上下文对象路径正好。
-    pub fn open_session(&mut self, context: &str) -> Result<SessionId, IbusError> {
+    /// IBus 用输入上下文的对象路径。
+    pub fn open_session(&mut self, context: &str) -> Result<SessionId, ClientError> {
         let session = SessionId(self.next_session);
         self.next_session += 1;
-        // 宿主应用的标识（`[apps]` 按应用设置要用）IBus 这边还没有着落，先不报
+        // 宿主应用的标识（`[apps]` 按应用设置要用）两个 Rust 前端都还没有着落，先不报
         let open = serde_json::to_value(ClientMessage::OpenSession {
             session,
             app: None,
@@ -92,7 +89,7 @@ impl Connection {
         }});
         let reply = self.request(&hello)?;
         if reply.get("LinuxHello").is_none() {
-            return Err(IbusError::Unexpected(reply.to_string()));
+            return Err(ClientError::Unexpected(reply.to_string()));
         }
         Ok(session)
     }
@@ -104,7 +101,7 @@ impl Connection {
         &mut self,
         session: SessionId,
         capabilities: Capabilities,
-    ) -> Result<Reply, IbusError> {
+    ) -> Result<Reply, ClientError> {
         self.event(session, LinuxEvent::Capabilities(capabilities))
     }
 
@@ -114,8 +111,8 @@ impl Connection {
         session: SessionId,
         event: KeyEvent,
         release: bool,
-    ) -> Result<Reply, IbusError> {
-        // IBus 前端还不报光标前后文，也不接选区翻译的回传
+    ) -> Result<Reply, ClientError> {
+        // 还不报光标前后文，也不接选区翻译的回传
         self.event(
             session,
             LinuxEvent::Key {
@@ -127,8 +124,33 @@ impl Connection {
         )
     }
 
+    /// 报一次按键，组句中的快捷键先冲洗：Server 放行一个带 Ctrl / Alt / Super 的按下、而 preedit 还有内容时，
+    /// 先 `Deactivate` 把原文上屏、再 `Focus{true}`（Deactivate 把会话标成不活跃，焦点其实还在这个框里），
+    /// 回包带着要上屏的原文，按键照旧放行。调用方要先上屏、再把键交给应用。
+    ///
+    /// 应用收到 Ctrl+F 这类键会先自己挪焦点，输入法之后才知道失焦，那时再交出 preedit 已经落到新框或丢掉了；
+    /// 与 macOS 在应用处理快捷键前 `commitComposition` 的结果一致。
+    pub fn key_flushing(
+        &mut self,
+        session: SessionId,
+        event: KeyEvent,
+        release: bool,
+    ) -> Result<Reply, ClientError> {
+        let shortcut = !release && event.modifiers.has_command_key();
+        let reply = self.key(session, event, release)?;
+        if !shortcut || reply.outcome != KeyOutcome::Passthrough || reply.frame.preedit.is_empty() {
+            return Ok(reply);
+        }
+        let flushed = self.deactivate(session, false, false, false)?;
+        self.focus(session, true)?;
+        Ok(Reply {
+            outcome: KeyOutcome::Passthrough,
+            ..flushed
+        })
+    }
+
     /// 报一次焦点进出。
-    pub fn focus(&mut self, session: SessionId, focused: bool) -> Result<Reply, IbusError> {
+    pub fn focus(&mut self, session: SessionId, focused: bool) -> Result<Reply, ClientError> {
         self.event(session, LinuxEvent::Focus { focused })
     }
 
@@ -142,7 +164,7 @@ impl Connection {
         focus_out: bool,
         client_preedit: bool,
         capability_changed: bool,
-    ) -> Result<Reply, IbusError> {
+    ) -> Result<Reply, ClientError> {
         self.event(
             session,
             LinuxEvent::Deactivate {
@@ -154,37 +176,37 @@ impl Connection {
     }
 
     /// 应用要求重置：丢掉组句，不上屏。
-    pub fn reset(&mut self, session: SessionId) -> Result<Reply, IbusError> {
+    pub fn reset(&mut self, session: SessionId) -> Result<Reply, ClientError> {
         self.event(session, LinuxEvent::Reset)
     }
 
     /// 组句期间取一次最新的帧：本地整句模型的重排结果从这里来（Server 不推送）。
     /// 回的是 `Update`，帧没变时版本号与上次相同。
-    pub fn poll(&mut self, session: SessionId) -> Result<Reply, IbusError> {
+    pub fn poll(&mut self, session: SessionId) -> Result<Reply, ClientError> {
         let message = serde_json::to_value(ClientMessage::Poll { session })?;
         Reply::from_value(self.request(&message)?)
     }
 
     /// 关掉一个会话。没有回包。
-    pub fn close_session(&mut self, session: SessionId) -> Result<(), IbusError> {
+    pub fn close_session(&mut self, session: SessionId) -> Result<(), ClientError> {
         let message = serde_json::to_value(ClientMessage::CloseSession { session })?;
         self.notify(&message)
     }
 
     /// 发一个 Linux 事件，取回 Server 的处置。
-    fn event(&mut self, session: SessionId, event: LinuxEvent) -> Result<Reply, IbusError> {
+    fn event(&mut self, session: SessionId, event: LinuxEvent) -> Result<Reply, ClientError> {
         let message = json!({"LinuxEvent": {"session": session, "event": event}});
         Reply::from_value(self.request(&message)?)
     }
 
     /// 发一条有回包的消息。
-    fn request(&mut self, message: &Value) -> Result<Value, IbusError> {
+    fn request(&mut self, message: &Value) -> Result<Value, ClientError> {
         self.notify(message)?;
-        read_message::<_, Value>(&mut self.stream)?.ok_or(IbusError::Closed)
+        read_message::<_, Value>(&mut self.stream)?.ok_or(ClientError::Closed)
     }
 
     /// 发一条没有回包的消息。
-    fn notify(&mut self, message: &Value) -> Result<(), IbusError> {
+    fn notify(&mut self, message: &Value) -> Result<(), ClientError> {
         write_message(&mut self.stream, message)?;
         Ok(())
     }

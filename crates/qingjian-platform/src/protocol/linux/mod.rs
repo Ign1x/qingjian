@@ -1,13 +1,17 @@
 //! Linux 独立的面板协议扩展；Windows 的 `ClientMessage` / `ServerMessage` 与版本号不变。
 //!
 //! 与 Windows 那套同样的道理（见父模块文档）：Server 进程扛 [`qingjian_core::Engine`]，
-//! 各框架的前端（Fcitx5 addon、IBus 前端）只做事件翻译与贴图，所以线上类型必须放在
-//! **两端都能依赖、又不拖进 Engine 依赖树**的这里。
+//! 各框架的前端（Fcitx5 addon、IBus 前端、Wayland 前端）只做事件翻译与贴图，所以线上类型必须放在
+//! **两端都能依赖、又不拖进 Engine 依赖树**的这里。两个 Rust 前端共用的客户端（[`client`](crate::protocol::linux::client)）与键表（[`key`](crate::protocol::linux::key)）
+//! 也是两端的约定，一并放这里。
 
 mod capabilities;
+#[cfg(target_os = "linux")]
+pub mod client;
 mod display;
 mod event;
 mod identity;
+pub mod key;
 mod request;
 #[cfg(target_os = "linux")]
 mod socket;

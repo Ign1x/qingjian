@@ -8,6 +8,8 @@
 //! 输入法本来就按用户的按键串行，Fcitx5 插件也是在它的事件循环里同步收发。
 
 use qingjian_platform::protocol::linux::Capabilities;
+use qingjian_platform::protocol::linux::client::{ClientError, Connection, Reply};
+use qingjian_platform::protocol::linux::key::to_key_event;
 use qingjian_platform::protocol::{KeyOutcome, SessionId};
 use zbus::object_server::SignalEmitter;
 use zbus::zvariant::Value;
@@ -15,8 +17,7 @@ use zbus::zvariant::Value;
 use super::poller::Poller;
 use super::variant;
 use super::view::View;
-use crate::client::{Connection, Reply, Shared};
-use crate::error::IbusError;
+use crate::client::Shared;
 use crate::key;
 
 /// `UpdatePreeditText` 的 `mode`（ibus 的 `IBusPreeditFocusMode`）：空 preedit 用 CLEAR。
@@ -103,7 +104,7 @@ impl IBusEngine {
         &self,
         emitter: &SignalEmitter<'_>,
         what: &str,
-        action: impl FnOnce(&mut Connection, SessionId) -> Result<Reply, IbusError>,
+        action: impl FnOnce(&mut Connection, SessionId) -> Result<Reply, ClientError>,
     ) -> bool {
         let mut polling = self.poller.lock().await;
         let reply = match self.client.with_session(&self.context, action) {
@@ -140,10 +141,9 @@ impl IBusEngine {
     /// 抬键也要报上去：中 / 英切换认的是 Shift 的**抬起**（`[shortcut] switch_mode`），
     /// 在这里就地放行的话那个键永远不会生效。吃不吃掉仍由 Server 说了算。
     ///
-    /// 组句中按下的 Ctrl / Alt / Super 组合键 Server 不处理、交给应用时，先把拼音原样上屏再放行：
-    /// GNOME Wayland 上应用收到 Ctrl+F 这类键会先自己挪焦点，gnome-shell 之后才通知输入法，
-    /// 那时再交出 preedit 已经落到新框或丢掉了。上屏信号在这个方法返回之前发出，比按键先到应用，
-    /// 与 macOS 在应用处理快捷键前 `commitComposition` 的结果一致。
+    /// 组句中按下的 Ctrl / Alt / Super 组合键 Server 不处理、交给应用时，先把拼音原样上屏再放行
+    /// （[`Connection::key_flushing`]）：GNOME Wayland 上应用收到 Ctrl+F 这类键会先自己挪焦点，
+    /// gnome-shell 之后才通知输入法。上屏信号在这个方法返回之前发出，比按键先到应用。
     async fn process_key_event(
         &mut self,
         keyval: u32,
@@ -152,24 +152,10 @@ impl IBusEngine {
         #[zbus(signal_emitter)] emitter: SignalEmitter<'_>,
     ) -> bool {
         let release = key::is_release(state);
-        let event = key::to_key_event(keyval, state);
-        let shortcut = !release && event.modifiers.has_command_key();
+        let event = to_key_event(keyval, state);
         let consumed = self
             .apply(&emitter, "按键", |connection, session| {
-                let reply = connection.key(session, event, release)?;
-                if !shortcut
-                    || reply.outcome != KeyOutcome::Passthrough
-                    || reply.frame.preedit.is_empty()
-                {
-                    return Ok(reply);
-                }
-                let flushed = connection.deactivate(session, false, false, false)?;
-                // Deactivate 把会话标成不活跃，焦点其实还在这个框里
-                connection.focus(session, true)?;
-                Ok(Reply {
-                    outcome: KeyOutcome::Passthrough,
-                    ..flushed
-                })
+                connection.key_flushing(session, event, release)
             })
             .await;
         // 排错时要看的是**事件之间的交错**（焦点、能力、按键谁先谁后），少了这一条就只能靠猜

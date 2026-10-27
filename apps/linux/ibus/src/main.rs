@@ -12,19 +12,19 @@
 #[cfg(target_os = "linux")]
 mod client;
 #[cfg(target_os = "linux")]
-mod error;
-#[cfg(target_os = "linux")]
 mod ibus;
 #[cfg(target_os = "linux")]
 mod key;
 
 #[cfg(target_os = "linux")]
+use qingjian_platform::protocol::linux::client::ClientError;
+#[cfg(target_os = "linux")]
+use qingjian_platform::protocol::linux::key::to_key_event;
+#[cfg(target_os = "linux")]
 use qingjian_platform::protocol::linux::{Capabilities, socket_path};
 
 #[cfg(target_os = "linux")]
 use client::Shared;
-#[cfg(target_os = "linux")]
-use error::IbusError;
 
 fn main() {
     #[cfg(target_os = "linux")]
@@ -103,7 +103,7 @@ fn serve() -> Result<(), zbus::Error> {
 ///
 /// 这条路走通就说明前端这一侧的协议是对的——**IBus 还没接进来的时候，它是唯一能端到端验的东西**。
 #[cfg(target_os = "linux")]
-fn check(typed: &str) -> Result<(), IbusError> {
+fn check(typed: &str) -> Result<(), ClientError> {
     let shared = Shared::default();
     tracing::info!(socket = %socket_path().display(), "连 Server");
     // 会话由 Shared 按上下文标识建，开的时候会带上能力（Server 在收到能力之前不收按键）
@@ -114,7 +114,7 @@ fn check(typed: &str) -> Result<(), IbusError> {
         connection.focus(session, true)?;
         let mut last = Default::default();
         for character in typed.chars() {
-            let event = key::to_key_event(character as u32, 0);
+            let event = to_key_event(character as u32, 0);
             let reply = connection.key(session, event, false)?;
             tracing::debug!(key = %character, outcome = ?reply.outcome, "按键");
             if let Some(commit) = &reply.commit {

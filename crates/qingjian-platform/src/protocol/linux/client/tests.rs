@@ -7,14 +7,12 @@ use std::os::unix::net::UnixListener;
 use std::path::PathBuf;
 use std::thread;
 
-use qingjian_platform::protocol::linux::{Capabilities, LINUX_UI_PROTOCOL};
-use qingjian_platform::protocol::{
-    Frame, KeyOutcome, PROTOCOL_VERSION, read_message, write_message,
-};
 use serde_json::{Value, json};
 
-use super::Connection;
-use crate::error::IbusError;
+use super::{ClientError, Connection};
+use crate::protocol::linux::key::to_key_event;
+use crate::protocol::linux::{Capabilities, LINUX_UI_PROTOCOL};
+use crate::protocol::{Frame, KeyOutcome, PROTOCOL_VERSION, read_message, write_message};
 
 /// 假 Server 收到的消息，测完拿回来核对。
 type Received = std::sync::Arc<std::sync::Mutex<Vec<Value>>>;
@@ -24,7 +22,7 @@ type Received = std::sync::Arc<std::sync::Mutex<Vec<Value>>>;
 /// `limit` 是「服务几条消息之后就收工关连接」，用来演 Server 中途没了；`None` 是一直服务到客户端断开。
 fn fake_server(limit: Option<usize>) -> (PathBuf, Received, thread::JoinHandle<()>) {
     let path = std::env::temp_dir().join(format!(
-        "qingjian-ibus-test-{}-{:?}.sock",
+        "qingjian-client-test-{}-{:?}.sock",
         std::process::id(),
         thread::current().id()
     ));
@@ -88,7 +86,7 @@ fn handshake_then_key_round_trips() {
         .expect("报能力");
     assert_eq!(capabilities.outcome, KeyOutcome::Consumed);
 
-    let key = crate::key::to_key_event('n' as u32, 0);
+    let key = to_key_event('n' as u32, 0);
     let reply = connection.key(session, key, false).expect("报按键");
     assert_eq!(reply.outcome, KeyOutcome::Consumed);
     assert!(reply.commit.is_none());
@@ -124,7 +122,7 @@ fn handshake_then_key_round_trips() {
 /// 连不上就是连不上，不要在这里重试或者吞掉错误：上层按这个决定要不要放行按键。
 #[test]
 fn connecting_to_a_dead_socket_fails() {
-    let path = std::env::temp_dir().join("qingjian-ibus-test-not-there.sock");
+    let path = std::env::temp_dir().join("qingjian-client-test-not-there.sock");
     let _ = std::fs::remove_file(&path);
     assert!(Connection::connect_at(&path).is_err());
 }
@@ -152,12 +150,12 @@ fn closed_server_is_reported() {
     server.join().expect("假 Server 收工");
     let _ = std::fs::remove_file(&path);
 
-    let key = crate::key::to_key_event('n' as u32, 0);
+    let key = to_key_event('n' as u32, 0);
     let error = connection
         .key(session, key, false)
         .expect_err("对端没了要报错");
     assert!(
-        matches!(error, IbusError::Closed | IbusError::Codec(_)),
+        matches!(error, ClientError::Closed | ClientError::Codec(_)),
         "应该是连接断了这一类，实际是 {error}"
     );
 }
@@ -174,7 +172,7 @@ fn poll_reads_display_revision() {
         .expect("报能力");
 
     let typed = connection
-        .key(session, crate::key::to_key_event('n' as u32, 0), false)
+        .key(session, to_key_event('n' as u32, 0), false)
         .expect("按键");
     assert_eq!(typed.revision, Some(7));
     let polled = connection.poll(session).expect("轮询");

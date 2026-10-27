@@ -11,15 +11,12 @@ name = "qingjian-linux-ibus"
 path = "src/main.rs"
 
 # 不依赖 qingjian-core / -dictionary / -lm：前端不扛 Engine，词库、排序、学习全在 Server 那一侧。
-# 线上类型走 qingjian-platform::protocol（与 Windows 的 TSF DLL 同一条理由，见那个模块的文档）。
+# 线上类型、连 Server 的客户端与键表走 qingjian-platform::protocol::linux（与 Windows 的 TSF DLL 同一条理由，见那个模块的文档），
+# 与 Wayland 前端共用。
 [dependencies]
 qingjian-platform.workspace = true
-serde.workspace = true
-serde_json.workspace = true
-thiserror.workspace = true
 tracing.workspace = true
 tracing-subscriber.workspace = true
-libc = "0.2.189"
 # IBus 走 D-Bus；zbus 的接口对象要 Send + Sync，所以连接句柄是 Arc<Mutex<…>>
 zbus.workspace = true
 tokio = { workspace = true, features = ["rt-multi-thread", "macros", "signal"] }

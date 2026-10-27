@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # //! 安装文件清单与校验；不管理桌面服务、系统文件或用户数据。
-# //! 装哪几支（fcitx5 / fcitx4 插件、IBus 前端、systemd 单元）由 install.sh 决定，这里只按给的路径照做。
+# //! 装哪几支（fcitx5 / fcitx4 插件、IBus 前端、Wayland 前端、systemd 单元）由 install.sh 决定，这里只按给的路径照做。
 import argparse
 import hashlib
 import json
@@ -35,7 +35,9 @@ def parse_args():
     parser.add_argument('--ibus', help='IBus 前端可执行文件；这一支不装就不给')
     parser.add_argument('--ibus-xml', help='IBus 组件 XML（install.sh 按安装路径生成好的）')
     parser.add_argument('--ibus-env', help='设 IBUS_COMPONENT_PATH 的 environment.d 片段（install.sh 生成好的）')
+    parser.add_argument('--wayland', help='Wayland 原生版前端可执行文件；这一支不装就不给')
     parser.add_argument('--service', help='systemd 用户单元文件（同上，已填好路径）')
+    parser.add_argument('--wayland-service', help='Wayland 前端的 systemd 用户单元（同上）')
     parser.add_argument('--sample', action='store_true', help='只装样例词库，不校验产品数据')
     return parser.parse_args()
 
@@ -154,8 +156,12 @@ def main():
         files[data / 'ibus/component/qingjian.xml'] = Path(options.ibus_xml)
         # IBus 不读用户目录下的组件，只认 IBUS_COMPONENT_PATH；会话启动时由 systemd 从 environment.d 读进来
         files[config / 'environment.d/qingjian-ibus.conf'] = Path(options.ibus_env)
+    if options.wayland:
+        files[prefix / 'bin/qingjian-linux-wayland'] = Path(options.wayland)
     if options.service:
         files[config / 'systemd/user/qingjian-server.service'] = Path(options.service)
+    if options.wayland_service:
+        files[config / 'systemd/user/qingjian-wayland.service'] = Path(options.wayland_service)
     files.update(resource_files(root, prefix / 'share/qingjian/resources', options.sample))
     # 安装前先检查所有目标，避免覆盖其他来源的同名文件。
     for target in files:

@@ -14,6 +14,7 @@ mod preedit;
 mod repeat;
 mod reply;
 mod server;
+mod unsent;
 
 #[cfg(test)]
 mod tests;
@@ -31,9 +32,15 @@ use qingjian_platform::protocol::linux::AppSurrounding;
 
 use keys::Keys;
 use repeat::Repeat;
+use unsent::Unsent;
 
 /// 组句期间多久问一次 Server 有没有新帧（重排结果、云端候选都靠它），与两个现有前端一样。
 const POLL_INTERVAL: Duration = Duration::from_millis(80);
+
+/// 发出一次文字更新之后，最多等多久应用的 commit（合成器转来的 `done`）再发下一次。
+/// foot 这类应用收到 serial 对不上的 `done` 会把整次更新（连同上屏文字）丢掉，而它应用完我们的更新、
+/// 重画后再 commit 要一帧左右；这期间发出去的下一次正好撞上。不 commit 的应用最多慢这么久。
+const SETTLE: Duration = Duration::from_millis(80);
 
 /// 一个输入法实例在一个 seat 上的状态。
 pub struct Session<S> {
@@ -57,8 +64,14 @@ pub struct Session<S> {
     /// 最近一次给虚拟键盘的键位表；没有之前虚拟键盘上什么都不能发。
     keymap: Option<String>,
 
-    /// 应用里现在的行内拼音（最后一次发出去的）。
+    /// 应用里该有的行内拼音（最新的一份，可能还攒在 `unsent` 里没发）。
     preedit: Preedit,
+
+    /// 攒着、等应用落定再发的文字更新。
+    unsent: Unsent,
+
+    /// 上一次文字更新发出之后，最晚等到什么时候；`None` 是应用已经落定（收到了 `done`）。
+    settle_at: Option<Instant>,
 
     /// 候选窗上现在画着的帧与它画出的义项；收着是 `None`。抬键的回包帧多半没变，没变就不重画。
     drawn: Option<(Frame, Vec<(usize, usize)>)>,
@@ -81,6 +94,8 @@ impl<S: Server> Session<S> {
             repeat: Repeat::default(),
             keymap: None,
             preedit: Preedit::default(),
+            unsent: Unsent::default(),
+            settle_at: None,
             drawn: None,
             shown: None,
             poll_at: None,
@@ -103,6 +118,10 @@ impl<S: Server> Session<S> {
     /// 到点的事：按键重复、组句轮询、Server 断开后的重连；最后看看键盘该不该交还。
     /// 主循环每处理完一批事件调一次。
     pub fn tick(&mut self, out: &mut impl Output, now: Instant) {
+        if self.settle_at.is_some_and(|at| at <= now) {
+            self.settle_at = None;
+            self.flush(out, now);
+        }
         if let Some(key) = self.repeat.due(now) {
             self.repeat_key(key, out, now);
         }
@@ -115,19 +134,26 @@ impl<S: Server> Session<S> {
         if self.reconnect_at().is_some_and(|at| at <= now) {
             self.connect(out);
         }
-        self.settle(out);
+        self.yield_keyboard(out);
     }
 
     /// 下一件到点的事。
     pub fn deadline(&self) -> Option<Instant> {
-        [self.repeat.deadline(), self.poll_at, self.reconnect_at()]
-            .into_iter()
-            .flatten()
-            .min()
+        let settle = self.settle_at.filter(|_| self.unsent.dirty);
+        [
+            self.repeat.deadline(),
+            self.poll_at,
+            self.reconnect_at(),
+            settle,
+        ]
+        .into_iter()
+        .flatten()
+        .min()
     }
 
     /// 退出前：替转发过还按着的键补抬起（不然虚拟键盘上一直按着），交还键盘，收起候选窗。
     pub fn shutdown(&mut self, out: &mut impl Output) {
+        self.flush(out, Instant::now());
         for code in self.keys.drain_forwarded() {
             out.forward(code, false, 0);
         }
@@ -154,7 +180,7 @@ impl<S: Server> Session<S> {
 
     /// 不该再拿着键盘（没有输入框、密码框、Server 断了）而且没有按着的键，就交还给合成器。
     /// 还按着的键要等它们抬起：抬起经虚拟键盘转出去，虚拟键盘上才不会卡住。
-    fn settle(&mut self, out: &mut impl Output) {
+    fn yield_keyboard(&mut self, out: &mut impl Output) {
         if self.grabbed && !self.serving() && self.keys.is_empty() {
             self.repeat.stop();
             out.grab(false);

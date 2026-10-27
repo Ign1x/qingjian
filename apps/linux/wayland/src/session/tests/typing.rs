@@ -4,8 +4,8 @@ use std::time::Duration;
 
 use qingjian_platform::protocol::{Frame, KeyOutcome};
 
-use super::super::Input;
-use super::support::{Call, Out, answer, composing, key, ready, type_letter};
+use super::super::{Input, SETTLE};
+use super::support::{Call, Out, answer, composing, key, ready, settled, type_letter};
 
 /// nihao 组句：行内拼音与候选窗跟着变；抬键的回包帧没变不重画；空格上屏后收起。
 #[test]
@@ -27,6 +27,7 @@ fn typing_composes_and_commits() {
         "按下吃掉：放进拼音、开候选窗；抬起帧没变，什么都不做，也不转给应用"
     );
     out.log.clear();
+    settled(&mut session, &mut out, now);
 
     session
         .server
@@ -63,10 +64,11 @@ fn shortcut_flush_commits_before_the_key_reaches_the_app() {
     assert_eq!(
         out.log,
         [
-            Out::Text("ni".to_owned(), String::new()),
             Out::Hide,
+            Out::Text("ni".to_owned(), String::new()),
             Out::Forward(30, true)
-        ]
+        ],
+        "上一次更新应用还没落定也不等：先上屏再给键"
     );
 }
 
@@ -178,4 +180,52 @@ fn keys_carry_the_surrounding_text_unless_sensitive() {
         session.server.calls.last(),
         Some(Call::Key { context: false, .. })
     ));
+}
+
+/// 上一次更新应用还没落定（没收到 `done`）时攒着，落定或等满 SETTLE 再发最新的一份：
+/// foot 这类应用收到 serial 对不上的 `done` 会把整次更新丢掉。
+#[test]
+fn text_updates_wait_for_the_client_to_settle() {
+    let (mut session, mut out, now) = ready();
+    type_letter(&mut session, &mut out, 'n', composing("n", &["你"]), now);
+    out.log.clear();
+    type_letter(&mut session, &mut out, 'i', composing("ni", &["你"]), now);
+    assert!(
+        !out.log.iter().any(|entry| matches!(entry, Out::Text(..))),
+        "{:?}",
+        out.log
+    );
+    assert_eq!(session.deadline(), Some(now + SETTLE));
+
+    settled(&mut session, &mut out, now);
+    assert_eq!(
+        out.log.last(),
+        Some(&Out::Text(String::new(), "ni".to_owned()))
+    );
+    out.log.clear();
+
+    type_letter(&mut session, &mut out, 'h', composing("ni'h", &["你"]), now);
+    session.tick(&mut out, now + SETTLE);
+    assert_eq!(
+        out.log.last(),
+        Some(&Out::Text(String::new(), "ni'h".to_owned()))
+    );
+}
+
+/// 攒着期间又上屏了两次：拼在一起一次发出去，不丢。
+#[test]
+fn pending_commits_are_joined() {
+    let (mut session, mut out, now) = ready();
+    type_letter(&mut session, &mut out, 'n', composing("ni", &["你"]), now);
+    for text in ["你", "好"] {
+        session.server.presses.push_back(answer(
+            KeyOutcome::Consumed,
+            Some(text),
+            composing("x", &["新"]),
+        ));
+        session.handle(Input::Key(key(2, '1' as u32, true)), &mut out, now);
+    }
+    out.log.clear();
+    settled(&mut session, &mut out, now);
+    assert_eq!(out.log, [Out::Text("你好".to_owned(), "x".to_owned())]);
 }

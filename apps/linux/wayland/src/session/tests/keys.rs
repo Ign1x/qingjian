@@ -7,7 +7,7 @@ use qingjian_platform::protocol::{Frame, KeyOutcome};
 
 use super::super::{Input, Modifiers, Session};
 use super::support::{
-    Answer, FakeServer, Out, Recorder, answer, composing, key, ready, type_letter,
+    Answer, FakeServer, Out, Recorder, answer, composing, key, ready, settled, type_letter,
 };
 
 /// 没在组句时放行的键：按下与抬起都转给应用，不往应用里放任何文字。
@@ -34,12 +34,13 @@ fn shift_tap_switches_and_the_release_still_reaches_the_app() {
     session.handle(Input::Key(key(42, keysym::SHIFT_L, false)), &mut out, now);
     assert_eq!(
         out.log,
-        [
-            Out::Forward(42, true),
-            Out::Text("ni".to_owned(), String::new()),
-            Out::Hide,
-            Out::Forward(42, false),
-        ]
+        [Out::Forward(42, true), Out::Hide, Out::Forward(42, false)],
+        "上一次更新应用还没落定：原文先攒着，抬起照转"
+    );
+    settled(&mut session, &mut out, now);
+    assert_eq!(
+        out.log.last(),
+        Some(&Out::Text("ni".to_owned(), String::new()))
     );
 }
 
@@ -62,6 +63,7 @@ fn held_backspace_repeats_until_the_server_lets_go() {
         .presses
         .push_back(answer(KeyOutcome::Consumed, None, composing("n", &["你"])));
     session.handle(Input::Key(key(14, keysym::BACKSPACE, true)), &mut out, now);
+    settled(&mut session, &mut out, now);
     out.log.clear();
 
     let first = now + Duration::from_millis(600);

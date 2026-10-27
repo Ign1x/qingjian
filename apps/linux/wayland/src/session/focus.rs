@@ -7,13 +7,15 @@ impl<S: Server> Session<S> {
         self.active = true;
         // 新输入框里没有我们的拼音，候选窗在上一次失活时已经收起
         self.preedit = Preedit::default();
+        self.unsent.clear();
+        self.settle_at = None;
         self.shown = None;
         self.poll_at = None;
         if let Err(error) = self.server.capabilities(field.capabilities()) {
             tracing::warn!(%error, "报输入框能力失败");
         }
         self.field = field;
-        // 密码框不接管键盘，键直接归应用；之前拿着的键盘由 settle 交还
+        // 密码框不接管键盘，键直接归应用；之前拿着的键盘由 yield_keyboard 交还
         if !self.field.password {
             self.connect(out);
         }
@@ -46,14 +48,19 @@ impl<S: Server> Session<S> {
             let _ = self.server.deactivate();
         }
         self.hide(out);
-        // 输入框失活时应用自己清掉 preedit
+        // 输入框失活时应用自己清掉 preedit；失活之后发的更新合成器不再转给它，攒着的也就作废了
         self.preedit = Preedit::default();
+        self.unsent.clear();
+        self.settle_at = None;
     }
 
     pub(super) fn update(&mut self, field: Field, out: &mut impl Output, now: std::time::Instant) {
         if !self.active {
             return;
         }
+        // 应用 commit 了：上一次发的它已经处理完，攒着的可以发了
+        self.settle_at = None;
+        self.flush(out, now);
         if field.password != self.field.password {
             // 密码框点了「显示密码」这类：当成换了一个输入框
             self.deactivate(out);

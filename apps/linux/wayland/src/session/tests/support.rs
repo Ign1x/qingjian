@@ -339,3 +339,8 @@ pub fn type_letter(
     session.handle(Input::Key(key(code, code, true)), out, now);
     session.handle(Input::Key(key(code, code, false)), out, now);
 }
+
+/// 应用处理完我们的更新、commit 了：合成器转来一次 `done`。
+pub fn settled(session: &mut Session<FakeServer>, out: &mut Recorder, now: Instant) {
+    session.handle(Input::Update(Field::default()), out, now);
+}

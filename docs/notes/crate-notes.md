@@ -639,7 +639,8 @@ Wayland 原生版的前端（设计见 `docs/design/linux-wayland.md`）：自�
   哪怕 Server 对抬起回吃掉——单击 Shift 切中英就是这样；没见过按下的抬起照转、不报 Server）；
   回包落地前先读一遍合成器的新事件、比焦点代次，换了就不上屏（wlroots 与 Hyprland 都不按 commit 的 serial 丢弃过期请求）；
   上屏按字符边界切成不超过 4000 字节的块（一条消息超过约 4 KB 合成器断开连接），每次 commit 都带完整 preedit（合成器 commit 后把没设的 preedit 当空串）；
-  只在上屏或 preedit 变了时才发；抬键的回包帧内容没变就不重画，回执照发；被吃掉的键自己按 `repeat_info` 重复，删空后 Server 放行就转一次按下、把重复交还应用；
+  只在上屏或 preedit 变了时才发；发出一次之后等合成器转来应用的 `done`（最多 80 毫秒，`SETTLE`）再发下一次，中间的合并（foot 收到 serial 对不上的 `done` 整次丢掉）；转键之前先把攒着的发出去；
+  抬键的回包帧内容没变就不重画，回执照发；被吃掉的键自己按 `repeat_info` 重复（下一次从上一次该到的时刻算，处理时间不拖慢节奏），删空后 Server 放行就转一次按下、把重复交还应用；
   失活后还按着的键保持 grab 等它们抬起再交还键盘（抬起经虚拟键盘转出去，虚拟键盘上才不卡）；Server 连不上不 grab、2 秒退避后重连；密码框只报能力、不 grab。
 - `wayland/`：`method/` 是 input-method-v2 的双缓冲（`done` 计数即 commit 的 serial，激活 / 失活各给焦点代次加一，又激活一次先当失活）；
   `grab.rs` 读键位表（`MAP_PRIVATE` 映射）、用 `xkb.rs`（xkbcommon-dl，运行时 dlopen）算 keysym 与 X11 掩码，按到达顺序排队；

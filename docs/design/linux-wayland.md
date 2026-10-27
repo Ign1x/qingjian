@@ -56,6 +56,9 @@ qingjian-linux-wayland ──Unix socket，protocol::linux（与 Fcitx5 插件�
 合成器按「去掉旧 preedit → 删前后文 → 插上屏文字 → 插新 preedit」应用，所以先上屏再换 preedit 的顺序是协议保证的。另有三条：
 
 - **每次 commit 都带完整 preedit**（清空时显式给空串）：text-input-v3 的应用每个 `done` 都会重设 preedit，漏带就闪掉。只在上屏文字或 preedit 变了时才发。
+- **等应用落定再发下一次。** foot 收到 serial 对不上的 `done` 会把整次更新（连同上屏文字）丢掉，而它应用完一次更新、重画后才 commit，
+  这一帧左右里发出去的下一次正好撞上（嵌套 sway 里连发 `nihao`，行内拼音停在 `ni'ha`）。所以发出一次文字更新后，等合成器转来应用的 `done`（最多等 80 毫秒）再发下一次，
+  中间来的合并起来（上屏文字拼在一起，拼音取最新的）；要把键转给应用时先把攒着的发出去，保证先上屏、后按键。
 - **单条消息不过 4 KB**：Wayland 一条消息约 4 KB 封顶，超了整条连接断掉、grab 跟着没了。上屏文字按字符边界切成不超过 4000 字节的块，一块一次 commit；preedit 截到 4000 字节。
 - **过期回包丢弃。** 等 Server 的那 200 ms 里合成器可能已经发了 deactivate / activate。应用回包前先非阻塞地读一次 Wayland 事件，
   焦点变过就丢掉这次的上屏、preedit 与 popup 更新（放行的键照转）——不能靠 commit serial 兜底，wlroots 与 Hyprland 实测都不按它丢弃。
@@ -126,4 +129,8 @@ qingjian-linux-wayland ──Unix socket，protocol::linux（与 Fcitx5 插件�
 能自动跑的都是纯逻辑（按键表、抬键与重复、`content_type` 映射、偏移换算与前后文截取、4 KB 切块、像素换算与补边、回包身份判断），不要合成器，CI 照跑。
 只能真会话验的，在 Hyprland 上逐个应用过：foot / kitty、GTK4、Firefox、Chromium（`--enable-wayland-ime`）、Qt6——
 打字上屏、数字选词、翻页、Shift 切换后 Shift 不卡、组句中按住退格、Ctrl+C 先上原文、NumLock、密码框、组句中切窗口、整句重排换帧、1.5 倍缩放不糊、热加载换主题、Server 中途重启。
-结果见 `apps/linux/wayland/README.md`。
+嵌套 sway 1.12（headless 后端，不开窗口、不碰宿主会话）+ foot 1.28 + wtype 已经过了一遍（2026-10-28）：
+连发与按人速打字的行内拼音、空格 / 数字 / 翻页选词、Esc、回车上原文、退格、单击 Shift 切中英、组句中 Ctrl+A 先上原文、空闲时 Ctrl+C 原样交给应用、
+1.5 倍缩放、Server 中途停掉键照常直通与重启后自动接上、按住退格的重复与删空后交还应用、组句中切换窗口、改配置换主题（樱花主题）、第二个输入法收到 `unavailable`。
+release 版每帧渲染内置主题几毫秒、樱花主题 1.5 倍下 9–21 毫秒。Hyprland 嵌套跑不起来（它要 xdg_wm_base v6、headless 后端没有 GPU 分配器），只能在真会话里验；
+foot 不报前后文、内容类型总是 terminal，密码框与前后文要换 GTK4 应用验。真会话的结果见 `apps/linux/wayland/README.md`。

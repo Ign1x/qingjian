@@ -26,7 +26,8 @@ impl Dispatch<ZwpInputMethodKeyboardGrabV2, ()> for Wayland {
         match event {
             zwp_input_method_keyboard_grab_v2::Event::Keymap { format, fd, size } => {
                 if format != WEnum::Value(KeymapFormat::XkbV1) {
-                    tracing::warn!(?format, "不认识的键位表格式");
+                    // 刚 grab 时 seat 上还没有活动键盘，合成器先发一个 no_keymap，等有键盘按键时再发真的
+                    tracing::debug!(?format, "键位表还没有，或格式不认识");
                     return;
                 }
                 match read_keymap(fd, size) {

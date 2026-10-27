@@ -43,6 +43,7 @@ impl<S: Server> Session<S> {
             return;
         }
         if !self.serving() {
+            self.flush(out, now);
             out.forward(key.code, true, key.time);
             self.keys.press(
                 key.code,
@@ -60,6 +61,8 @@ impl<S: Server> Session<S> {
                 // 快捷键冲洗时回包带着原文：先上屏，再把键交给应用
                 self.apply(reply, key.epoch, out, now);
                 if forwarded {
+                    // 快捷键冲洗上屏的原文必须先到应用，攒着的这时也要发
+                    self.flush(out, now);
                     out.forward(key.code, true, key.time);
                 } else {
                     self.repeat.start(key, now);
@@ -74,6 +77,7 @@ impl<S: Server> Session<S> {
             }
             Err(error) => {
                 self.lost(&error, out);
+                self.flush(out, now);
                 out.forward(key.code, true, key.time);
                 self.keys.press(
                     key.code,
@@ -118,6 +122,7 @@ impl<S: Server> Session<S> {
                 let forwarded = reply.outcome == KeyOutcome::Passthrough;
                 self.apply(reply, key.epoch, out, now);
                 if forwarded {
+                    self.flush(out, now);
                     out.forward(key.code, true, self.repeat.time(now));
                     self.keys.forward(key.code);
                     self.repeat.stop();

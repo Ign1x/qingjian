@@ -79,8 +79,8 @@ fn losing_the_server_mid_composition_passes_keys_through() {
     assert_eq!(
         out.log,
         [
-            Out::Text(String::new(), String::new()),
             Out::Hide,
+            Out::Text(String::new(), String::new()),
             Out::Forward(35, true),
             Out::Forward(35, false),
             Out::Grab(false),

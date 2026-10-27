@@ -5,7 +5,7 @@ use std::time::Instant;
 use qingjian_platform::protocol::linux::client::{ClientError, Reply};
 
 use super::preedit::chunks;
-use super::{Output, POLL_INTERVAL, Preedit, Server, Session};
+use super::{Output, POLL_INTERVAL, Preedit, SETTLE, Server, Session};
 
 /// 一次展示回执最多带几条义项：多了 Server 断开连接。
 const MAX_SENSES: usize = 128;
@@ -23,6 +23,7 @@ impl<S: Server> Session<S> {
             reply.commit.as_deref(),
             Preedit::from_frame(&reply.frame),
             out,
+            now,
         );
         self.present(&reply, out);
         self.poll_at =
@@ -30,23 +31,41 @@ impl<S: Server> Session<S> {
     }
 
     /// 上屏与行内拼音。都没变就不发：每发一次应用都要处理一遍 preedit 与 done。
-    /// 每次 commit 都带上完整的 preedit：合成器在 commit 之后把没设的 preedit 当成空串，不带就闪掉。
-    fn text(&mut self, commit: Option<&str>, preedit: Preedit, out: &mut impl Output) {
+    /// 上一次发出的还没等到应用落定就先攒着，落定（收到 `done`）或等满 [`super::SETTLE`] 再一起发。
+    pub(super) fn text(
+        &mut self,
+        commit: Option<&str>,
+        preedit: Preedit,
+        out: &mut impl Output,
+        now: Instant,
+    ) {
         let commit = commit.unwrap_or_default();
-        if commit.is_empty() && preedit == self.preedit {
+        if !self.unsent.dirty && commit.is_empty() && preedit == self.preedit {
             return;
         }
-        let parts = chunks(commit);
+        self.preedit = preedit;
+        self.unsent.push(commit);
+        if self.settle_at.is_none() {
+            self.flush(out, now);
+        }
+    }
+
+    /// 把攒着的文字更新发出去。每次 commit 都带上完整的 preedit：合成器在 commit 之后把没设的 preedit 当成空串，不带就闪掉。
+    pub(super) fn flush(&mut self, out: &mut impl Output, now: Instant) {
+        let Some(commit) = self.unsent.take() else {
+            return;
+        };
+        let parts = chunks(&commit);
         match parts.split_last() {
             Some((last, rest)) => {
                 for part in rest {
                     out.text(part, &Preedit::default());
                 }
-                out.text(last, &preedit);
+                out.text(last, &self.preedit);
             }
-            None => out.text("", &preedit),
+            None => out.text("", &self.preedit),
         }
-        self.preedit = preedit;
+        self.settle_at = Some(now + SETTLE);
     }
 
     /// 候选窗：空帧收起；版本号没变（轮询回来帧没变）不理；帧内容没变（抬键的回包）不重画，
@@ -96,7 +115,7 @@ impl<S: Server> Session<S> {
 
     /// 清掉应用里的拼音、收起候选窗、停止轮询（Server 那边的组句已经丢了）。
     pub(super) fn clear(&mut self, out: &mut impl Output) {
-        self.text(None, Preedit::default(), out);
+        self.text(None, Preedit::default(), out, Instant::now());
         self.hide(out);
         self.poll_at = None;
     }

@@ -679,6 +679,18 @@ Wayland 原生版的前端（设计见 `docs/design/linux-wayland.md`）：自�
   等它上线再读（为什么不拉起见设计文档「显示」）；方法调用 25 秒超时。`Desktop` 是三个原子量，`Preference` 是某一刻的值，
   `Preference::redraws` 定画着的帧要不要重画（只有「跟随系统」的帧跟着换深浅；减少动态效果变了总要重画，循环动画要停下或接着播）。
   测试：`tests/values.rs` 不连 D-Bus；`tests/bus.rs` 起私有 dbus-daemon（自带配置，服务目录里只有一个记下「被拉起过」的假服务）挂假 portal，缺省不跑。
+- 黑盒测试 `tests/blackbox/`：真的二进制对着测试进程里的假合成器与假 Server 跑，CI 上没有合成器也走一遍真的 Wayland 协议与 Server 协议。
+  假合成器用 `wayland-server`（开发依赖）在自己的线程上听沙箱（每个测试一个临时目录，当 `XDG_RUNTIME_DIR`）里的私有 socket，
+  提供 wl_compositor / wl_shm / wl_seat / input-method-v2 / 虚拟键盘 / viewporter / 分数缩放，客户端的请求按先后记成 `Request`
+  （上屏、preedit、commit 的 serial、接管与交还键盘、虚拟键盘的键位表与键、候选窗每次 commit 的缓冲尺寸与画没画上东西、viewport 的目标尺寸）；
+  grab 一建好就像 wlroots 那样发键位表（`tests/fixtures/keymap.xkb`：美式布局里用到的十几个键，`xkbcli compile-keymap --format 1` 编过的文本）、重复设置与修饰键；
+  虚拟键盘在键位表之前收到键或修饰键记成违规、因协议错误断开的记下错误，每个测试结束时核对一条都没有。
+  假 Server 照 `protocol::linux::client` 测试的写法（4 字节小端长度 + JSON），按下按排好的 `Answer` 答，别的照真 Server 的壳回、带展示身份。
+  被测进程的 `WAYLAND_DISPLAY`、`QINGJIAN_SOCKET`、`HOME` 与 XDG 各目录都指进沙箱（去掉继承来的 `WAYLAND_SOCKET`，碰不到真会话），
+  `--stderr` 的日志收下来：就绪看「输入法就绪」那行（之后才装好 SIGTERM 的处理），测试失败时整份打出来。
+  「某个请求没发」靠同步点判断：把修饰键原样再发一次，等它经虚拟键盘转出来，前面的事件就都处理完了。
+  libxkbcommon（CI 里 ubuntu:22.04 的裸容器没有）或 libwayland-client（与整个 workspace 一起编时是 dlopen 的）加载不了时二进制起不来，
+  测试认出那句错误、打印「跳过 …」后通过，说明绕过测试框架的输出捕获直接写 stderr，CI 日志里看得出没真跑；没有界面字体时只跳过候选窗那一个。NixOS 上的跑法见 README。
 - 构建单独 `cargo build -p qingjian-linux-wayland`：和设置程序一起编时 winit 把 wayland-backend 统一成 dlopen libwayland 的那一种，NixOS 上找不到库。
   libxkbcommon 总是运行时 dlopen，NixOS 上要 `LD_LIBRARY_PATH` 或打包时补 rpath（见 README）。
 

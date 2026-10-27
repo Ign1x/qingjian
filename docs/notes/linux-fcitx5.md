@@ -47,7 +47,8 @@ Fcitx5 的 `AltTriggerKeys`（缺省 `Shift_L`）在 PreInputMethod 阶段处理
 共享连接故障先让全部会话失效，再清理各自显示；清理回调期间不重连。
 
 LinuxEvent 转发能力、按下 / 释放、焦点、停用原因、客户端预编辑事实、带帧身份的候选点击和翻页。按键事件可带应用前后文；旧插件省略此字段时 Server 仍可解析。焦点恢复与候选点击不会复用旧前后文。
-v4 另有托盘切换（插件不发）：`Indicator` 切中 / 英、全角标点或简繁，回 `KeyResult`，切了中 / 英带 `english`。
+v4 另有候选右键菜单与托盘切换（插件不发）：`Menu{identity, index}` 回 `{"Menu": {"items": [{"id", "label"}]}}`，只是问、不换帧；`MenuPick{identity, index, action}` 回 `KeyResult`，做完的提示在帧的 `notice` 上；
+两者带的帧身份过期时与点击一样回 Ignored。`Indicator` 切中 / 英、全角标点或简繁，回 `KeyResult`，切了中 / 英带 `english`。
 每个 `KeyResult` / `Update` 另附当前模式 `mode`（`english` / `traditional` / `full_width` / `scheme`），与 `annotation` 一样是只增不改的字段，插件不读。
 选区翻译使用 `[shortcut] translate_selection`（Linux 缺省 `Alt + Shift + T`）；新插件在按键事件标记 `selection_supported`，Server 只向支持的插件返回 `RequestSelection`，兼容旧插件。插件从有效的 `surroundingText()` 读取最多 500 字选区并回 `LinuxEvent::Selection`。评审候选无预编辑，返回帧的 `translation_pending` 让插件在「翻译中…」期间轮询；提交前再次核对选区文字和光标位置。焦点、隐私、Reset、停用会取消翻译。
 空能力是普通输入；Sensitive 可组句但不学习、不记输入文本；Password / Disable 优先禁用并丢弃输入。

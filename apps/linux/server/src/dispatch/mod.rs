@@ -1,10 +1,12 @@
 //! Linux 会话路由：独立保存各上下文的组句，词库和学习服务保持单实例。本地整句模型在 `rescore`。
 
+mod answer;
 mod composed;
 mod config;
 mod display;
 mod key;
 mod linux;
+mod menu;
 mod message;
 mod mode;
 mod reload;
@@ -12,6 +14,7 @@ mod rescore;
 mod session;
 mod translate;
 
+use self::answer::Answer;
 use self::composed::Composed;
 pub use self::config::RouterConfig;
 use self::reload::ConfigReload;

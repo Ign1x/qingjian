@@ -172,3 +172,27 @@ fn newer_events_need_the_newer_handshake() {
         worker.join().unwrap();
     }
 }
+
+/// 右键菜单的回包不是 `KeyResult`，会话编号也得换回连接内的；v3 的会话不能问。
+#[test]
+fn menu_needs_v4_and_answers_with_the_local_session() {
+    for version in [LINUX_UI_PROTOCOL_MIN, LINUX_UI_PROTOCOL] {
+        let (mut client, connection, worker) = serve();
+        hello(&mut client, version).expect("握手成功");
+        let identity = type_n(&mut client)["KeyResult"]["identity"].clone();
+        let menu = exchange(
+            &mut client,
+            json!({"LinuxEvent": {"session": 1, "event": {"Menu": {"identity": identity, "index": 0}}}}),
+        );
+        if version < LINUX_UI_PROTOCOL {
+            assert_eq!(menu, None, "v{version} 的会话不该发右键菜单");
+        } else {
+            let menu = menu.expect("菜单回包");
+            assert_eq!(menu["Menu"]["session"], 1, "会话编号换回连接内的");
+            assert!(!menu["Menu"]["items"].as_array().unwrap().is_empty());
+        }
+        drop(client);
+        connection.join().unwrap();
+        worker.join().unwrap();
+    }
+}

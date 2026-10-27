@@ -1,6 +1,6 @@
 //! 用两个 Rust 前端共用的客户端（`qingjian_platform::protocol::linux::client`）对着真 Server 走一遍：
 //! 握手、按键往返、轮询的版本号、展示回执、快捷键冲洗、Shift 单击切换、失焦不上屏，
-//! 以及 v4 的托盘切换与回包上的模式。
+//! 以及 v4 的右键菜单、托盘切换与回包上的模式。
 #![cfg(target_os = "linux")]
 #[path = "support/server.rs"]
 mod server;
@@ -8,6 +8,7 @@ mod server;
 use std::path::{Path, PathBuf};
 
 use qingjian_platform::Config;
+use qingjian_platform::candidate_menu::CandidateAction;
 use qingjian_platform::protocol::linux::client::{Connection, Reply};
 use qingjian_platform::protocol::linux::key::{keysym, to_key_event};
 use qingjian_platform::protocol::linux::{AppSurrounding, Capabilities, InputMode, ModeCommand};
@@ -225,6 +226,48 @@ fn shared_client_toggles_modes_against_the_real_server() {
         .unwrap();
     assert!(traditional.mode.is_some_and(|mode| mode.traditional));
     assert_eq!(general(&path).traditional_variant, "taiwan");
+
+    connection.close_session(session).unwrap();
+    drop(connection);
+    drop(server);
+    let _ = std::fs::remove_dir_all(&directory);
+}
+
+#[test]
+fn shared_client_drives_the_candidate_menu_against_the_real_server() {
+    let (server, directory, _, mut connection, session) = start("menu", "");
+    let typed = type_text(&mut connection, session, "nihao");
+    let identity = typed.identity.clone().unwrap();
+    let slot = typed
+        .frame
+        .candidates
+        .items
+        .iter()
+        .position(|candidate| candidate.text == "你好")
+        .expect("nihao 的候选里该有你好");
+
+    // 右键：问这一格能做什么，帧不变；点「降权」做完带提示、换一帧
+    let menu = connection.menu(session, identity.clone(), slot).unwrap();
+    let labels: Vec<_> = menu.menu.iter().map(|item| item.label.as_str()).collect();
+    assert!(
+        labels.contains(&"降权") && labels.contains(&"删除"),
+        "{labels:?}"
+    );
+    assert!(menu.identity.is_none());
+    let picked = connection
+        .menu_pick(
+            session,
+            identity.clone(),
+            slot,
+            CandidateAction::Demote.id(),
+        )
+        .unwrap();
+    assert_eq!(picked.outcome, KeyOutcome::Consumed);
+    let notice = picked.frame.notice.clone().expect("做完带提示");
+    assert!(notice.contains("你好"), "{notice}");
+    assert!(picked.revision() > Some(identity.revision));
+    let stale = connection.menu(session, identity, slot).unwrap();
+    assert!(stale.menu.is_empty(), "过期的帧问不到菜单");
 
     connection.close_session(session).unwrap();
     drop(connection);

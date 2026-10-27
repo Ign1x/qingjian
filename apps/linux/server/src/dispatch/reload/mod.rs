@@ -53,7 +53,7 @@ impl Router {
         self.reload = Some(reload);
     }
 
-    /// `config.toml` 路径；没开热加载（测试）时为 `None`。托盘切换往里写，热加载再读回来。
+    /// `config.toml` 路径；没开热加载（测试）时为 `None`。托盘切换与候选菜单往里写，热加载再读回来。
     pub(super) fn config_path(&self) -> Option<&Path> {
         self.reload
             .as_ref()

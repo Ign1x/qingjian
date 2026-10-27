@@ -41,10 +41,13 @@ pub fn router_on(engine: Engine, config: RouterConfig) -> Router {
     router
 }
 pub fn event(router: &mut Router, id: u64, event: Value) -> Value {
+    reply(router, id, event)["KeyResult"].clone()
+}
+/// 整条回包（`KeyResult` 之外还可能是 `Menu`、`Ignored`）。
+pub fn reply(router: &mut Router, id: u64, event: Value) -> Value {
     router
         .handle_linux(json!({"LinuxEvent": {"session": id, "event": event}}))
-        .unwrap()["KeyResult"]
-        .clone()
+        .unwrap()
 }
 pub fn caps(
     router: &mut Router,

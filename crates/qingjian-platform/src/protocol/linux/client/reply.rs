@@ -3,7 +3,7 @@
 use serde_json::Value;
 
 use super::ClientError;
-use crate::protocol::linux::{DisplayIdentity, InputMode};
+use crate::protocol::linux::{DisplayIdentity, InputMode, MenuItem, MenuReply};
 use crate::protocol::{Frame, KeyOutcome, ServerMessage};
 
 /// 一次事件之后 Server 让前端做的事。
@@ -23,7 +23,7 @@ pub struct Reply {
 
     /// 这一帧的展示身份：Linux Server 附在回包上的 `identity`，没有就是 `None`。
     /// 组句期间的轮询靠里面的 `revision` 判断帧换没换（重排结果到了才换），版本号没变就不重画；
-    /// 点选、翻页与展示回执要原样带回去，Server 据此丢掉过期的那些。
+    /// 点选、翻页、右键菜单与展示回执要原样带回去，Server 据此丢掉过期的那些。
     pub identity: Option<DisplayIdentity>,
 
     /// 这次切了中 / 英：`Some(true)` 切到英文。只在切换的那一下有（切换键或托盘），前端拿它弹提示。
@@ -39,6 +39,9 @@ pub struct Reply {
     /// 带请求编号，读出来用 [`Connection::selection`](super::Connection::selection) 回，
     /// 那一键吃不吃以那次的回包为准。
     pub selection_request: Option<u64>,
+
+    /// 右键菜单的几项：只在 [`Connection::menu`](super::Connection::menu) 的回包上有，空的就不弹菜单。
+    pub menu: Vec<MenuItem>,
 }
 
 impl Default for Reply {
@@ -53,6 +56,7 @@ impl Default for Reply {
             translation_pending: false,
             mode: None,
             selection_request: None,
+            menu: Vec::new(),
         }
     }
 }
@@ -60,11 +64,19 @@ impl Default for Reply {
 impl Reply {
     /// 从 Server 的一条回包里读出来。
     ///
-    /// 正常是 `KeyResult`，轮询回 `Update`，选区翻译快捷键回 `RequestSelection`；
+    /// 正常是 `KeyResult`，轮询回 `Update`，问右键菜单回 `Menu`，选区翻译快捷键回 `RequestSelection`；
     /// 会话已经不在了、或点选的那一帧已经过期，Server 回 `Ignored`（当作没事发生）。
     pub fn from_value(value: Value) -> Result<Self, ClientError> {
         if value.get("Ignored").is_some() {
             return Ok(Self::default());
+        }
+        if let Some(body) = value.get("Menu") {
+            let menu: MenuReply = serde_json::from_value(body.clone())
+                .map_err(|_| ClientError::Unexpected(value.to_string()))?;
+            return Ok(Self {
+                menu: menu.items,
+                ..Self::default()
+            });
         }
         // 展示身份、模式与 translation_pending 不在共用的消息类型里，是 Linux Server 在回包上另附的，按原始 JSON 取
         let body = value

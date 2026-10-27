@@ -226,6 +226,36 @@ impl Connection {
         self.event(session, LinuxEvent::Page { identity, next })
     }
 
+    /// 右键了当前页第 `index` 格（Linux 协议 v4 起）：回包的 [`Reply::menu`] 是这格能做的几项，空的就不弹菜单。
+    /// 只是问一句，帧与展示身份都不变。`identity` 的规矩同 [`Self::candidate`]。
+    pub fn menu(
+        &mut self,
+        session: SessionId,
+        identity: DisplayIdentity,
+        index: usize,
+    ) -> Result<Reply, ClientError> {
+        self.event(session, LinuxEvent::Menu { identity, index })
+    }
+
+    /// 右键菜单里点了一项（v4 起）：`action` 原样用 [`MenuItem::id`](crate::protocol::linux::MenuItem::id)，
+    /// `identity` 与 `index` 同弹菜单时的那次。回包的帧带着做完的那句提示（`notice`，下一次按键清），候选按做完的结果重排。
+    pub fn menu_pick(
+        &mut self,
+        session: SessionId,
+        identity: DisplayIdentity,
+        index: usize,
+        action: u32,
+    ) -> Result<Reply, ClientError> {
+        self.event(
+            session,
+            LinuxEvent::MenuPick {
+                identity,
+                index,
+                action,
+            },
+        )
+    }
+
     /// 托盘 / 状态显示面上切模式（v4 起）。回包像按键那样落地：切了中 / 英时 `english` 有值（拿它弹提示），
     /// 组句中的拼音原样上屏在 `commit` 里；`mode` 是切完的模式。
     pub fn indicator(

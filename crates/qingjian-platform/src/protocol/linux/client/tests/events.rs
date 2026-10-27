@@ -1,4 +1,4 @@
-//! 点选、翻页、托盘切换与选区翻译：每个调用发出去的都是 Server 认得的那种 `LinuxEvent`。
+//! 点选、翻页、右键菜单、托盘切换与选区翻译：每个调用发出去的都是 Server 认得的那种 `LinuxEvent`。
 
 use serde_json::{Value, json};
 
@@ -37,6 +37,13 @@ fn panel_calls_carry_the_display_identity() {
         .expect("点候选");
     assert_eq!(clicked.outcome, KeyOutcome::Consumed);
     connection.page(session, identity(), true).expect("翻页");
+    let menu = connection.menu(session, identity(), 1).expect("右键");
+    let labels: Vec<_> = menu.menu.iter().map(|item| item.label.as_str()).collect();
+    assert_eq!(labels, ["降权", "删除"]);
+    assert!(menu.identity.is_none(), "问菜单不换帧，没有新的展示身份");
+    connection
+        .menu_pick(session, identity(), 1, menu.menu[0].id)
+        .expect("点菜单项");
 
     connection.close_session(session).expect("关会话");
     drop(connection);
@@ -51,6 +58,18 @@ fn panel_calls_carry_the_display_identity() {
     assert!(matches!(
         event(&seen, 4, session),
         LinuxEvent::Page { next: true, .. }
+    ));
+    assert!(matches!(
+        event(&seen, 5, session),
+        LinuxEvent::Menu { identity: shown, index: 1 } if shown == identity()
+    ));
+    assert!(matches!(
+        event(&seen, 6, session),
+        LinuxEvent::MenuPick {
+            index: 1,
+            action: 3,
+            ..
+        }
     ));
 }
 

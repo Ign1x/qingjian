@@ -2,7 +2,7 @@
 mod annotation;
 
 use self::annotation::annotate_frame;
-use super::Router;
+use super::{Answer, Router};
 use qingjian_core::Translation;
 use qingjian_platform::protocol::linux::{
     DisplayAcknowledged, DisplayIdentity, LINUX_UI_PROTOCOL_MIN, LinuxEvent, LinuxRequest,
@@ -38,14 +38,19 @@ impl Router {
         }
         let response = if let Some(body) = value.get("LinuxEvent") {
             let request: LinuxRequest = serde_json::from_value(body.clone()).ok()?;
-            if let LinuxEvent::Candidate { identity, .. } | LinuxEvent::Page { identity, .. } =
-                &request.event
+            if let LinuxEvent::Candidate { identity, .. }
+            | LinuxEvent::Page { identity, .. }
+            | LinuxEvent::Menu { identity, .. }
+            | LinuxEvent::MenuPick { identity, .. } = &request.event
                 && !self.valid_panel_event(request.session, identity)
             {
                 // 旧鼠标事件不能改变其他会话的焦点、显示身份或学习回报。
                 return Some(json!({"Ignored": {"session": request.session}}));
             }
-            self.linux_event(request)?
+            match self.linux_event(request)? {
+                Answer::Message(message) => message,
+                Answer::Menu(menu) => return Some(json!({ "Menu": menu })),
+            }
         } else {
             let message: ClientMessage = serde_json::from_value(value).ok()?;
             self.handle(message)?

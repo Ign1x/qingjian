@@ -1,13 +1,15 @@
 //! Linux 事件决策；Fcitx 插件只报告事实并应用返回值。
 use super::{
-    Router,
+    Answer, Router,
     key::{Effect, codes},
 };
-use qingjian_platform::protocol::linux::{DisplayIdentity, LinuxEvent, LinuxRequest, ModeCommand};
+use qingjian_platform::protocol::linux::{
+    DisplayIdentity, LinuxEvent, LinuxRequest, MenuReply, ModeCommand,
+};
 use qingjian_platform::protocol::{KeyOutcome, ServerMessage, SessionId};
 
 impl Router {
-    pub(super) fn linux_event(&mut self, request: LinuxRequest) -> Option<ServerMessage> {
+    pub(super) fn linux_event(&mut self, request: LinuxRequest) -> Option<Answer> {
         let session = request.session;
         if !self.sessions.contains_key(&session) {
             return None;
@@ -89,25 +91,31 @@ impl Router {
                 if self.sessions[&session].disabled
                     || self.sessions[&session].capabilities.is_none()
                 {
-                    return Some(ServerMessage::KeyResult {
-                        session,
-                        outcome,
-                        commit,
-                        frame: Default::default(),
-                        english: None,
-                    });
+                    return Some(
+                        ServerMessage::KeyResult {
+                            session,
+                            outcome,
+                            commit,
+                            frame: Default::default(),
+                            english: None,
+                        }
+                        .into(),
+                    );
                 }
                 self.ensure_focus(session);
                 self.notice = None;
                 if !release && self.translation.is_some() {
                     let (outcome, commit) = self.review_translation(&event);
-                    return Some(ServerMessage::KeyResult {
-                        session,
-                        outcome,
-                        commit,
-                        frame: self.current_frame(),
-                        english: None,
-                    });
+                    return Some(
+                        ServerMessage::KeyResult {
+                            session,
+                            outcome,
+                            commit,
+                            frame: self.current_frame(),
+                            english: None,
+                        }
+                        .into(),
+                    );
                 }
                 if !release
                     && selection_supported
@@ -117,16 +125,19 @@ impl Router {
                     && self.sessions[&session].active
                     && self.matches_translate_combo(&event)
                 {
-                    return Some(self.request_selection(session));
+                    return Some(self.request_selection(session).into());
                 }
                 if release && self.translation.is_some() {
-                    return Some(ServerMessage::KeyResult {
-                        session,
-                        outcome,
-                        commit,
-                        frame: self.current_frame(),
-                        english: None,
-                    });
+                    return Some(
+                        ServerMessage::KeyResult {
+                            session,
+                            outcome,
+                            commit,
+                            frame: self.current_frame(),
+                            english: None,
+                        }
+                        .into(),
+                    );
                 }
                 let surrounding = (!self.sessions[&session].private)
                     .then_some(surrounding)
@@ -209,6 +220,25 @@ impl Router {
                     outcome = KeyOutcome::Consumed;
                 }
             }
+            LinuxEvent::Menu { identity, index } => {
+                // 只是问一句：不动组句，也不推进展示身份，之后的 MenuPick 才对得上这一帧
+                let items = if self.valid_panel_event(session, &identity) {
+                    self.menu_items(index)
+                } else {
+                    Vec::new()
+                };
+                return Some(Answer::Menu(MenuReply { session, items }));
+            }
+            LinuxEvent::MenuPick {
+                identity,
+                index,
+                action,
+            } => {
+                if self.valid_panel_event(session, &identity) && self.pick_menu_item(index, action)
+                {
+                    outcome = KeyOutcome::Consumed;
+                }
+            }
             LinuxEvent::Indicator(command) => {
                 // 托盘点的是这个会话：中 / 英要交出的是它的组句，先装进 Engine
                 self.ensure_focus(session);
@@ -239,13 +269,16 @@ impl Router {
         };
         // 选词没选完一段拼音时 Core 把词留在组句里、上屏文本是空串
         let commit = commit.filter(|text| !text.is_empty());
-        Some(ServerMessage::KeyResult {
-            session,
-            outcome,
-            commit,
-            frame,
-            english: switched,
-        })
+        Some(
+            ServerMessage::KeyResult {
+                session,
+                outcome,
+                commit,
+                frame,
+                english: switched,
+            }
+            .into(),
+        )
     }
 
     pub(super) fn valid_panel_event(&self, session: SessionId, identity: &DisplayIdentity) -> bool {

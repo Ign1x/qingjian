@@ -13,6 +13,7 @@ mod event;
 mod identity;
 #[cfg(target_os = "linux")]
 pub mod key;
+mod mode;
 mod request;
 #[cfg(target_os = "linux")]
 mod socket;
@@ -22,6 +23,7 @@ pub use capabilities::Capabilities;
 pub use display::DisplayAcknowledged;
 pub use event::LinuxEvent;
 pub use identity::DisplayIdentity;
+pub use mode::InputMode;
 pub use request::LinuxRequest;
 #[cfg(target_os = "linux")]
 pub use socket::socket_path;

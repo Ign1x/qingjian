@@ -70,7 +70,7 @@ fn fake_server(limit: Option<usize>) -> (PathBuf, Received, thread::JoinHandle<(
 }
 
 /// 假 Server 对一个 Linux 事件的回包，形状照真 Server：报了能读选区的选区翻译键回 `RequestSelection`，
-/// 其余回 `KeyResult`，上面另附展示身份（轮询靠里面的版本号判断帧换没换）。
+/// 其余回 `KeyResult`，上面另附展示身份与模式（轮询靠身份里的版本号判断帧换没换）。
 fn event_reply(event: &Value) -> Value {
     if event["Key"]["selection_supported"] == json!(true) {
         return json!({"RequestSelection": {"session": 1, "request": 4}});
@@ -81,5 +81,6 @@ fn event_reply(event: &Value) -> Value {
         "commit": Value::Null,
         "frame": Frame::default(),
         "identity": {"generation": 1, "context": "/ibus/context/1", "revision": 7},
+        "mode": {"english": false, "traditional": false, "full_width": true, "scheme": ""},
     }})
 }

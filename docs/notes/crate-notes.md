@@ -310,10 +310,10 @@ id 不能撞拼音侧的写法与日志里的 `wubi`（`is_valid_id`），因为
 协议版本见 `PROTOCOL_VERSION`，`PreeditKind::AuxCode` 对应 Core 的 `MarkedKind::AuxCode`，`Frame.aux_code_show` 随帧下发显示码开关，
 `Frame.translation_pos` 随帧下发「译词是否带词性标注」（`[general] translation_pos`，缺省开；与 `aux_code_show` 同款普通 `#[serde(default)]`——帧只由 Server 自己的候选窗消费、DLL 不读该字段，加这种纯字段不 bump 协议版本，枚举变体才必须 bump）；
 `Frame.columns` / `column_ems` 随帧下发横排矩阵视口，带 `serde(default)` 新老互通，DLL 不画候选读不到也照旧）。
-`protocol::linux` 是 Linux Server ↔ 各前端的扩展（`LinuxEvent` / `DisplayIdentity` / `LINUX_UI_PROTOCOL` 与 socket 路径），
+`protocol::linux` 是 Linux Server ↔ 各前端的扩展（`LinuxEvent` / `DisplayIdentity` / `InputMode` / `LINUX_UI_PROTOCOL` 与 socket 路径），
 两个 Rust 前端（IBus、Wayland）共用的部分也在这里：`client`（一条 Unix socket 一问一答，`Connection` / `Reply` / `ClientError`；
 **哪些消息有回包是协议的一部分**——`OpenSession` 与 `LinuxEvent` 有，`CloseSession` 与展示回执没有，读多了卡住、读少了下一次答复串位；超时 200 ms，与 Fcitx5 插件一致；
-`key_flushing` 是组句中快捷键先上原文再放行的那一套；`Reply` 里的展示身份、`english`、帧上的 `translation_pending` 是 Linux Server 另附在原始 JSON 上的，按原始 JSON 取；
+`key_flushing` 是组句中快捷键先上原文再放行的那一套；`Reply` 里的展示身份、`english`、`mode`（`InputMode`，主题要非空的方案名时用 `scheme_name`）、帧上的 `translation_pending` 是 Linux Server 另附在原始 JSON 上的，按原始 JSON 取；
 `key` 报了 `selection_supported` 才会收到选区翻译的 `RequestSelection`（读成 `Reply::selection_request`，读出选区用 `selection` 回，那一键吃不吃以那次的回包为准；IBus 报 false）；
 `candidate` / `page` 原样带画那一页的展示身份，帧换过了 Server 回 `Ignored`（读成什么都不做的缺省答复）；
 `acknowledge` 回报画出来的义项（没有回包，一次最多 128 对）；`AppSurrounding::around` 按 UTF-8 字节偏移截光标两侧各 80 字，规则同 `apps/linux/surrounding.h`；
@@ -600,9 +600,11 @@ Windows 可选的 `[shortcut] toggle_punctuation` 经 `InputSettings` 下发，�
 Unix socket 用共享长度前缀与 Frame（当前公共版本 9，与 `PROTOCOL_VERSION` 同步，Fcitx5 插件里写死在 `qingjian.cpp` 的 OpenSession）；插件复用一条连接，每个上下文独立会话。Linux v3 扩展逐会话握手、确认 Sensitive/Password/Disable 后接受按下/释放、焦点和点击事实。
 候选回报绑定连接代次、上下文和服务端帧序号，仅当前聚焦页的有效释义进入 `note_displayed`，不把生成帧算作已展示。
 Linux 回包由 `dispatch/display/annotation` 给释义添加可选 `annotation`（词性与汉字段假名，`[general] translation_pos` 关掉时不带词性），Fcitx5 面板优先显示它；原始译文和快捷键提交不变，旧 Server 缺该字段时插件回退到 `text`。
+每个 `KeyResult` / `Update` 另附这个会话的 `mode`（`dispatch/mode.rs`：`english` / `traditional` / `full_width` 取当前中英那一份 / `scheme`），方案名按 `scheme_label(config.scheme, None, None)` 算：
+Linux 还不装用户双拼与形码方案（没有 `SchemeSlot`），引擎按全拼跑的那些方案名也按全拼（空串）。插件不读它。
 `[general] preedit` 使用已有 `both` / `inline` / `window`；没有新增 Linux 自绘配置。详见 [linux-fcitx5.md](linux-fcitx5.md)。
 
-线上类型（`LinuxEvent` / `Capabilities` / `DisplayIdentity` / `DisplayAcknowledged` / `LINUX_UI_PROTOCOL` / `socket_path`）
+线上类型（`LinuxEvent` / `Capabilities` / `DisplayIdentity` / `DisplayAcknowledged` / `InputMode` / `LINUX_UI_PROTOCOL` / `socket_path`）
 在 `qingjian_platform::protocol::linux`，不在 Server crate 里——与 Windows 的 TSF DLL 同一条理由：
 **前端不能因为要用协议类型就拖进 Engine 的依赖树**（Server 依赖 core / dictionary / lm / neural，前端一个都不要）。
 

@@ -69,6 +69,7 @@ qingjian-linux-wayland ──Unix socket，protocol::linux（与 Fcitx5 插件�
 
 | 前端的操作 | 发给 Server 的 | Server 回 |
 |---|---|---|
+| 每次回包 | — | `KeyResult` / `Update` 上附 `mode`（`english` / `traditional` / `full_width` / `scheme`），托盘、中 / 英提示与主题的 `mode.*` 都照它画；切换的那一下另有 `english` |
 | popup 上点候选 / 翻页 | `Candidate{identity, index}` / `Page{identity, next}`，带画这一页的那次回包的身份 | `KeyResult`；帧换过了回 `Ignored` |
 | 选区翻译快捷键（`surrounding_text` 里有选区） | `Key{selection_supported: true}` | `RequestSelection{request}` → 前端发 `Selection{request, text}` → `KeyResult`（「翻译中…」，`translation_pending` 时接着轮询） |
 

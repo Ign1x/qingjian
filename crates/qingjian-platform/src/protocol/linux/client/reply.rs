@@ -3,7 +3,7 @@
 use serde_json::Value;
 
 use super::ClientError;
-use crate::protocol::linux::DisplayIdentity;
+use crate::protocol::linux::{DisplayIdentity, InputMode};
 use crate::protocol::{Frame, KeyOutcome, ServerMessage};
 
 /// 一次事件之后 Server 让前端做的事。
@@ -32,6 +32,9 @@ pub struct Reply {
     /// 选区翻译还在等结果：preedit 与候选都空着也得接着轮询（Linux Server 在帧上另附的字段）。
     pub translation_pending: bool,
 
+    /// 这个会话现在的输入模式：Linux Server 附在 `KeyResult` / `Update` 上，老 Server 与 `Ignored` 没有。
+    pub mode: Option<InputMode>,
+
     /// Server 要前端读应用里选中的文字（选区翻译快捷键，只在按键报了 `selection_supported` 时才会有）：
     /// 带请求编号，读出来用 [`Connection::selection`](super::Connection::selection) 回，
     /// 那一键吃不吃以那次的回包为准。
@@ -48,6 +51,7 @@ impl Default for Reply {
             identity: None,
             english: None,
             translation_pending: false,
+            mode: None,
             selection_request: None,
         }
     }
@@ -62,13 +66,16 @@ impl Reply {
         if value.get("Ignored").is_some() {
             return Ok(Self::default());
         }
-        // 展示身份与 translation_pending 不在共用的消息类型里，是 Linux Server 在回包上另附的，按原始 JSON 取
+        // 展示身份、模式与 translation_pending 不在共用的消息类型里，是 Linux Server 在回包上另附的，按原始 JSON 取
         let body = value
             .as_object()
             .and_then(|message| message.values().next());
         let identity = body
             .and_then(|body| body.get("identity"))
             .and_then(|identity| serde_json::from_value(identity.clone()).ok());
+        let mode = body
+            .and_then(|body| body.get("mode"))
+            .and_then(|mode| serde_json::from_value(mode.clone()).ok());
         let translation_pending = body
             .and_then(|body| body.get("frame"))
             .and_then(|frame| frame.get("translation_pending"))
@@ -88,6 +95,7 @@ impl Reply {
                 identity,
                 english,
                 translation_pending,
+                mode,
                 ..Self::default()
             }),
             Ok(ServerMessage::Update { frame, commit, .. }) => Ok(Self {
@@ -95,6 +103,7 @@ impl Reply {
                 frame,
                 identity,
                 translation_pending,
+                mode,
                 ..Self::default()
             }),
             Ok(ServerMessage::RequestSelection { request, .. }) => Ok(Self {

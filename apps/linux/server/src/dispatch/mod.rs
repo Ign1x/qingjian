@@ -6,6 +6,7 @@ mod display;
 mod key;
 mod linux;
 mod message;
+mod mode;
 mod reload;
 mod rescore;
 mod session;

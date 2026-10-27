@@ -53,16 +53,15 @@ impl Router {
             .translation
             .as_ref()
             .is_some_and(|job| job.result.is_none());
-        match &response {
-            ServerMessage::KeyResult { frame, .. } => {
-                value["KeyResult"]["frame"]["translation_pending"] = json!(pending);
-                annotate_frame(frame, &mut value["KeyResult"]["frame"]);
+        if let ServerMessage::KeyResult { session, frame, .. }
+        | ServerMessage::Update { session, frame, .. } = &response
+        {
+            let body = value.as_object_mut()?.values_mut().next()?;
+            body["frame"]["translation_pending"] = json!(pending);
+            annotate_frame(frame, &mut body["frame"]);
+            if let Some(mode) = self.input_mode(*session) {
+                body["mode"] = json!(mode);
             }
-            ServerMessage::Update { frame, .. } => {
-                value["Update"]["frame"]["translation_pending"] = json!(pending);
-                annotate_frame(frame, &mut value["Update"]["frame"]);
-            }
-            _ => {}
         }
         match &response {
             ServerMessage::KeyResult { session, frame, .. }

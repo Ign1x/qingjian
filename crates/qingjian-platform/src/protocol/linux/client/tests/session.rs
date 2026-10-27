@@ -5,7 +5,7 @@ use serde_json::json;
 use super::fake_server;
 use crate::protocol::linux::client::{ClientError, Connection};
 use crate::protocol::linux::key::to_key_event;
-use crate::protocol::linux::{Capabilities, LINUX_UI_PROTOCOL};
+use crate::protocol::linux::{Capabilities, InputMode, LINUX_UI_PROTOCOL};
 use crate::protocol::{KeyOutcome, PROTOCOL_VERSION};
 
 /// 整条链路：开会话 → 报能力 → 按键 → 关会话，顺序与字段都要对得上 Server 的要求。
@@ -26,6 +26,13 @@ fn handshake_then_key_round_trips() {
         .expect("报按键");
     assert_eq!(reply.outcome, KeyOutcome::Consumed);
     assert!(reply.commit.is_none());
+    assert_eq!(
+        reply.mode,
+        Some(InputMode {
+            full_width: true,
+            ..InputMode::default()
+        })
+    );
 
     connection.close_session(session).expect("关会话");
     drop(connection);

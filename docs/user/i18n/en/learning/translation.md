@@ -17,7 +17,7 @@ Each candidate has at most one gloss on its right, with the part of speech. Choo
 - With 译词显示词性 (Show part of speech) turned off on the same page, only the gloss is shown beside the candidate, without v. / n. / adj. labels (`develop` instead of `v. develop`).
 - Choosing 不显示 (Don't show) shows no glosses at all, and new-word marking and the vocabulary book stop too; translating selected text still works (into English).
 - Candidates with no gloss are left blank, with no placeholder. The bundled glossary covers the whole dictionary; with AI services on, words missing from it can also [get a gloss filled in automatically](../cloud/sentence-translation.md#Filling-in-glosses-automatically).
-- The Linux candidate panel shows only the first gloss.
+- The candidate panel of the Linux fcitx edition shows only the first gloss; the Wayland native edition shows them all, as on macOS and Windows.
 
 ## New words
 

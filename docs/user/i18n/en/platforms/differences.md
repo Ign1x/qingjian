@@ -4,7 +4,7 @@ order: 1
 description: "Which Qingjian features are available on macOS, Windows, Linux and Android: current status, key conventions and what isn't supported yet."
 ---
 
-The macOS and Windows versions are in beta with nearly the same features; keys follow each system's conventions. The Linux version uses Fcitx's candidate panel and is started by hand. The Android version is a preview with fewer features, installed from an APK.
+The macOS and Windows versions are in beta with nearly the same features; keys follow each system's conventions. The Linux version comes in two editions, both installed from a terminal: the fcitx edition uses the Fcitx / IBus candidate panel, and the Wayland native edition draws its own candidate window. The Linux column in the tables below is the fcitx edition; for how the Wayland native edition differs, see [The two Linux editions](#The-two-Linux-editions). The Android version is a preview with fewer features, installed from an APK.
 
 "✓" means supported; "—" means not supported yet, or not applicable.
 
@@ -76,3 +76,20 @@ The macOS and Windows versions are in beta with nearly the same features; keys f
 | AI usage statistics | ✓ | ✓ | ✓ | — |
 
 Installation and platform-specific features: [Installation](../getting-started/install.md) (macOS, Windows), [Linux](linux.md), [Android](android.md).
+
+## The two Linux editions
+
+The Linux column in the tables above is the fcitx edition. The Wayland native edition is for desktops such as Hyprland, sway and niri, and differs from the fcitx edition only in the items below; everything else is the same. For installing and setting it up, see [Linux](linux.md#Wayland-native-edition).
+
+| Feature | fcitx edition | Wayland native edition |
+|---|---|---|
+| Candidate window | Fcitx / IBus candidate panel | Drawn by Qingjian, same as macOS and Windows |
+| Seven built-in themes, light and dark | — | ✓ (follow system is light for now) |
+| Custom themes, candidate fonts and sizes | — | ✓ |
+| Glosses beside candidates | First gloss only | All glosses |
+| Chinese/English mode | Each window keeps its own | Shared by all windows |
+| Mode indicator (pop-up or tray) | Shown by Fcitx / IBus | — |
+| Candidates in English mode | Per the app list | Only after unticking 只在写字的应用里给 (Only in writing apps) |
+| Picking candidates with the mouse | ✓ | — |
+| Translating selected text | ✓ | — |
+| X11 apps | ✓ | — |

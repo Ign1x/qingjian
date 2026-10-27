@@ -4,8 +4,8 @@ order: 1
 description: "The candidate window's seven built-in themes and light/dark modes, vertical and horizontal layouts, expanding horizontal layout into several rows, pinyin position and tones, fonts and sizes, transition animations."
 ---
 
-Change how the candidate window looks under 设置 → 外观 (Settings → Appearance); the top of the page shows a preview drawn with your current settings. A theme looks the same on macOS and Windows.
-Linux uses Fcitx's own candidate panel, whose look is set in Fcitx; for Android see [Android: vocabulary book and settings](../platforms/android-settings.md#Appearance).
+Change how the candidate window looks under 设置 → 外观 (Settings → Appearance); the top of the page shows a preview drawn with your current settings. A theme looks the same on macOS, Windows and the Linux Wayland native edition.
+The Linux fcitx edition uses the Fcitx / IBus candidate panel, whose look is set in the framework; for how the Wayland native edition differs, see the sections on this page and [Linux](../platforms/linux.md#Differences-from-the-fcitx-edition); for Android see [Android: vocabulary book and settings](../platforms/android-settings.md#Appearance).
 
 ## Themes
 
@@ -20,7 +20,8 @@ Linux uses Fcitx's own candidate panel, whose look is set in Fcitx; for Android 
 | 波奇酱 (Bocchi) | Pink double border, cream background, an audio cable looped around the window, pink highlight block; Bocchi with her guitar lying on the top edge of the window, hiding on the left in vertical layout |
 
 Click a theme card to switch. 青简绿, 系统蓝 and 微信绿 each have a light and a dark version; choose follow system, light or dark under 外观 (Appearance) on the same page. 樱花, 大肥鱼, 初音未来 and 波奇酱 are light only.
-Themes only apply when 渲染引擎 (Rendering engine) is set to 青简渲染器 (Qingjian renderer, the default).
+The Linux Wayland native edition can't see the system's light/dark setting yet: with follow system it's shown in light mode, so choose dark directly if you want dark.
+Themes only apply when 渲染引擎 (Rendering engine) is set to 青简渲染器 (Qingjian renderer, the default); the Linux Wayland native edition always draws with the Qingjian renderer, whatever this is set to.
 
 To make a theme of your own, see [Custom themes](../advanced/custom-themes.md); once you've added a finished theme, reopen Settings and it appears among the theme cards.
 
@@ -48,7 +49,7 @@ For candidates whose reading doesn't match the input (fuzzy pinyin, corrections,
 
 ## Text
 
-- **渲染引擎 (Rendering engine)**: 青简渲染器 (Qingjian renderer, default) or system drawing. Themes, fonts, key hints and so on only apply with the Qingjian renderer.
+- **渲染引擎 (Rendering engine)**: 青简渲染器 (Qingjian renderer, default) or system drawing. Themes, fonts, key hints and so on only apply with the Qingjian renderer. The Linux Wayland native edition always uses the Qingjian renderer, so fonts and font sizes apply there.
 - **Font**: the system font by default.
 - **Rare characters on Windows**: when the system's extended SimSun fonts are installed, the candidate window uses them automatically for rare characters. There is no need to change your theme or font. Characters not covered by the installed fonts may still appear as missing glyphs.
 - **Candidate size, gloss size**: the theme's sizes by default; 恢复主题字号 (Restore theme sizes) goes back to them, and they then follow the new theme when you switch themes.

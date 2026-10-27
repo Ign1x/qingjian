@@ -4,7 +4,7 @@ order: 1
 description: 青简在 macOS、Windows、Linux 与 Android 上各有哪些功能：现状、按键习惯与尚未支持的部分。
 ---
 
-macOS 与 Windows 版是测试版，功能基本相同，按键按各自系统的习惯设计。Linux 版使用 Fcitx 的候选面板，需手动启动。Android 版是预览版，功能比桌面版少，下载 APK 安装。
+macOS 与 Windows 版是测试版，功能基本相同，按键按各自系统的习惯设计。Linux 版分两个版本，都在终端中安装：fcitx 版使用 Fcitx / IBus 的候选面板，Wayland 原生版自己绘制候选窗口。下面各表的 Linux 一列是 fcitx 版，Wayland 原生版的不同见 [Linux 的两个版本](#Linux-的两个版本)。Android 版是预览版，功能比桌面版少，下载 APK 安装。
 
 「✓」为支持，「—」为暂不支持或不适用。
 
@@ -76,3 +76,20 @@ macOS 与 Windows 版是测试版，功能基本相同，按键按各自系统�
 | AI 用量统计 | ✓ | ✓ | ✓ | — |
 
 各平台的安装与独有功能：[安装](../getting-started/install.md)（macOS、Windows）、[Linux](linux.md)、[Android](android.md)。
+
+## Linux 的两个版本
+
+上面各表的 Linux 一列是 fcitx 版。Wayland 原生版用于 Hyprland、sway、niri 等桌面，与 fcitx 版不同的只有下面几项，其余相同；安装与设置见 [Linux](linux.md#Wayland-原生版)。
+
+| 功能 | fcitx 版 | Wayland 原生版 |
+|---|---|---|
+| 候选窗口 | Fcitx / IBus 的候选面板 | 青简绘制，与 macOS、Windows 相同 |
+| 七个内置主题、深浅色 | — | ✓（「跟随系统」暂按浅色） |
+| 自制主题、候选字体与字号 | — | ✓ |
+| 候选旁的译词 | 只显示第一条 | 全部显示 |
+| 中英模式 | 每个窗口各记一份 | 所有窗口共用一份 |
+| 中英状态提示（弹出提示或托盘） | 由 Fcitx / IBus 显示 | — |
+| 英文模式里的候选 | 按应用名单给 | 取消「只在写字的应用里给」后才给 |
+| 鼠标点选候选 | ✓ | — |
+| 翻译选中的文字 | ✓ | — |
+| X11 应用 | ✓ | — |

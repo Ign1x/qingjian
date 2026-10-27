@@ -118,7 +118,8 @@ impl Shared {
             return Ok(*session);
         }
         let connection = state.connection.as_mut().expect("刚连上");
-        let session = connection.open_session(context)?;
+        // IBus 这条路上还拿不到宿主应用的标识，`[apps]` 按应用的设置对它不生效
+        let session = connection.open_session(context, None)?;
         // 能力必须排在按键前面：Server 在收到它之前不收按键
         let capabilities = state.capabilities.get(context).copied().unwrap_or_default();
         connection.capabilities(session, capabilities)?;

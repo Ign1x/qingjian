@@ -80,7 +80,9 @@ fn handshake_then_key_round_trips() {
     let (path, received, server) = fake_server(None);
     let mut connection = Connection::connect_at(&path).expect("连上假 Server");
 
-    let session = connection.open_session("/ibus/context/1").expect("开会话");
+    let session = connection
+        .open_session("/ibus/context/1", Some("org.gnome.TextEditor"))
+        .expect("开会话");
     let capabilities = connection
         .capabilities(session, Capabilities::default())
         .expect("报能力");
@@ -101,6 +103,8 @@ fn handshake_then_key_round_trips() {
 
     // OpenSession 带的是 Windows 那套协议版本
     assert_eq!(seen[0]["OpenSession"]["protocol"], json!(PROTOCOL_VERSION));
+    // 宿主应用的标识原样带上，Server 按它查 `[apps]`
+    assert_eq!(seen[0]["OpenSession"]["app"], json!("org.gnome.TextEditor"));
 
     // LinuxHello：版本、代次、上下文三样 Server 都会查，对不上直接断开
     let hello = &seen[1]["LinuxHello"];
@@ -132,8 +136,12 @@ fn connecting_to_a_dead_socket_fails() {
 fn sessions_are_numbered_per_connection() {
     let (path, _received, server) = fake_server(None);
     let mut connection = Connection::connect_at(&path).expect("连上假 Server");
-    let first = connection.open_session("/ibus/context/1").expect("第一个");
-    let second = connection.open_session("/ibus/context/2").expect("第二个");
+    let first = connection
+        .open_session("/ibus/context/1", None)
+        .expect("第一个");
+    let second = connection
+        .open_session("/ibus/context/2", None)
+        .expect("第二个");
     assert_ne!(first, second);
     drop(connection);
     server.join().expect("假 Server 收工");
@@ -146,7 +154,9 @@ fn closed_server_is_reported() {
     // 只服务开会话那两条，之后 Server 就没了
     let (path, _received, server) = fake_server(Some(2));
     let mut connection = Connection::connect_at(&path).expect("连上假 Server");
-    let session = connection.open_session("/ibus/context/1").expect("开会话");
+    let session = connection
+        .open_session("/ibus/context/1", None)
+        .expect("开会话");
     server.join().expect("假 Server 收工");
     let _ = std::fs::remove_file(&path);
 
@@ -166,7 +176,9 @@ fn closed_server_is_reported() {
 fn poll_reads_display_revision() {
     let (path, received, server) = fake_server(None);
     let mut connection = Connection::connect_at(&path).expect("连上假 Server");
-    let session = connection.open_session("/ibus/context/1").expect("开会话");
+    let session = connection
+        .open_session("/ibus/context/1", None)
+        .expect("开会话");
     connection
         .capabilities(session, Capabilities::default())
         .expect("报能力");

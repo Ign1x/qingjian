@@ -69,7 +69,7 @@ impl Link {
         }
         let opened = (|| {
             let mut connection = Connection::connect_at(&self.socket)?;
-            let session = connection.open_session(CONTEXT)?;
+            let session = connection.open_session(CONTEXT, None)?;
             connection.capabilities(session, self.capabilities)?;
             if self.focused {
                 connection.focus(session, true)?;

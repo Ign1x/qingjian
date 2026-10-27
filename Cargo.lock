@@ -3867,12 +3867,14 @@ dependencies = [
 name = "qingjian-linux-wayland"
 version = "0.1.0-dev"
 dependencies = [
+ "futures-util",
  "libc",
  "memmap2",
  "qingjian-core",
  "qingjian-platform",
  "qingjian-render",
  "thiserror 2.0.21",
+ "tokio",
  "tracing",
  "tracing-appender",
  "tracing-subscriber",
@@ -3880,6 +3882,7 @@ dependencies = [
  "wayland-protocols",
  "wayland-protocols-misc",
  "xkbcommon-dl",
+ "zbus",
 ]
 
 [[package]]

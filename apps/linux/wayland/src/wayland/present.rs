@@ -8,7 +8,7 @@ use qingjian_render::Rendered;
 use super::Wayland;
 use crate::view::{self, Placement, blit};
 
-/// 多久查一次配置与主题有没有改。
+/// 多久查一次配置、主题与桌面的外观偏好有没有变。
 const RELOAD_INTERVAL: Duration = Duration::from_secs(1);
 
 impl Wayland {
@@ -36,7 +36,7 @@ impl Wayland {
         }
     }
 
-    /// 到点的显示杂事：动画的下一帧、缩放变了或主题改了就重画当前帧。
+    /// 到点的显示杂事：动画的下一帧；缩放变了、主题改了或桌面的外观偏好变了就重画当前帧。
     pub(super) fn tick(&mut self, now: Instant) {
         if self.animate_at.is_some_and(|at| at <= now) {
             self.animate_at = None;

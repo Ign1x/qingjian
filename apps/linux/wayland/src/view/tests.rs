@@ -1,6 +1,7 @@
-//! 候选窗绘制的测试：位图放进缓冲的算术、像素换序、义项回报，外观设置的读取，以及要系统字体的渲染与热加载。
+//! 候选窗绘制的测试：位图放进缓冲的算术、像素换序、义项回报，外观设置的读取，以及要系统字体的渲染、热加载与跟随桌面的深浅。
 
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
 use qingjian_core::{
     Candidate, CandidateKind, CandidateList, Language, PartOfSpeech, Sense, Translation,
@@ -11,6 +12,7 @@ use qingjian_render::{HitRegion, HitTarget, Pixmap, Rendered, TextSizes};
 
 use super::look::Look;
 use super::{Painter, Placement, blit, renumber_senses, senses};
+use crate::portal::{Desktop, Setting};
 
 /// 每个测试自己的临时目录（先清空）。
 fn scratch(name: &str) -> PathBuf {
@@ -278,7 +280,8 @@ fn reload_reports_only_changes_to_the_look() {
     let config = dir.join("config.toml");
     let themes = dir.join("themes");
     std::fs::write(&config, "[general]\ntheme = \"wechat\"\n").unwrap();
-    let Some(mut painter) = Painter::new(config.clone(), Some(themes.clone())) else {
+    let Some(mut painter) = Painter::new(config.clone(), Some(themes.clone()), Arc::default())
+    else {
         eprintln!("没有系统字体，跳过");
         return;
     };
@@ -383,14 +386,16 @@ fn senses_are_renumbered_to_core() {
     );
 }
 
-/// 协议帧画得出来，回报的义项过得了 Server 的校验（读音不算译词）；外观深色与浅色不一样，「跟随系统」第一轮按浅色。
+/// 协议帧画得出来，回报的义项过得了 Server 的校验（读音不算译词）；外观深色与浅色不一样，
+/// 「跟随系统」看桌面：没有偏好时与浅色一样，偏好深色时与深色一样。
 #[test]
 fn renders_a_protocol_frame() {
     let dir = scratch("render");
     let config = dir.join("config.toml");
     // 关掉动画：同一帧画两次结果一样，才好比较像素
     std::fs::write(&config, "[general]\nanimations = false\n").unwrap();
-    let Some(mut painter) = Painter::new(config, None) else {
+    let desktop = Arc::new(Desktop::default());
+    let Some(mut painter) = Painter::new(config, None, Arc::clone(&desktop)) else {
         eprintln!("没有系统字体，跳过");
         return;
     };
@@ -424,6 +429,42 @@ fn renders_a_protocol_frame() {
     frame.appearance = Appearance::System;
     let system = painter.render(&frame, 1.5).unwrap();
     assert_eq!(system.pixmap.data(), light.pixmap.data());
+
+    desktop.apply(Setting::ColorScheme { dark: true });
+    painter.forget();
+    let system = painter.render(&frame, 1.5).unwrap();
+    assert_eq!(system.pixmap.data(), dark.pixmap.data());
     assert!(painter.tick().is_none());
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// 桌面换了深浅：画着「跟随系统」的帧时下一次 reload 要重画（只报一次），画着固定深浅的不用；
+/// 减少动态效果的开关变了也重画。
+#[test]
+fn reload_follows_the_desktop() {
+    let dir = scratch("desktop");
+    let config = dir.join("config.toml");
+    std::fs::write(&config, "[general]\nanimations = false\n").unwrap();
+    let desktop = Arc::new(Desktop::default());
+    let Some(mut painter) = Painter::new(config, None, Arc::clone(&desktop)) else {
+        eprintln!("没有系统字体，跳过");
+        return;
+    };
+    let mut frame = nihao();
+    frame.appearance = Appearance::System;
+    painter.render(&frame, 1.0).unwrap();
+    assert!(!painter.reload());
+    desktop.apply(Setting::ColorScheme { dark: true });
+    assert!(painter.reload(), "跟随系统的帧换成深色");
+    assert!(!painter.reload(), "同一次变化只报一次");
+
+    frame.appearance = Appearance::Light;
+    painter.render(&frame, 1.0).unwrap();
+    desktop.apply(Setting::ColorScheme { dark: false });
+    assert!(!painter.reload(), "浅色的帧不跟着桌面");
+
+    desktop.apply(Setting::Animations(false));
+    assert!(painter.reload(), "减少动态效果开了");
+    assert!(!painter.reload());
     let _ = std::fs::remove_dir_all(&dir);
 }

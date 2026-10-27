@@ -1,4 +1,5 @@
-//! 候选窗的绘制：协议帧按配置里的外观画成预乘 RGBA 位图，再按 popup 的缩放裁边、换成 Wayland 的像素格式（[`blit`]）。
+//! 候选窗的绘制：协议帧按配置里的外观（「跟随系统」时按桌面的偏好）画成预乘 RGBA 位图，
+//! 再按 popup 的缩放裁边、换成 Wayland 的像素格式（[`blit`]）。
 //! 贴到 surface 上是 `crate::wayland` 的事；设计见 `docs/design/linux-wayland.md`「显示」。
 
 mod bitmap;
@@ -10,6 +11,7 @@ mod tests;
 pub use bitmap::{Placement, blit};
 
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 use std::time::Instant;
 
 use qingjian_platform::protocol::Frame;
@@ -20,6 +22,8 @@ use qingjian_render::{
 };
 
 use look::Look;
+
+use crate::portal::{Desktop, Preference};
 
 /// 字体库按哪种语言挑汉字字形。
 const LOCALE: &str = "zh-CN";
@@ -35,7 +39,7 @@ pub struct Painter {
     /// 上一帧的点击区域，译词已换成 Core 的义项编号（[`renumber_senses`]）；动画帧布局不变，照抄。
     hits: Vec<HitRegion>,
 
-    /// 主题（浅色那一份，画的时候按帧里的外观取深浅），已套上设置里的字号与动画开关。
+    /// 主题（浅色那一份，画的时候按帧里的外观取深浅，「跟随系统」看桌面），已套上设置里的字号与动画开关。
     theme: Theme,
 
     /// 在用的外观设置。
@@ -51,11 +55,24 @@ pub struct Painter {
 
     /// 上次读主题时用户主题目录的戳（[`ThemeLibrary::stamp`]）。
     themes_stamp: u64,
+
+    /// 桌面的外观偏好（portal 的后台线程更新）：「跟随系统」按它取深浅，减少动态效果跟着它。
+    desktop: Arc<Desktop>,
+
+    /// 上次画或查的时候桌面的偏好，每秒和现在的比一次。
+    seen: Preference,
+
+    /// 上一帧的外观设置：只有「跟随系统」的帧要跟着桌面换深浅。
+    appearance: Appearance,
 }
 
 impl Painter {
     /// 读配置、建字体库与渲染器，再画一遍样例帧预热。系统里一个界面字体都没有（字体库建不起来）时为 `None`。
-    pub fn new(config_path: PathBuf, themes_dir: Option<PathBuf>) -> Option<Self> {
+    pub fn new(
+        config_path: PathBuf,
+        themes_dir: Option<PathBuf>,
+        desktop: Arc<Desktop>,
+    ) -> Option<Self> {
         let started = Instant::now();
         // 先取戳再读：读的途中文件又改了，下一次 reload 还能看出来
         let config_stamp = Look::stamp(&config_path);
@@ -77,6 +94,9 @@ impl Painter {
             themes_dir,
             config_stamp,
             themes_stamp,
+            seen: desktop.preference(),
+            desktop,
+            appearance: Appearance::default(),
         };
         painter
             .renderer
@@ -94,8 +114,10 @@ impl Painter {
     /// 按 `scale`（点 → 像素的倍数，如 1.5）画一帧；出错记日志返回 `None`。
     pub fn render(&mut self, frame: &Frame, scale: f32) -> Option<Rendered> {
         let started = Instant::now();
-        // 外观「跟随系统」第一轮按浅色：要读 xdg-desktop-portal，见 docs/design/linux-wayland.md「分期」
-        let dark = frame.appearance == Appearance::Dark;
+        self.seen = self.desktop.preference();
+        self.appearance = frame.appearance;
+        self.renderer.set_reduce_motion(self.seen.reduce_motion);
+        let dark = self.seen.dark_for(frame.appearance);
         let mut rendered = self
             .renderer
             .render(
@@ -134,9 +156,18 @@ impl Painter {
         self.renderer.forget();
     }
 
-    /// 每秒调一次。配置文件与用户主题目录的戳都没变时只花几次 stat；变了就重读，
-    /// 外观真变了（或主题文件改了）就换上新主题、字体变了还重建渲染器，返回 `true`，调用方重画当前帧。
+    /// 每秒调一次，返回 `true` 时调用方重画当前帧：外观设置真变了（或主题文件改了），
+    /// 或桌面的偏好变得让画着的那一帧不一样了（「跟随系统」换了深浅、减少动态效果开关了）。
     pub fn reload(&mut self) -> bool {
+        let desktop = self.desktop.preference();
+        let redraw = desktop.redraws(self.seen, self.appearance);
+        self.seen = desktop;
+        self.reread() || redraw
+    }
+
+    /// 配置文件与用户主题目录的戳都没变时只花几次 stat；变了就重读，
+    /// 外观真变了（或主题文件改了）就换上新主题、字体变了还重建渲染器，返回 `true`。
+    fn reread(&mut self) -> bool {
         let config_stamp = Look::stamp(&self.config_path);
         let themes_stamp = themes_stamp(self.themes_dir.as_deref());
         if config_stamp == self.config_stamp && themes_stamp == self.themes_stamp {

@@ -609,6 +609,7 @@ Linux 回包由 `dispatch/display/annotation` 给释义添加可选 `annotation`
 IBus 的组件 XML 与 systemd 单元里都写死了安装后的绝对路径，所以由 install.sh 按 prefix 生成好再交给 `files.py`；**IBus 不读 `~/.local/share/ibus/component/`**，只认 `IBUS_COMPONENT_PATH`，所以另装一个 environment.d 片段把用户目录加在**最前面**——两个目录里有同名组件时以排在前面的为准，装过旧版 deb 的机器上新装的才会生效（这两条都在 IBus 1.5.34 上实测过）；
 `XMODIFIERS` 只用来提示「你在用的那个框架这次没装上」，不决定装什么（装完再切框架是常事，两支并存不冲突）；
 卸载要先 `systemctl --user disable --now` 再删文件，单元文件没了 systemd 就不认这个名字、停不掉的 Server 会一直占着 socket。
+字体检查与 bamboo-slip 一样，固定路径一个都不在时问 fontconfig（`fc-match` / `fc-list :lang=…`），NixOS 上不误报缺字体。
 
 ## apps/linux/ibus
 

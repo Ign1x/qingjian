@@ -145,24 +145,35 @@ for tool in cargo python3; do
   command -v "$tool" >/dev/null 2>&1 || missing+=("$tool")
 done
 command -v pkg-config >/dev/null 2>&1 && { pkg-config --exists openssl || missing+=(openssl); }
-# 路径与 crates/bamboo-slip/src/fonts/linux.rs 的清单对应，改那边时同步这里。
+# 路径与 crates/bamboo-slip/src/fonts/linux.rs 的清单对应，改那边时同步这里。清单一个都不在时（NixOS 这类）
+# 它问 fontconfig：界面字体要 fc-match 给得出文件，中文与 emoji 要 fc-list 按语言列得出来，这里同样问。
 # 没有系统 UI 字体设置程序起不来，算缺依赖；中文与 emoji 字体缺了照样能起，只提示。
 any_file() {
   local path
   for path in "$@"; do [[ -f "$path" ]] && return 0; done
   return 1
 }
+fontconfig_has() {
+  command -v fc-list >/dev/null 2>&1 && [[ -n "$(fc-list --format '%{file}\n' "$1" 2>/dev/null)" ]]
+}
+fontconfig_matches() {
+  local file
+  command -v fc-match >/dev/null 2>&1 && file=$(fc-match --format '%{file}' "$1" 2>/dev/null) && [[ -f "$file" ]]
+}
 any_file /usr/share/fonts/truetype/noto/NotoSans-Regular.ttf /usr/share/fonts/noto/NotoSans-Regular.ttf \
   '/usr/share/fonts/google-noto-vf/NotoSans[wght].ttf' /usr/share/fonts/google-noto/NotoSans-Regular.ttf \
   /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf /usr/share/fonts/dejavu-sans-fonts/DejaVuSans.ttf \
   /usr/local/share/fonts/noto/NotoSans-Regular.ttf /usr/local/share/fonts/dejavu/DejaVuSans.ttf \
+  || fontconfig_matches sans-serif \
   || missing+=("系统 UI 字体（Noto Sans 或 DejaVu）")
 any_file /usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc /usr/share/fonts/noto-cjk/NotoSansCJK-Regular.ttc \
   /usr/share/fonts/google-noto-sans-cjk-vf-fonts/NotoSansCJK-VF.ttc /usr/share/fonts/google-noto-sans-cjk-fonts/NotoSansCJK-Regular.ttc \
   /usr/local/share/fonts/noto/NotoSansCJKsc-Regular.otf \
+  || fontconfig_has ':lang=zh-cn' \
   || echo '提示：没找到中文字体（Noto Sans CJK），设置程序里的中文会画不出来' >&2
 any_file /usr/share/fonts/truetype/noto/NotoColorEmoji.ttf /usr/share/fonts/noto/NotoColorEmoji.ttf \
   /usr/share/fonts/google-noto-color-emoji-fonts/NotoColorEmoji.ttf /usr/local/share/fonts/noto/NotoColorEmoji.ttf \
+  || fontconfig_has ':lang=und-zsye' \
   || echo '提示：没找到 emoji 字体（Noto Color Emoji），表情会画不出来' >&2
 if ((${#missing[@]})); then
   echo "缺少依赖：${missing[*]}" >&2

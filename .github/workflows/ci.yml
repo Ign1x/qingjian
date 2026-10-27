@@ -203,7 +203,7 @@ jobs:
       # 那正是它该干的事：对着用户实际走的 install.sh 路径验，漏一个包就暴露。
       #
       # 字体是**额外**的一项，install.sh 的清单里没有：bamboo-slip 的自绘 UI 要一个
-      # 系统 UI 字体（fonts/mod.rs 里 load_first 失败直接返回 NoUiFont，没有回退），
+      # 系统 UI 字体（fonts/mod.rs 里 load_first 失败直接返回 NoUiFont；固定路径之外只会问 fontconfig，裸容器里两样都没有），
       # 于是 17 个 UI 测试在没装字体的裸容器里全红。
       # ubuntu-26.04 runner 上它们是镜像预装的，所以 core job 一直是绿的——
       # 也就是说 CI 的绿有一部分来自 runner 镜像而不是显式声明的依赖。

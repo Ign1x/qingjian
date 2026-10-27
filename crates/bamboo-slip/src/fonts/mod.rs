@@ -8,6 +8,8 @@ mod android;
 #[cfg(target_os = "windows")]
 pub mod directwrite;
 #[cfg(any(target_os = "linux", target_os = "freebsd"))]
+pub mod fontconfig;
+#[cfg(any(target_os = "linux", target_os = "freebsd"))]
 mod linux;
 #[cfg(target_os = "macos")]
 mod macos;
@@ -84,10 +86,9 @@ impl FontLibrary {
                 None
             }
         });
-        let ui =
-            load_first(&mut db, &platform::ui_fonts()).ok_or_else(|| RenderError::NoUiFont {
-                tried: platform::ui_fonts(),
-            })?;
+        // 清单只取一次：Linux 上清单落空时要起 fontconfig 进程去问
+        let ui_fonts = platform::ui_fonts();
+        let ui = load_first(&mut db, &ui_fonts).ok_or(RenderError::NoUiFont { tried: ui_fonts })?;
         let ui_family = custom_family.unwrap_or_else(|| {
             db.face(ui)
                 .and_then(|face| face.families.first().map(|(name, _)| name.clone()))
@@ -136,12 +137,11 @@ impl FontLibrary {
     pub fn font_files(&self) -> Vec<PathBuf> {
         let mut files: Vec<PathBuf> = Vec::new();
         for face in self.db.faces() {
-            let path = match &face.source {
-                Source::File(path) | Source::SharedFile(path, _) => path,
-                Source::Binary(_) => continue,
+            let Some(path) = source_path(&face.source) else {
+                continue;
             };
-            if !files.contains(path) {
-                files.push(path.clone());
+            if !files.iter().any(|file| file == path) {
+                files.push(path.to_path_buf());
             }
         }
         files
@@ -162,20 +162,30 @@ impl FontLibrary {
 /// 界面字体用的字族。
 pub const UI_FAMILY: Family<'static> = Family::SansSerif;
 
-/// 依次尝试，加载成功的第一个文件的第一张面。
+/// 依次尝试，加载成功的第一个文件的第一张面（文件之前已经加载过也算）。
 fn load_first(db: &mut Database, paths: &[PathBuf]) -> Option<cosmic_text::fontdb::ID> {
     paths.iter().find_map(|path| {
-        let before: Vec<_> = db.faces().map(|f| f.id).collect();
         load(db, path)
-            .then(|| db.faces().map(|f| f.id).find(|id| !before.contains(id)))
+            .then(|| {
+                db.faces()
+                    .find(|face| source_path(&face.source) == Some(path.as_path()))
+                    .map(|face| face.id)
+            })
             .flatten()
     })
 }
 
-/// 文件存在且能解析就加载；返回是否加载了。
+/// 文件存在且能解析就加载；返回是否加载了。已经加载过的文件不再加载一遍
+/// （Linux 上清单落空时界面字体与中文字体可能是 fontconfig 给的同一个文件）。
 fn load(db: &mut Database, path: &Path) -> bool {
     if !path.is_file() {
         return false;
+    }
+    if db
+        .faces()
+        .any(|face| source_path(&face.source) == Some(path))
+    {
+        return true;
     }
     match db.load_font_file(path) {
         Ok(()) => true,
@@ -183,6 +193,14 @@ fn load(db: &mut Database, path: &Path) -> bool {
             tracing::warn!(path = %path.display(), %error, "字体文件解析失败");
             false
         }
+    }
+}
+
+/// 这张面是从哪个文件加载的；内存里的字体没有文件。
+fn source_path(source: &Source) -> Option<&Path> {
+    match source {
+        Source::File(path) | Source::SharedFile(path, _) => Some(path),
+        Source::Binary(_) => None,
     }
 }
 

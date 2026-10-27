@@ -14,8 +14,8 @@ mod renderer;
 pub mod sample;
 mod theme;
 
-/// Windows 的字体登记：按字族名找文件、列字族名（设置页用）。
-#[cfg(target_os = "windows")]
+/// 系统的字体登记：按字族名找文件（Windows 走 DirectWrite，还能列字族名给设置页；Linux / FreeBSD 问 fontconfig）。
+#[cfg(any(target_os = "windows", target_os = "linux", target_os = "freebsd"))]
 pub use bamboo_slip::system_fonts;
 pub use bamboo_slip::{Color, FontLibrary, FontSpec, Pixmap, RenderError, UiFont};
 pub use frame::{Frame, Mode, Preedit, PreeditSegment, PreeditStyle, Row, Tone};

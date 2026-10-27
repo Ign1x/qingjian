@@ -28,6 +28,9 @@ pub use error::RenderError;
 /// Windows 的字体登记：按字族名找文件、列字族名。
 #[cfg(target_os = "windows")]
 pub use fonts::directwrite as system_fonts;
+/// Linux / FreeBSD 的同名入口：按字族名找文件，问 fontconfig。
+#[cfg(any(target_os = "linux", target_os = "freebsd"))]
+pub use fonts::fontconfig as system_fonts;
 pub use fonts::{FontLibrary, UiFont};
 #[cfg(feature = "host")]
 pub use host::{HostError, TITLEBAR, WindowOptions, run as run_window, set_clipboard};

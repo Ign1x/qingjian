@@ -325,6 +325,10 @@ Ctrl 键本身 `0x11`、Super 与 Hyper（Mod3）都算 `win`；`mapping.rs` 的
 画位图的部分已拆到自绘引擎 `crates/bamboo-slip`：下文的 `scene/`、`animation/`、`text/`、`fonts/`、`canvas.rs`、`shadow.rs`
 在 `crates/bamboo-slip/src/`，原 `renderer/{animate,retained,partial}.rs` 成了引擎的 `stage/`（`Stage::present` / `tick_at`），`theme/svg_image.rs` 成了 `SvgImage`。
 这里留下帧数据、主题格式、`renderer/build/` 建树、点击区域、状态条与云朵 / 齿轮图标（`icon/`，实现引擎的 `Icon` trait）。改了引擎回来跑本 crate 的快照测试。
+引擎的字体库按平台清单只加载几个文件（`fonts/<平台>.rs`）。Linux / FreeBSD 的清单是各发行版装 Noto 的常见路径，一个都不在时（NixOS 这类）问 fontconfig：
+`fonts/fontconfig.rs` 起 `fc-match` / `fc-list` 子进程（不链 libfontconfig、不扫字体库），界面字体按 `sans-serif`、粗体按 `style=Bold`（有的字体包字重元数据写歪了，按 weight 会拿到 Heavy）、
+中文与 emoji 按语言再拿 `fc-list :lang=…` 核对一遍（`fc-match` 总会给个文件，哪怕不带那种字）。同一个文件只加载一次。
+它也是 Linux 的 `system_fonts::family_files`（与 Windows 的 DirectWrite 版同名同签名），主题点名的字族与 `[general] font` 按它找文件。
 
 横排矩阵：视口与高亮移动在 Core `candidate::layout::Grid`（`GRID_ROWS` = 6，列宽 `Grid::column_ems` 按整份候选估、单格封顶 `MAX_CELL_EMS` = 4 字宽）。横排且高亮移动键选了 ← / → 时（`two_area_arrows`），方向键怎么走在 Core `candidate::arrows::route`：拼音行与候选两区，↑ / ↓ 换区与换行，← / → 只在当前区里移动；两个壳只记焦点（mac `Session::focus`、Windows `Router::focus`，缓冲清空才回到候选）并执行它给的动作，焦点在拼音时帧里不给高亮（`usize::MAX`），拼音区里再按 ↑ 才开符号面板。其余组合（竖排、或横排用 ↑ / ↓ 移高亮）仍是原来那套：拼音行 + 候选连成一条序列。
 青简渲染器在 `renderer/build/matrix.rs` 画矩阵：`Frame.columns` 不为 0 时，横排模板里候选的 `repeat` 改包进一个网格（主题不另写模板），

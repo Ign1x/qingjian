@@ -7,7 +7,14 @@ use qingjian_platform::protocol::linux::client::{ClientError, Reply};
 use qingjian_platform::protocol::linux::{AppSurrounding, Capabilities, DisplayIdentity};
 
 pub trait Server {
-    /// 输入框的能力（密码框 / 敏感）。变了才真的发；没连着时先记下，连上之后补报。
+    /// 接下来的请求发给哪个应用的会话：一个应用一个会话，`[apps]` 按应用的设置与中 / 英状态都跟着会话走。
+    /// `None` 是不知道哪个应用（合成器不报活动窗口）。会话第一次用到时才开。
+    fn select(&mut self, app: Option<&str>);
+
+    /// 现在选着的应用。
+    fn app(&self) -> Option<&str>;
+
+    /// 输入框的能力（密码框 / 敏感），报给当前应用的会话。那个会话上次报的一样就不发；会话还没开就先记下，开的时候先报。
     fn capabilities(&mut self, capabilities: Capabilities) -> Result<(), ClientError>;
 
     /// 焦点进出。

@@ -27,7 +27,9 @@ fn event(seen: &[Value], index: usize, session: SessionId) -> LinuxEvent {
 fn panel_calls_carry_the_display_identity() {
     let (path, received, server) = fake_server(None);
     let mut connection = Connection::connect_at(&path).expect("连上假 Server");
-    let session = connection.open_session("/ibus/context/1").expect("开会话");
+    let session = connection
+        .open_session("/ibus/context/1", None)
+        .expect("开会话");
     connection
         .capabilities(session, Capabilities::default())
         .expect("报能力");
@@ -78,7 +80,9 @@ fn panel_calls_carry_the_display_identity() {
 fn indicator_sends_the_mode_command() {
     let (path, received, server) = fake_server(None);
     let mut connection = Connection::connect_at(&path).expect("连上假 Server");
-    let session = connection.open_session("/ibus/context/1").expect("开会话");
+    let session = connection
+        .open_session("/ibus/context/1", None)
+        .expect("开会话");
     connection
         .capabilities(session, Capabilities::default())
         .expect("报能力");
@@ -102,7 +106,9 @@ fn indicator_sends_the_mode_command() {
 fn selection_request_is_answered_with_the_same_number() {
     let (path, received, server) = fake_server(None);
     let mut connection = Connection::connect_at(&path).expect("连上假 Server");
-    let session = connection.open_session("/ibus/context/1").expect("开会话");
+    let session = connection
+        .open_session("/ibus/context/1", None)
+        .expect("开会话");
     connection
         .capabilities(session, Capabilities::default())
         .expect("报能力");

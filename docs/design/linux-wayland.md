@@ -27,7 +27,7 @@ Chromium / Electron（加 `--enable-wayland-ime`；只认 text-input-v3 的合�
 ## 进程与数据流
 
 ```
-合成器 ──activate / done / surrounding_text / content_type；grab 的 keymap / key / modifiers / repeat_info──▶ qingjian-linux-wayland
+合成器 ──activate / done / surrounding_text / content_type；grab 的 keymap / key / modifiers / repeat_info；foreign-toplevel 的 app_id / state──▶ qingjian-linux-wayland
        ◀──commit_string / set_preedit_string / commit(serial)；popup 缓冲；virtual_keyboard 转发放行的键──┘
 qingjian-linux-wayland ──Unix socket，protocol::linux（与 Fcitx5 插件、IBus 前端同一套）──▶ qingjian-linux-server
 ```
@@ -44,12 +44,13 @@ qingjian-linux-wayland ──Unix socket，protocol::linux（与 Fcitx5 插件�
 
 | 合成器给的（`done` 之后生效） | 前端做的 |
 |---|---|
-| 新的 activate | 报能力（变了才报），然后 `Focus{true}`，成功就 grab 键盘（密码框、Server 连不上时不 grab）；已经激活着又来一次（同一个应用里换了输入框）先按失活处理 |
+| 新的 activate | 选活动窗口那个应用的 Server 会话（见「会话与隐私」），报能力（变了才报），然后 `Focus{true}`，成功就 grab 键盘（密码框、Server 连不上时不 grab）；已经激活着又来一次（同一个应用里换了输入框）先按失活处理 |
 | deactivate | 挂空缓冲藏起 popup；`Focus{false}` + `Deactivate{focus_out: true, client_preedit: true, capability_changed: false}`：失焦后已经不能往原来的输入框上屏，组句丢弃 |
 | content_type | purpose password / pin 或 hint hidden_text → `Capabilities{password}`；hint sensitive_data → `sensitive`。每次 `done` 都重算（密码框点「显示密码」会改它） |
 | surrounding_text | 每键随 `Key` 带上光标两侧各 80 字（跳过选区，规则同 Fcitx5 的 `apps/linux/surrounding.h`，单位换成字节） |
 | text_change_cause = other | 组句中光标被挪走、文字被应用改了：报 `Reset`，清 preedit |
 | grab 的 key | 见下节「按键」 |
+| foreign-toplevel 的 app_id / state（各自 `done` 之后生效） | 激活着的那个顶层窗口的 app_id 就是活动窗口的应用，变了才告诉会话，见「会话与隐私」 |
 | unavailable | 别的输入法占着 seat：日志写明，非零码退出 |
 
 回包落地的顺序：`commit_string` → `set_preedit_string` → `commit(serial)`，serial 是收到过的 `done` 个数。
@@ -114,22 +115,33 @@ qingjian-linux-wayland ──Unix socket，protocol::linux（与 Fcitx5 插件�
 
 ## 会话与隐私
 
-- 第一轮一个连接一个会话，`app` 报空：`[apps]` 按应用设置不生效，中 / 英状态全局共用，英文候选不出（Server 对没报应用名的会话按不给处理）。
-- 密码框（见协议对照）先报 `Capabilities{password: true}` 让 Server 丢弃输入、进隐私模式，之后不 grab，键盘直接归应用。
+- **一个应用一个会话。** input-method-v2 不说输入框在哪个应用里，所以另绑 `zwlr_foreign_toplevel_manager_v1`：记下各顶层窗口的 app_id 与激活状态（各自 `done` 时生效，
+  几个同时激活着取最后激活的），激活着的那个窗口的 app_id 就是活动窗口的应用——与 Fcitx5 在 Wayland 上报的 program 名同一种，`[apps]` 的 Linux 缺省名单就按它写。
+  输入框激活时用那个应用的 Server 会话：`OpenSession.app` 报 app_id，`[apps]` 按应用的设置生效，中 / 英状态按应用记（Server 的中 / 英状态本来就跟着会话走），
+  同一个应用的几个窗口、几个输入框共用这一个会话。
+- 会话在同一条连接上用到才开，上下文是 `wayland-` 加 app_id 的 64 位 FNV-1a 哈希（Server 要求非空、不超过 64 字节、同连接内不重复，app_id 可以很长）；
+  开着的超过 16 个就关掉最久没用的，那个应用的中 / 英状态回到缺省。Server 重启后只补开当前应用的会话、补报能力与焦点，别的应用用到再开。
+- 输入框激活期间活动窗口换了应用（合成器先报了激活、后报活动窗口，或者应用改了 app_id）：等 200 毫秒再跟过去换会话，组句中等这次组句结束。
+  切换窗口时两边事件的先后不定，中间常有一瞬间没有激活着的窗口，紧跟着的失活、激活会直接用上新应用，等这一下省掉白换的几次。
+- 合成器没有这个全局对象，或者活动窗口没报 app_id 时，按不知道哪个应用：这些输入框共用一个会话（上下文 `wayland`，`app` 报空），
+  `[apps]` 不生效、中 / 英状态共用，英文候选不出（Server 对没报应用名的会话按不给处理）。没有这个全局对象时启动日志记一句。
+- 密码框（见协议对照）先报 `Capabilities{password: true}` 让 Server 丢弃输入、进隐私模式，之后不 grab，键盘直接归应用；还没用过的应用里的密码框不为它开会话。
 - Server 连不上时不 grab；连接出错就清掉 preedit、藏起 popup、release grab，2 秒内不再重试——Server 主线程卡住时连接照样能建，但每个请求都要等满 200 ms 超时，不退避的话每键都卡。
-- 日志不记按键、字符、上屏文字与前后文。
+- 日志不记按键、字符、上屏文字与前后文。foreign-toplevel 也报窗口标题，不读；app_id 只在 debug 级日志里出现。
 
 ## 已知限制
 
 - XWayland 应用、KWin、GNOME 不支持（见上表）。
 - 失焦后不能再往原来的输入框上屏：`preedit = "window"`（应用里不放拼音）时，切走窗口会丢掉正在组的句子；fcitx 版此时会上原文。
 - 输入法看不到鼠标：Shift+点击做选区时，松开 Shift 仍会切换中 / 英。
+- 应用按顶层窗口认：layer-shell 上的输入框（fuzzel、wofi 这类启动器）不是顶层窗口，合成器把活动窗口报成空时按不知道哪个应用，仍报着原来那个窗口时算在它头上。
+  合成器后报活动窗口、而用户在那 200 毫秒里就开始打字时，这次组句还用上一个应用的会话，上屏之后才换过去。
 - 候选窗位置完全由合成器定；Hyprland 0.56 在分数缩放下有 popup 偏移的报告（omarchy #16374），遇到时先抓 `WAYLAND_DEBUG=1` 分清是合成器还是应用报错光标。
 
 ## 分期
 
 - **第一轮**：本文 + 可用原型（上面除「分期」外的全部）。
-- **P1 补齐 fcitx 版已有的**：按应用会话（`zwlr_foreign_toplevel_manager_v1` 取活动窗口的 app_id → `OpenSession.app`，context 用 app_id 的哈希，64 字节上限）；
+- **P1 补齐 fcitx 版已有的**：~~按应用会话~~（已做，见「会话与隐私」）；
   选区翻译（`surrounding_text` 里的选区 → `Selection`）；中 / 英提示（`KeyResult.english` → `Renderer::render_status` 在 popup 里亮一秒）；
   Server 回包附当前模式（`handle_linux` 加字段，像 `translation_pending` 一样只增不改，Fcitx5 插件不读不受影响）；用 `wayland-server` 写假合成器集成测试。
 - **P2 macOS / Windows 级特性**：鼠标点选（`Rendered::hit_at` → `Candidate` / `Page`，先验合成器肯不肯把指针事件给 popup）；
@@ -139,9 +151,11 @@ qingjian-linux-wayland ──Unix socket，protocol::linux（与 Fcitx5 插件�
 
 ## 验证
 
-能自动跑的都是纯逻辑（按键表、抬键与重复、`content_type` 映射、偏移换算与前后文截取、4 KB 切块、像素换算与补边、回包身份判断），不要合成器，CI 照跑。
+能自动跑的都是纯逻辑（按键表、抬键与重复、`content_type` 映射、偏移换算与前后文截取、4 KB 切块、像素换算与补边、回包身份判断、活动窗口的跟踪、按应用分会话），
+不要合成器，CI 照跑；按应用分会话另有一组对着走真 socket 的假 Server 测连接上的消息。
 只能真会话验的，在 Hyprland 上逐个应用过：foot / kitty、GTK4、Firefox、Chromium（`--enable-wayland-ime`）、Qt6——
-打字上屏、数字选词、翻页、Shift 切换后 Shift 不卡、组句中按住退格、Ctrl+C 先上原文、NumLock、密码框、组句中切窗口、整句重排换帧、1.5 倍缩放不糊、热加载换主题、Server 中途重启。
+打字上屏、数字选词、翻页、Shift 切换后 Shift 不卡、组句中按住退格、Ctrl+C 先上原文、NumLock、密码框、组句中切窗口、整句重排换帧、1.5 倍缩放不糊、热加载换主题、Server 中途重启、
+两个应用里各自切中 / 英后来回切换各自记住、`[apps]` 英文候选名单里的应用出英文候选（按应用分会话还没在真会话里验过）。
 嵌套 sway 1.12（headless 后端，不开窗口、不碰宿主会话）+ foot 1.28 + wtype 已经过了一遍（2026-10-28）：
 连发与按人速打字的行内拼音、空格 / 数字 / 翻页选词、Esc、回车上原文、退格、单击 Shift 切中英、组句中 Ctrl+A 先上原文、空闲时 Ctrl+C 原样交给应用、
 1.5 倍缩放、Server 中途停掉键照常直通与重启后自动接上、按住退格的重复与删空后交还应用、组句中切换窗口、改配置换主题（樱花主题）、第二个输入法收到 `unavailable`。

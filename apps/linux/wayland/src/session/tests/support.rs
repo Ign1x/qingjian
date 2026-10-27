@@ -13,6 +13,8 @@ use super::super::{Field, Input, Key, Modifiers, Output, Preedit, Server, Sessio
 /// 假 Server 收到的请求。
 #[derive(Debug, Clone, PartialEq)]
 pub enum Call {
+    /// 换了应用（选着的没变不记）。
+    Select(Option<String>),
     Capabilities(Capabilities),
     Focus(bool),
     Deactivate,
@@ -52,6 +54,9 @@ pub struct FakeServer {
 
     /// Server 挂了：所有请求都失败。
     pub down: bool,
+
+    /// 选着的应用。
+    app: Option<String>,
 
     frame: Frame,
 
@@ -93,6 +98,17 @@ impl FakeServer {
 }
 
 impl Server for FakeServer {
+    fn select(&mut self, app: Option<&str>) {
+        if self.app.as_deref() != app {
+            self.app = app.map(str::to_owned);
+            self.calls.push(Call::Select(self.app.clone()));
+        }
+    }
+
+    fn app(&self) -> Option<&str> {
+        self.app.as_deref()
+    }
+
     fn capabilities(&mut self, capabilities: Capabilities) -> Result<(), ClientError> {
         self.calls.push(Call::Capabilities(capabilities));
         Ok(())

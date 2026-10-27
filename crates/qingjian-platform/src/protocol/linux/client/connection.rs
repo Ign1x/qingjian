@@ -73,14 +73,19 @@ impl Connection {
     /// 给一个输入上下文开会话：`OpenSession` 之后立刻握 `LinuxHello`。
     ///
     /// `context` 是这个上下文的标识（Server 要求非空、不超过 64 字节、同连接内不重复），
-    /// IBus 用输入上下文的对象路径。
-    pub fn open_session(&mut self, context: &str) -> Result<SessionId, ClientError> {
+    /// IBus 用输入上下文的对象路径，Wayland 前端用应用 app_id 的哈希。
+    /// `app` 是宿主应用的标识，与 Fcitx5 插件报的 program 名同一种（X11 是 WM_CLASS，Wayland 是 app_id）：
+    /// Server 据此查 `[apps]` 按应用的设置，不知道是哪个应用就给 `None`。
+    pub fn open_session(
+        &mut self,
+        context: &str,
+        app: Option<&str>,
+    ) -> Result<SessionId, ClientError> {
         let session = SessionId(self.next_session);
         self.next_session += 1;
-        // 宿主应用的标识（`[apps]` 按应用设置要用）两个 Rust 前端都还没有着落，先不报
         let open = serde_json::to_value(ClientMessage::OpenSession {
             session,
-            app: None,
+            app: app.map(str::to_owned),
             protocol: PROTOCOL_VERSION,
         })?;
         self.request(&open)?;

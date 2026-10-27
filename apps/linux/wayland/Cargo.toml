@@ -23,9 +23,11 @@ tracing-appender.workspace = true
 [lints]
 workspace = true
 
-# 只有测试要按名字引 core：协议帧里的候选就是 `qingjian_core::Candidate`，造测试数据绕不开它
+# 只有测试用：协议帧里的候选就是 `qingjian_core::Candidate`，造测试数据绕不开 core；
+# Link 的测试对着走真 socket 的假 Server，按原始 JSON 收发（与共用客户端的测试一样）
 [dev-dependencies]
 qingjian-core.workspace = true
+serde_json.workspace = true
 
 [target.'cfg(target_os = "linux")'.dependencies]
 libc = "0.2.189"
@@ -33,4 +35,5 @@ memmap2.workspace = true
 wayland-client = "0.31.15"
 wayland-protocols = { version = "0.32.13", features = ["client", "staging"] }
 wayland-protocols-misc = { version = "0.3.12", features = ["client"] }
+wayland-protocols-wlr = { version = "0.3.12", features = ["client"] }
 xkbcommon-dl = "0.4.2"

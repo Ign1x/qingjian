@@ -145,7 +145,9 @@
   - ~~安装脚本按已装框架分支安装、Server 的启动策略~~：`install.sh --frontend auto` 已做，systemd 用户单元 `qingjian-server.service` 随装（`--enable-service` 顺手 enable），两个前端共用一个 Server
   - `[general] preedit` 三档在 IBus 面板下逐个真机验（它的面板能力比 fcitx5 弱），坑见 [notes/linux-bringup.md](../notes/linux-bringup.md)
 - [~] Linux Wayland 原生版（`apps/linux/wayland`，设计见 [design/linux-wayland.md](../design/linux-wayland.md)）：第一轮原型，Hyprland 真机验。还差：
-  - P1：按应用会话（`zwlr_foreign_toplevel_manager_v1` 取 app_id，`[apps]` 生效、按应用记中英）、选区翻译、中 / 英提示、Server 回包附当前模式、假合成器集成测试
+  - P1：~~按应用会话~~（已做，见下一条）、选区翻译、中 / 英提示、Server 回包附当前模式、假合成器集成测试
+  - 按应用会话（`zwlr_foreign_toplevel_manager_v1` 取活动窗口的 app_id，一个应用一个 Server 会话）待真会话验：两个应用里各自切中英、来回切换各自记住，
+    `[apps]` 英文候选名单里的应用出英文候选，切窗口时不白换会话（`RUST_LOG=debug` 看「活动窗口换了应用」）；sway / niri / labwc 上报活动窗口与激活输入框的先后
   - P2：鼠标点选与翻页、候选右键菜单（`LINUX_UI_PROTOCOL` 升版，Fcitx5 / Fcitx4 插件跟着改）、外观跟随系统（xdg-desktop-portal）、候选窗翻到光标上方时的排布、托盘、键位提示
   - P3：`install.sh --frontend wayland`、systemd 用户服务、deb / rpm、CI、设置程序支持表区分 fcitx 版与 Wayland 版、用户文档
   - sway / niri / labwc 上逐个真机验（第一轮只验了 Hyprland）

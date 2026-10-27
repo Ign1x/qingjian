@@ -31,7 +31,7 @@ fn shared_client_round_trips_against_the_real_server() {
     drop(server.connect());
     let mut connection = Connection::connect_at(&directory.join("server.sock")).unwrap();
 
-    let session = connection.open_session("client-test").unwrap();
+    let session = connection.open_session("client-test", None).unwrap();
     connection
         .capabilities(session, Capabilities::default())
         .unwrap();
@@ -154,7 +154,7 @@ fn start(name: &str, config: &str) -> (Server, PathBuf, PathBuf, Connection, Ses
     let mut server = Server::start(directory.clone());
     drop(server.connect());
     let mut connection = Connection::connect_at(&directory.join("server.sock")).unwrap();
-    let session = connection.open_session(name).unwrap();
+    let session = connection.open_session(name, None).unwrap();
     connection
         .capabilities(session, Capabilities::default())
         .unwrap();

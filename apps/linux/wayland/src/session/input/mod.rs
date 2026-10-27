@@ -33,4 +33,7 @@ pub enum Input {
 
     /// 按住多久开始重复（毫秒）、每秒重复几次；`rate` 为 0 是不重复。
     Repeat { rate: i32, delay: i32 },
+
+    /// 活动窗口换了应用（合成器经 foreign-toplevel 报的 app_id）；没有激活着的窗口、窗口没报 app_id 时是 `None`。
+    App(Option<String>),
 }

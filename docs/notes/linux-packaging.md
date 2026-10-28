@@ -1,7 +1,7 @@
-# Linux 发行包：deb / rpm（2026-09-23）
+# Linux 发行包：deb / rpm 与预编译 tarball（2026-09-23）
 
-`apps/linux/packaging/build.sh` 一条命令打两种包，给别的 Linux 机器装着试。
-这一页记两种包各装了什么、为什么这么分、怎么装，以及几处绕不过去的限制。
+`apps/linux/packaging/build.sh` 一条命令打 deb / rpm，`apps/linux/scripts/package.sh` 打用户级的预编译 tarball（Fcitx5 版与 Wayland 版），都给别的 Linux 机器装着试。
+这一页记这几种包各装了什么、为什么这么分、怎么装，以及几处绕不过去的限制。
 flatpak 暂不做（2026-10-23）：输入法在沙箱里要靠宿主机上的登记脚本去写服务与 IBus 组件，等于绕开沙箱，出了问题也难查。
 用户级的源码安装（`apps/linux/scripts/install.sh`）另见 [linux-fcitx5.md](linux-fcitx5.md) 与 [linux-dual-frontend.md](linux-dual-frontend.md)，
 Wayland 原生版的见 [apps/linux/wayland/README.md](../../apps/linux/wayland/README.md)。
@@ -51,6 +51,52 @@ IBus 前端没有额外依赖，跟 Server 同包；它的组件 XML 在系统�
 - **升级与卸载**：postinst / `%post` 对每个已登录用户 `daemon-reload` 后 `try-restart`（只重启正开着的，换上新的二进制）；
   prerm / `%preun` 卸载时 `--global disable`（管理员手动全局 enable 过时清掉）并 stop 每个已登录用户的实例。
   用户自己 enable 留在 `~/.config/systemd/user/graphical-session.target.wants/` 的链接包管理器不碰，卸载后是一个悬空链接，systemd 忽略它。
+
+## 预编译 tarball（package.sh）
+
+`apps/linux/scripts/package.sh` 在本机打用户级包，不用 root：解开、跑一句 `install.sh` 就装进 `~/.local`。
+缺省打 Fcitx5 版，`--frontend wayland` 打 Wayland 原生版：
+
+```bash
+tools/release/data-fetch.sh                       # 产品数据与含章模型，两版都要
+apps/linux/scripts/package.sh                     # target/linux-package/qingjian-<版本>-linux-<cpu>.tar.gz
+apps/linux/scripts/package.sh --frontend wayland  # target/linux-package/qingjian-wayland-<版本>-linux-<cpu>.tar.gz
+```
+
+两版都在本机编，不经过容器，文件按仓库相对路径放进包根：
+
+- **Fcitx5 版**：`bin/qingjian-linux-server`、`bin/qingjian-settings`、`lib/qingjian.so`（fcitx5 插件，cmake 编）与它的描述文件 `apps/linux/fcitx5/data`。
+- **Wayland 版**：`bin/` 下是 `qingjian-linux-server`、`qingjian-settings`、`qingjian-linux-wayland`；**不编 fcitx5 插件、不跑 cmake**，
+  改在包根放两个单元模板 `qingjian-server.service.in` 与 `qingjian-wayland.service.in`，装的时候按安装路径填好 `@EXEC@`。
+- 两版都带 `install.sh`、`uninstall.sh`、`files.py`、`LICENSE`、`apps/settings/linux`、`assets/icon/linux/hicolor`、
+  `assets/stroke/LICENSE-CNS11643.txt`、`tools/release/data.lock`、`assets/sample` 等产品数据目录，以及 `target/release-data/qingjian-data.tar.gz`
+  （压缩包带的是大块词库与模型，装前解开，`files.py` 先按 `data.lock` 校验压缩包、再按包内摘要逐个校验解出的文件）。
+
+Wayland 前端在 Server 与设置程序那次 `cargo build` 之外再单独编一次：同一次编时 cargo 会合并依赖的特性，
+别的包带进来的 winit 会把 wayland-backend 换成 dlopen libwayland 的那种，单独编的只 dlopen libxkbcommon（见 [crate-notes](crate-notes.md) 的 apps/linux/wayland 一节）。
+
+### 装
+
+解开后 `./install.sh`，`--prefix` 改安装位置（缺省 `~/.local`）。包里的 `install.sh` 是 `package.sh` 从 `package-install.sh` 拷出来的，
+拷时已把版本那行（`frontend=`）改成这个包的前端，**装的人不用再选**。装 Server、设置程序与对应的前端，文件清单记在
+`$prefix/share/qingjian/install-manifest.json`，`uninstall.sh` 按清单删（用户数据保留）。
+
+依赖：两版都要 python3；Fcitx5 版查 `fcitx5`，Wayland 版**不查 fcitx5**，查系统 UI 字体、中文字体与 libxkbcommon。
+libxkbcommon 只能从 `LD_LIBRARY_PATH` 找到时（NixOS）把那个目录写进 Wayland 单元的 `Environment=`。
+
+装完不自动 enable。Wayland 版打印这一句，要用的用户自己跑：
+
+```bash
+systemctl --user daemon-reload && systemctl --user enable --now qingjian-server.service qingjian-wayland.service
+```
+
+同一时间只能有一个输入法，enable 之前先关掉 fcitx5（或它的 Wayland 输入法前端）；Hyprland / sway 这类直接启动的桌面没有
+`graphical-session.target`，要把 `exec-once = systemctl --user import-environment WAYLAND_DISPLAY && systemctl --user start qingjian-wayland.service`
+写进桌面配置。
+
+**发版还没接**：`.github/workflows/release.yml` 只跑缺省版，smoke 测试与上传也按单份包写；`tools/release/releases_json.py` 的附件名规则
+`^qingjian-.+-linux-x86_64\.tar\.gz$` 会把 `qingjian-wayland-…-linux-x86_64.tar.gz` 也认成 linux/x86_64，与 Fcitx5 版在 releases.json 里撞同一个键。
+所以 Wayland tarball 现在只在本机打，下载页上没有它。
 
 ## 装法
 

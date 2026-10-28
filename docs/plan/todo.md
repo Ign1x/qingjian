@@ -150,7 +150,7 @@
   - 按应用会话与跟随深浅待真会话验：两个应用里各自切中英、来回切换各自记住，`[apps]` 英文候选名单里的应用出英文候选，
     切窗口时不白换会话（`RUST_LOG=debug` 看「活动窗口换了应用」）；桌面切深浅时候选窗一秒内跟着换；sway / niri / labwc 上报活动窗口与激活输入框的先后
   - 按 `text_input_rectangle` 判断候选窗翻没翻到光标上方、调排布；设置程序支持表区分 fcitx 版与 Wayland 版；CI 跑黑盒测试
-  - 预编译 tarball（`package.sh`）还只有 Fcitx5 版；deb / rpm 的 `qingjian-wayland` 包还没在容器里真打过、没跑 smoke
+  - 预编译 tarball（`package.sh`）两版都能打了，Wayland 版还没进发版（release.yml 只跑缺省版，`releases_json.py` 的附件名规则会把它认成 linux/x86_64、与 Fcitx5 版撞同一个平台键）；deb / rpm 的 `qingjian-wayland` 包还没在容器里真打过、没跑 smoke
   - sway / niri / labwc 上逐个真机验（第一轮只验了 Hyprland）
   - 连发按键时每个键都画一帧：重主题（樱花）release 版 1.5 倍下每帧十几毫秒，跟得上；真不够时改成一批事件处理完只画最后一帧
 - [ ] 渲染器的译词编号把读音也算一号：`from_candidate` 把读音（emoji 跟着的词、问字的拼音）拼在注记最前面，渲染器按分隔符编号，真正的第 0 条义项成了第 1 号。

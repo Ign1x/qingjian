@@ -310,13 +310,13 @@ id 不能撞拼音侧的写法与日志里的 `wubi`（`is_valid_id`），因为
 协议版本见 `PROTOCOL_VERSION`，`PreeditKind::AuxCode` 对应 Core 的 `MarkedKind::AuxCode`，`Frame.aux_code_show` 随帧下发显示码开关，
 `Frame.translation_pos` 随帧下发「译词是否带词性标注」（`[general] translation_pos`，缺省开；与 `aux_code_show` 同款普通 `#[serde(default)]`——帧只由 Server 自己的候选窗消费、DLL 不读该字段，加这种纯字段不 bump 协议版本，枚举变体才必须 bump）；
 `Frame.columns` / `column_ems` 随帧下发横排矩阵视口，带 `serde(default)` 新老互通，DLL 不画候选读不到也照旧）。
-`protocol::linux` 是 Linux Server ↔ 各前端的扩展（`LinuxEvent` / `DisplayIdentity` / `InputMode` / `ModeCommand` / `MenuItem` / `MenuReply` / `LINUX_UI_PROTOCOL` 与 socket 路径）。
+`protocol::linux` 是 Linux Server ↔ 各前端的扩展（`LinuxEvent` / `DisplayIdentity` / `InputMode` / `ModeCommand` / `MenuItem` / `MenuReply` / `KeyHintView` / `LINUX_UI_PROTOCOL` 与 socket 路径）。
 **版本**：`LINUX_UI_PROTOCOL` 是 4（v4 多了候选右键菜单 `Menu` / `MenuPick` 与托盘切换 `Indicator`），Server 收 `LINUX_UI_PROTOCOL_MIN`（3）到 4 的 `LinuxHello`、回包回显前端报的那一版，
 Fcitx5 / Fcitx4 插件写死 3、不用跟着改；一个会话只能发它握手那一版里有的事件（`LinuxEvent::since`），多发的断开；`OpenSession` 回包的 `linux_ui.version` 固定报 3（那时还没握手，插件要它等于 3）；
-回包上只增不改的字段（`identity`、`mode`、`translation_pending`、`annotation`）不升版。规则写在常量旁边，`apps/linux/server/tests/protocol.rs` 读两个插件的源码核对它们报的版本 Server 还认。
+回包上只增不改的字段（`identity`、`mode`、`key_hint`、`translation_pending`、`annotation`）不升版。规则写在常量旁边，`apps/linux/server/tests/protocol.rs` 读两个插件的源码核对它们报的版本 Server 还认。
 两个 Rust 前端（IBus、Wayland）共用的部分也在这里：`client`（一条 Unix socket 一问一答，`Connection` / `Reply` / `ClientError`；
 **哪些消息有回包是协议的一部分**——`OpenSession` 与 `LinuxEvent` 有，`CloseSession` 与展示回执没有，读多了卡住、读少了下一次答复串位；超时 200 ms，与 Fcitx5 插件一致；
-`key_flushing` 是组句中快捷键先上原文再放行的那一套；`Reply` 里的展示身份、`english`、`mode`（`InputMode`，主题要非空的方案名时用 `scheme_name`）、帧上的 `translation_pending` 是 Linux Server 另附在原始 JSON 上的，按原始 JSON 取；
+`key_flushing` 是组句中快捷键先上原文再放行的那一套；`Reply` 里的展示身份、`english`、`mode`（`InputMode`，主题要非空的方案名时用 `scheme_name`）、`key_hint`、帧上的 `translation_pending` 是 Linux Server 另附在原始 JSON 上的，按原始 JSON 取；
 `key` 报了 `selection_supported` 才会收到选区翻译的 `RequestSelection`（读成 `Reply::selection_request`，读出选区用 `selection` 回，那一键吃不吃以那次的回包为准；IBus 报 false）；
 `candidate` / `page` / `menu` / `menu_pick` 原样带画那一页的展示身份，帧换过了 Server 回 `Ignored`（读成什么都不做的缺省答复），`menu` 的回包是 `{"Menu": MenuReply}`、读成 `Reply::menu`；
 `indicator` 是托盘切中 / 英、全角标点与简繁（`ModeCommand`）；`acknowledge` 回报画出来的义项（没有回包，一次最多 128 对）；`AppSurrounding::around` 按 UTF-8 字节偏移截光标两侧各 80 字，规则同 `apps/linux/surrounding.h`；
@@ -327,6 +327,8 @@ Ctrl 键本身 `0x11`、Super 与 Hyper（Mod3）都算 `win`；`mapping.rs` 的
 `display`（`render` 特性）是自绘候选窗的壳共用的「协议帧 → `qingjian_render::Frame`」：候选折成行（读音、全部义项、词性开关、假名注音、生词 `Tone::Fresh`、云标、辅码）、
 拼音行按 `preedit_mode` 决定画不画（带调拼音另给的 `window_preedit` 优先）、`usize::MAX` 不高亮、多页才画 `1/6`、矩阵只标高亮那一行的序号；
 照 Windows Server 的 `ui/candidates/{row,render_data}.rs` 写，Linux Wayland 前端在用，Windows 与 macOS 待改用。TSF DLL 不开这个特性，依赖树不变。
+键位提示的线上类型是 `protocol::linux::KeyHintView`（`content` 是 Core 的双拼 `KeyHint` 原样，或字根图标识 `RootChartId`——字形编在 Core 里不上线，前端按标识取；不透明度与大小是百分比），
+`display::key_hint_keyboard` 把它换成 `qingjian_render::Keyboard`（`shuangpin_keyboard` / `root_keyboard` 照 Windows 的 `ui/candidates/key_hint/keyboard.rs` 移植，Windows 与 macOS 待改用）。
 
 ## crates/qingjian-render
 

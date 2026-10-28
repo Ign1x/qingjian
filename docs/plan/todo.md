@@ -156,6 +156,7 @@
 - [ ] 渲染器的译词编号把读音也算一号：`from_candidate` 把读音（emoji 跟着的词、问字的拼音）拼在注记最前面，渲染器按分隔符编号，真正的第 0 条义项成了第 1 号。
   Windows 点带读音候选的译词可能点错义项（没验）；Wayland 前端在 `view::renumber_senses` 里先换回 Core 的编号（不然回执整份被 Server 拒掉），上游修了就删
 - [ ] 候选 → 渲染帧的换算收口：共享的 `qingjian_platform::display` 已有（Linux Wayland 前端在用），Windows Server（`ui/candidates/{row,render_data}.rs`）与 macOS（`candidates/row.rs` + `bitmap/convert.rs`）各自单独提 PR 改用它，改完删掉自己那份
+- [ ] 键位提示的键盘换算收口：`qingjian_platform::display::{shuangpin_keyboard, root_keyboard}` 已有（照 Windows 移植，Linux 线上的键位提示经 `key_hint_keyboard` 用它），Windows Server（`ui/candidates/key_hint/keyboard.rs`）与 macOS（`host/presenting/key_hint/mod.rs` 的 `keyboard` / `root_keyboard`）改用共用的，改完删掉自己那份
 - [ ] 设置项的平台缺口（设置程序 `apps/settings/src/support/` 表里标「待实现」的项，输入法接上之前设置里不显示；测试逐条对照这里）：
   - [ ] 辅码：Linux
   - [ ] 形码与自定义方案：Linux

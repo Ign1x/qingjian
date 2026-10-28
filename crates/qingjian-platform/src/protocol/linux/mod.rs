@@ -14,6 +14,7 @@ mod features;
 mod identity;
 #[cfg(target_os = "linux")]
 pub mod key;
+mod key_hint;
 mod menu;
 mod mode;
 mod request;
@@ -26,6 +27,7 @@ pub use display::DisplayAcknowledged;
 pub use event::LinuxEvent;
 pub use features::Features;
 pub use identity::DisplayIdentity;
+pub use key_hint::{KeyHintContent, KeyHintView, RootChartId};
 pub use menu::{MenuItem, MenuReply};
 pub use mode::{InputMode, ModeCommand};
 pub use request::LinuxRequest;
@@ -40,7 +42,7 @@ pub use surrounding::AppSurrounding;
 /// - 前端要发新的 [`LinuxEvent`] 变体就 +1，变体从哪一版起有记在 [`LinuxEvent::since`]。
 ///   Server 接受 [`LINUX_UI_PROTOCOL_MIN`] 到本版之间的 `LinuxHello`，回包回显前端报的版本；
 ///   一个会话只能发它握手那一版里有的事件，多发的当协议错误断开。
-/// - 回包上只增不改的字段（`identity`、`mode`、帧上的 `translation_pending`、释义的 `annotation`）不升版：
+/// - 回包上只增不改的字段（`identity`、`mode`、`key_hint`、帧上的 `translation_pending`、释义的 `annotation`）不升版：
 ///   前端按原始 JSON 取，没有就当缺省。只回给新事件的新消息（`Menu`）也不影响老前端。
 /// - `LinuxHello` 里的显示能力（[`Features`]）同样只增不改、不升版：没报的按画不了算，Server 照旧。
 /// - `OpenSession` 回包里的 `linux_ui.version` 固定报 [`LINUX_UI_PROTOCOL_MIN`]：那时还没握手，

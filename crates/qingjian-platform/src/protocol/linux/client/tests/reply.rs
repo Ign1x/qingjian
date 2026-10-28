@@ -2,8 +2,8 @@
 
 use serde_json::json;
 
-use crate::protocol::linux::InputMode;
 use crate::protocol::linux::client::{ClientError, Reply};
+use crate::protocol::linux::{InputMode, KeyHintContent, KeyHintView, RootChartId};
 use crate::protocol::{Frame, KeyOutcome};
 
 /// 回包上 Linux Server 另附的几样：展示身份整份读出来、切换中 / 英时的 `english`、帧上的 `translation_pending`、模式。
@@ -92,4 +92,34 @@ fn reply_rejects_what_it_does_not_handle() {
     assert!(ignored.mode.is_none());
     let committed = Reply::from_value(json!({"Committed": {"session": 1, "text": "ni"}}));
     assert!(matches!(committed, Err(ClientError::Unexpected(_))));
+}
+
+/// 键位提示：报了 `features.key_hint` 的会话回包上带着就读出来；没带或认不出是 `None`（收起键盘），不让整条回包失败。
+#[test]
+fn key_hint_is_read_when_present() {
+    let polled = Reply::from_value(json!({"Update": {
+        "session": 1,
+        "frame": Frame::default(),
+        "key_hint": {"content": {"Roots": "wubi86"}, "opacity": 80, "size": 100},
+    }}))
+    .expect("轮询回包");
+    assert_eq!(
+        polled.key_hint,
+        Some(KeyHintView {
+            content: KeyHintContent::Roots(RootChartId::Wubi86),
+            opacity: 80,
+            size: 100,
+        })
+    );
+
+    let unknown = Reply::from_value(json!({"KeyResult": {
+        "session": 1,
+        "outcome": KeyOutcome::Consumed,
+        "commit": null,
+        "frame": Frame::default(),
+        "key_hint": {"content": {"Later": 1}, "opacity": 80, "size": 100},
+    }}))
+    .expect("回包本身合法");
+    assert_eq!(unknown.key_hint, None);
+    assert_eq!(unknown.outcome, KeyOutcome::Consumed);
 }

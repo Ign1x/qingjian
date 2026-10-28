@@ -93,6 +93,23 @@ fn turning_english_mode_off_returns_sessions_to_chinese() {
     std::fs::remove_dir_all(&dir).unwrap();
 }
 
+/// 按键的设置改了，下一次 tick 就换上，不用重启服务。
+#[test]
+fn key_settings_apply_on_next_tick() {
+    let dir = temp_dir("keys");
+    let mut router = watched(&dir, "");
+    assert_eq!(router.config.extra_page_keys.step(','), None);
+
+    write_config(
+        &dir.join("config.toml"),
+        "[shortcut]\nextra_page_keys = [\",.\"]\n",
+        200,
+    );
+    poll(&mut router);
+    assert_eq!(router.config.extra_page_keys.step(','), Some(-1));
+    std::fs::remove_dir_all(&dir).unwrap();
+}
+
 #[test]
 fn broken_config_keeps_previous_settings() {
     let dir = temp_dir("broken");

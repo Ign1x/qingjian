@@ -1,5 +1,6 @@
 //! Linux 首版按键与候选配置。
 use qingjian_core::TraditionalVariant;
+use qingjian_platform::PageKeys;
 use qingjian_platform::protocol::KeyModifiers;
 use qingjian_platform::{
     Appearance, AppsConfig, Config, KeyCombo, LayoutMode, PreeditMode, Scheme, SwitchKeys,
@@ -74,6 +75,9 @@ pub struct RouterConfig {
 
     /// 译词旁显示词性（`[general] translation_pos`）。
     pub translation_pos: bool,
+
+    /// 主翻页键之外同时启用的符号键对（`[shortcut] extra_page_keys`）。
+    pub extra_page_keys: PageKeys,
 }
 
 impl RouterConfig {
@@ -129,6 +133,7 @@ impl From<&Config> for RouterConfig {
             },
             translate_selection: config.shortcut.translate_selection,
             translation_pos: config.general.translation_pos,
+            extra_page_keys: config.shortcut.extra_page_keys,
         }
     }
 }

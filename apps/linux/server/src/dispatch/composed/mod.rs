@@ -203,6 +203,14 @@ impl Router {
         }
     }
 
+    /// 往 `step` 方向还有没有页可翻：`-` `=` 当翻页键时翻不动就落回原字符。
+    pub(super) fn can_page(&self, step: isize) -> bool {
+        let page_size = self.config.page_size;
+        let page_count = self.candidate_count().div_ceil(page_size) as isize;
+        let target = (self.highlight / page_size) as isize + step;
+        (0..page_count).contains(&target)
+    }
+
     pub(super) fn candidate_count(&self) -> usize {
         match &self.composed {
             Some(Composed::Candidates { layout, .. }) => layout.len(),

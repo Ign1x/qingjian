@@ -15,7 +15,7 @@ All changeable keys are in 设置 → 快捷键 (Settings → Shortcuts), and ch
 - `-` `=` mean those two keys themselves, not the `_` and `+` typed with Shift.
 - With `[` `]` or `,` `.`, the keys still act as paging keys when there's nowhere to page to, and no punctuation is inserted into your text.
 
-macOS and Windows also have 额外翻页键 (Extra paging keys): three sets you can combine, used together with the paging keys above. While typing pinyin these keys page first; operators in calculations, direct English input and the auxiliary code trigger key keep their usual roles.
+There are also 额外翻页键 (Extra paging keys): three sets you can combine, used together with the paging keys above. While typing pinyin these keys page first; operators in calculations, direct English input and the auxiliary code trigger key keep their usual roles.
 
 ## Highlight keys (macOS, Windows)
 

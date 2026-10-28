@@ -234,15 +234,19 @@ impl Router {
         {
             return Effect::Changed(self.commit_index(index));
         }
+        // 翻页键要排在连字符前面，否则 `-` 永远翻不回上一页；翻不动时 `-` 照旧是单词里的连字符（`well-known`）
+        if composing
+            && let Some(step) = self.page_step(event)
+            && (c != '-' || self.can_page(step))
+        {
+            self.page(step);
+            return Effect::Navigated;
+        }
         if c.is_ascii_alphabetic()
             || (composing && (c.is_ascii_digit() || matches!(c, '_' | '\'' | '-')))
         {
             self.engine.push(c);
             return Effect::Changed(None);
-        }
-        if composing && let Some(step) = codes::page_key(event, self.config.page_keys) {
-            self.page(step);
-            return Effect::Navigated;
         }
         let committed = composing.then(|| {
             if c == ' ' {
@@ -298,7 +302,10 @@ impl Router {
                 return Effect::Changed(None);
             }
         }
-        if let Some(step) = codes::page_key(event, self.config.page_keys) {
+        // `-` `=` 翻不动时落回原字符（与 macOS、Windows 一致）；`[` `]` `,` `.` 翻不动照旧吃键，落字会往文档里插标点
+        if let Some(step) = self.page_step(event)
+            && (!matches!(c, '-' | '=') || self.can_page(step))
+        {
             self.page(step);
             return Effect::Navigated;
         }

@@ -25,7 +25,7 @@ pub struct ShortcutConfig {
     #[serde(with = "super::optional_key_combo")]
     pub toggle_punctuation: Option<KeyCombo>,
 
-    /// 主翻页键以外同时启用的符号键对（macOS、Windows）。
+    /// 主翻页键以外同时启用的符号键对（macOS、Windows、Linux）。
     pub extra_page_keys: PageKeys,
 
     /// 数字键配这些修饰键：上屏候选的第一个译词。

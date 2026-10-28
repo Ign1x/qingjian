@@ -113,7 +113,7 @@ impl Feature {
             // macOS 看菜单栏图标，Linux 看 Fcitx5 的托盘
             Self::StatusBar => [No, Yes, No],
             Self::HorizontalGrid => [Yes, Yes, Todo],
-            Self::ExtraPageKeys => [Yes, Yes, Todo],
+            Self::ExtraPageKeys => [Yes, Yes, Yes],
             Self::HighlightKeys => [Yes, Yes, Todo],
             Self::TogglePunctuation => [Yes, Yes, Todo],
             Self::ToggleTraditional => [Todo, Yes, Todo],

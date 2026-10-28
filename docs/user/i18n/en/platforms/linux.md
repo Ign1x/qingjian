@@ -196,7 +196,8 @@ On other desktops, run the same command from their autostart configuration. The 
 - English mode can't tell which app you're in yet: English candidates only appear after you untick 只在写字的应用里给 (Only in writing apps) under 设置 → 中英文 (Settings → Chinese/English).
 - If you switch to another window while typing, the pinyin not yet committed is lost (the fcitx edition commits it as typed).
 - Selecting text with the mouse while holding `Shift` switches between Chinese and English when you release `Shift`.
-- Not yet supported: picking candidates with the mouse, the candidate right-click menu, translating selected text, and everything listed above as not yet supported in the fcitx edition.
+- You can use the mouse on the candidate window: click a candidate to commit it (clicking a gloss beside it also commits the candidate itself), scroll the wheel over the candidate window to turn pages, and right-click a candidate to pin, demote or delete it (not yet in the fcitx edition), see [Typing habits](../personalize/habits.md#Candidate-right-click-menu). While the right-click menu is open, clicking outside the candidate window doesn't close it; pressing any key does.
+- Not yet supported: translating selected text, and everything listed above as not yet supported in the fcitx edition.
 - Run `systemctl --user status qingjian-wayland` to see whether it's running and why it stopped; if it stops working, restart it with `systemctl --user restart qingjian-wayland`.
 
 ## Updating and uninstalling

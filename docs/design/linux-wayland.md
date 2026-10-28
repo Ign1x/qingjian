@@ -71,7 +71,7 @@ qingjian-linux-wayland ──Unix socket，protocol::linux（与 Fcitx5 插件�
 | 前端的操作 | 发给 Server 的 | Server 回 |
 |---|---|---|
 | 每次回包 | — | `KeyResult` / `Update` 上附 `mode`（`english` / `traditional` / `full_width` / `scheme`），托盘、中 / 英提示与主题的 `mode.*` 都照它画；切换的那一下另有 `english` |
-| popup 上点候选 / 翻页 | `Candidate{identity, index}` / `Page{identity, next}`，带画这一页的那次回包的身份 | `KeyResult`；帧换过了回 `Ignored` |
+| popup 上点候选 / 翻页 | `Candidate{identity, index}` / `Page{identity, next}`，带这一页最近一次回包的身份（抬键的回包帧没变也换身份） | `KeyResult`；帧换过了回 `Ignored` |
 | popup 上右键候选 | `Menu{identity, index}` | `{"Menu": {"items": [{"id", "label"}]}}`，空的就不弹；只是问，帧与身份都不变；过期回 `Ignored` |
 | 点菜单里的一项 | `MenuPick{identity, index, action}`，`action` 原样用 `id` | `KeyResult`，候选按做完的结果重排，帧的 `notice` 是那句提示（下一次按键清） |
 | 托盘切中 / 英、全角标点、简繁 | `Indicator(ToggleEnglish / TogglePunctuation / ToggleTraditional)` | `KeyResult`：切中 / 英时组句原样上屏、带 `english`；后两样写回配置 |
@@ -102,7 +102,7 @@ Server 对这样的会话照旧：↑ / ↓ 只移高亮、帧上不带键盘。
 ## 显示
 
 - **一个 popup 用到进程退出。** wl_surface + `zwp_input_popup_surface_v2`，挂缓冲即显示、挂空缓冲即隐藏（同时 `Renderer::forget()`，下次出现不接着上次的动画）。
-  第一轮输入区域设成空，鼠标穿透。
+  收鼠标的区域只有候选窗（与弹着的右键菜单）的卡片，阴影与透明补边让鼠标穿到下面的应用，见「鼠标」。
 - **位置由合成器定。** Hyprland（`InputMethodPopup.cpp`）把 popup 左上角贴在光标下沿，碰到屏幕底就翻到光标上方，碰到右沿往左推；
   `text_input_rectangle` 是光标相对 popup 的矩形，从它能看出翻没翻。渲染器的位图四周带二三十点的阴影边，原样贴上去候选框会离光标很远，
   所以左边与上边的阴影裁到只剩 4 点（右下的阴影保留）；翻到光标上方时底边阴影仍在，候选框与光标之间会空出一截，按 `text_input_rectangle` 调排布留到 P2。
@@ -125,6 +125,28 @@ Server 对这样的会话照旧：↑ / ↓ 只移高亮、帧上不带键盘。
   任一要求减少就不播过渡与循环动画，开关变了也重画当前帧（循环动画要停下或接着播）。
   没有会话总线、没有 portal 或它给不出 `color-scheme` 时按浅色，日志记一条 info；这些都在后台线程里，不耽误启动。
 
+## 鼠标
+
+- **指针。** 绑 wl_seat 第 8 版（滚轮按 120 分之一格报 `axis_value120`），seat 的能力里有指针时拿 wl_pointer，没了就放掉。
+  输入法只有候选窗这一个 surface，只认落在它上面的 enter / leave / motion / button / axis。
+  进来时合成器有 `wp_cursor_shape_manager_v1` 就把光标设成 `default`；没有就不设（不为它另带光标主题画光标 surface），光标的样子随合成器，可能还是应用里的文字光标。
+- **落点。** surface 坐标（逻辑像素）乘「缓冲像素 ÷ 逻辑尺寸」、加回裁掉的左上阴影，就是位图像素，再减内容区原点查渲染结果的点击区域（`Rendered::hits`）。
+  收鼠标的区域（`set_input_region`）只有候选窗与菜单的卡片，阴影与透明补边让鼠标穿到下面的应用；某一帧没贴上去（缓冲都在合成器手里、渲染失败）时先不收点击，免得旧布局的序号落到新帧上。
+  候选右侧的译词算它那个候选：Linux 协议只有点候选、没有点哪条译词，点译词上屏的是候选本身（macOS / Windows 点哪条上屏哪条）。
+  渲染器的点击区域里没有翻页箭头（主题只画「1/6」页码），翻页靠滚轮。
+- **点选与翻页。** 左键按下在候选上 → `Candidate`；滚轮 → `Page`，只有一页时不发。一格一页：第 8 版按 `axis_value120` 累计到 120，第 5–7 版按 `axis_discrete`，
+  同一帧里 `axis` 报的距离说的是同一下，不另算；触摸板只报 `axis`，按距离累计 50 逻辑像素一页，`axis_stop`（抬手）清零；一帧最多翻一页，多出来的不留，免得一下滚出好几页。
+  请求都带候选窗上那一帧最近一次回包的展示身份（抬键的回包帧没变也换身份，Server 只认最新的）；帧已经换了 Server 回 `Ignored`，客户端读成不带身份的缺省答复，
+  前端据此什么都不做（不然空帧会把候选窗收起）。回包与按键的回包同一条落地路径：等应用落定再发、焦点换了就丢。
+- **右键菜单。** 右键按下在候选上 → `Menu`，有项才弹：菜单用 `Renderer::render_menu` 画（单独一个渲染器，与候选窗共用会打断候选窗的过渡；系统字体，深浅随候选窗那一帧），
+  卡片左上角摆在右键按下的地方。只有一个 popup、位置由合成器定，所以菜单与候选窗合成进同一张位图、popup 跟着变大；裁边仍按候选窗的阴影，候选窗在 popup 里不挪，
+  菜单伸出右下时合成器可能把整个 popup 挪开或翻到光标上方（Hyprland 碰到屏幕边就这样）。鼠标在菜单上移动换悬停项重画；左键或右键点一项 → `MenuPick`，
+  回包按 `KeyResult` 落地，帧的 `notice` 是做完的那句提示。
+- **收菜单。** Esc 只收菜单（不报 Server，抬键也吃掉），别的键收了菜单照常处理，与 macOS 一样；在候选窗上点菜单以外的地方只收菜单、不选词，右键另一个候选换成它的菜单；
+  换了帧、候选窗收起、失焦都收。候选窗以外的点击输入法看不到，这时菜单留到下一次按键或失焦。菜单开着时滚轮不翻页。
+- **菜单开着时不轮询。** 80 毫秒的 `Poll` 换了帧，展示身份跟着变，再点菜单项就被 Server 当过期的丢掉；收了菜单再接上。抬键的回包帧没变、只换了身份时菜单留着，点菜单项带最新的身份。
+- 合成器肯不肯把指针事件交给输入法的 popup、点 popup 会不会把键盘焦点从应用挪走，要在真会话里验（Hyprland、sway）。
+
 ## 会话与隐私
 
 - **一个应用一个会话。** input-method-v2 不说输入框在哪个应用里，所以另绑 `zwlr_foreign_toplevel_manager_v1`：记下各顶层窗口的 app_id 与激活状态（各自 `done` 时生效，
@@ -146,7 +168,7 @@ Server 对这样的会话照旧：↑ / ↓ 只移高亮、帧上不带键盘。
 
 - XWayland 应用、KWin、GNOME 不支持（见上表）。
 - 失焦后不能再往原来的输入框上屏：`preedit = "window"`（应用里不放拼音）时，切走窗口会丢掉正在组的句子；fcitx 版此时会上原文。
-- 输入法看不到鼠标：Shift+点击做选区时，松开 Shift 仍会切换中 / 英。
+- 输入法看不到鼠标：Shift+点击做选区时，松开 Shift 仍会切换中 / 英。候选窗以外的点击也看不到：右键菜单开着时点回应用里，菜单留到下一次按键或输入框失焦。
 - 应用按顶层窗口认：layer-shell 上的输入框（fuzzel、wofi 这类启动器）不是顶层窗口，合成器把活动窗口报成空时按不知道哪个应用，仍报着原来那个窗口时算在它头上。
   合成器后报活动窗口、而用户在那 200 毫秒里就开始打字时，这次组句还用上一个应用的会话，上屏之后才换过去。
 - 候选窗位置完全由合成器定；Hyprland 0.56 在分数缩放下有 popup 偏移的报告（omarchy #16374），遇到时先抓 `WAYLAND_DEBUG=1` 分清是合成器还是应用报错光标。
@@ -157,21 +179,25 @@ Server 对这样的会话照旧：↑ / ↓ 只移高亮、帧上不带键盘。
 - **第二轮第一批（已做）**：按应用会话（见「会话与隐私」）；外观跟随系统（见「显示」）；Linux 协议 v4 的 Server 一侧——回包附当前模式（`mode`，只增不改）、
   托盘用的切换命令（`Indicator`）、候选右键菜单（`Menu` / `MenuPick`）、共用客户端的点选、翻页与选区翻译，Fcitx5 / Fcitx4 插件仍报 v3、不用改（见协议对照）；
   `install.sh --frontend wayland`、systemd 用户服务（退出码 2 不重启）、deb / rpm 另出 `qingjian-wayland` 包、用户文档；对着假合成器与假 Server 的黑盒测试。
-- **第二轮第二批**：前端接上 v4——鼠标点选与滚轮翻页（`Rendered::hit_at` → `Candidate` / `Page`，先验合成器肯不肯把指针事件给 popup）、
-  候选右键菜单（`Renderer::render_menu` 画在同一个 popup 里，与 macOS / Windows 一样自绘）、中 / 英提示（`Renderer::render_status` 在 popup 里亮一秒）与主题里的模式、
+- **第二轮第二批**：前端接上 v4——鼠标点选与滚轮翻页（`Rendered::hit_at` → `Candidate` / `Page`）、
+  候选右键菜单（`Renderer::render_menu` 画在同一个 popup 里，与 macOS / Windows 一样自绘）——这两样已做（见「鼠标」，合成器肯不肯把指针事件给 popup 待真会话验）；
+  中 / 英提示（`Renderer::render_status` 在 popup 里亮一秒）与主题里的模式、
   托盘（StatusNotifierItem + DBusMenu，原生菜单）、选区翻译；Server 补齐设置程序里 Linux 标「待实现」的输入功能（辅码、形码、自动加空格、翻页与高亮键、
   全半角与简繁快捷键、小键盘数字、按应用记中英、横排矩阵、拼音行声调、键位提示、实验模型）。
 - **之后**：按 `text_input_rectangle` 判断翻没翻、调排布；设置程序支持表区分两个版本；CI 跑黑盒测试（要 libxkbcommon 与 libwayland-client）。
 
 ## 验证
 
-能自动跑的都是纯逻辑（按键表、抬键与重复、`content_type` 映射、偏移换算与前后文截取、4 KB 切块、像素换算与补边、回包身份判断、活动窗口的跟踪、按应用分会话、外观偏好的取值与要不要重画），
+能自动跑的都是纯逻辑（按键表、抬键与重复、`content_type` 映射、偏移换算与前后文截取、4 KB 切块、像素换算与补边、回包身份判断、活动窗口的跟踪、按应用分会话、外观偏好的取值与要不要重画、
+鼠标落点与收鼠标的区域、滚轮折成翻页、点选与右键菜单的规则），
 不要合成器，CI 照跑；按应用分会话另有一组对着走真 socket 的假 Server 测连接上的消息。
+黑盒测试（假合成器 + 假 Server）另往候选窗发指针事件，过一遍点候选上屏、滚轮翻页、右键菜单弹出与点项、Esc 收菜单；点哪儿按前端调试日志里记的可点位置（surface 坐标）找。
 portal 的 D-Bus 往来另有对着私有 dbus-daemon 上假 portal 的测试（`ReadOne`、第 1 版的 `Read`、`SettingChanged`、不按需拉起、portal 后上线），
 要 dbus-daemon，缺省不跑：`cargo test -p qingjian-linux-wayland -- --ignored portal`。
 只能真会话验的，在 Hyprland 上逐个应用过：foot / kitty、GTK4、Firefox、Chromium（`--enable-wayland-ime`）、Qt6——
 打字上屏、数字选词、翻页、Shift 切换后 Shift 不卡、组句中按住退格、Ctrl+C 先上原文、NumLock、密码框、组句中切窗口、整句重排换帧、1.5 倍缩放不糊、热加载换主题、桌面切深浅、Server 中途重启、
 两个应用里各自切中 / 英后来回切换各自记住、`[apps]` 英文候选名单里的应用出英文候选（按应用分会话与跟随深浅还没在真会话里验过）。
+鼠标点选、滚轮翻页（滚轮与触摸板）、右键菜单的悬停与点项还没在真会话里验过：先看合成器给不给 popup 指针事件、点 popup 会不会让应用失焦（`RUST_LOG=debug` 看「鼠标按在候选窗上」与「候选窗上能点的地方」）。
 嵌套 sway 1.12（headless 后端，不开窗口、不碰宿主会话）+ foot 1.28 + wtype 已经过了一遍（2026-10-28）：
 连发与按人速打字的行内拼音、空格 / 数字 / 翻页选词、Esc、回车上原文、退格、单击 Shift 切中英、组句中 Ctrl+A 先上原文、空闲时 Ctrl+C 原样交给应用、
 1.5 倍缩放、Server 中途停掉键照常直通与重启后自动接上、按住退格的重复与删空后交还应用、组句中切换窗口、改配置换主题（樱花主题）、第二个输入法收到 `unavailable`。

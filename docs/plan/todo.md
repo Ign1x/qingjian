@@ -146,7 +146,10 @@
   - `[general] preedit` 三档在 IBus 面板下逐个真机验（它的面板能力比 fcitx5 弱），坑见 [notes/linux-bringup.md](../notes/linux-bringup.md)
 - [~] Linux Wayland 原生版（`apps/linux/wayland`，设计见 [design/linux-wayland.md](../design/linux-wayland.md)）：原型可用，Hyprland 真机验过。已做：按应用会话、外观跟随系统、
   Linux 协议 v4 的 Server 一侧（回包带模式、托盘切换命令、候选右键菜单，Fcitx5 / Fcitx4 插件不用改）、安装脚本与 systemd 用户服务、deb / rpm、用户文档、黑盒测试。还差：
-  - 前端接上 v4：鼠标点选与滚轮翻页、候选右键菜单、中 / 英提示与主题里的模式、托盘、选区翻译
+  - 前端接上 v4：中 / 英提示与主题里的模式、托盘、选区翻译（鼠标点选、滚轮翻页、候选右键菜单已接上）
+  - 鼠标待真会话验（Hyprland、sway）：合成器给不给 popup 指针事件、点 popup 会不会让应用失焦、cursor-shape 的光标、滚轮与触摸板一下翻一页（触摸板 50 逻辑像素一页要不要调）、
+    右键菜单弹出时 popup 变大会不会被挪开或翻到光标上方（`RUST_LOG=debug` 看「鼠标按在候选窗上」「候选窗上能点的地方」）
+  - 点候选右侧的译词上屏那条译词：Linux 协议现在只有点候选（`Candidate{identity, index}`），Wayland 前端点译词上屏的是候选本身；要协议加义项、Server 跟着改
   - 按应用会话与跟随深浅待真会话验：两个应用里各自切中英、来回切换各自记住，`[apps]` 英文候选名单里的应用出英文候选，
     切窗口时不白换会话（`RUST_LOG=debug` 看「活动窗口换了应用」）；桌面切深浅时候选窗一秒内跟着换；sway / niri / labwc 上报活动窗口与激活输入框的先后
   - 按 `text_input_rectangle` 判断候选窗翻没翻到光标上方、调排布；设置程序支持表区分 fcitx 版与 Wayland 版；CI 跑黑盒测试

@@ -4,6 +4,8 @@ mod apps;
 mod focus;
 mod keys;
 mod link;
+mod menu;
+mod mouse;
 mod support;
 mod typing;
 mod wire;

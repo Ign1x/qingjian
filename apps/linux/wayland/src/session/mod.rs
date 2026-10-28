@@ -9,6 +9,7 @@ mod input;
 mod keyboard;
 mod keys;
 mod link;
+mod mouse;
 mod output;
 mod preedit;
 mod repeat;
@@ -19,7 +20,7 @@ mod unsent;
 #[cfg(test)]
 mod tests;
 
-pub use input::{Field, Input, Key, Modifiers, Surrounding};
+pub use input::{Click, Field, Input, Key, Modifiers, Spot, Surrounding};
 pub use link::Link;
 pub use output::Output;
 pub use preedit::Preedit;
@@ -28,9 +29,10 @@ pub use server::Server;
 use std::time::{Duration, Instant};
 
 use qingjian_platform::protocol::Frame;
-use qingjian_platform::protocol::linux::AppSurrounding;
+use qingjian_platform::protocol::linux::{AppSurrounding, DisplayIdentity};
 
 use keys::Keys;
+use mouse::Menu;
 use repeat::Repeat;
 use unsent::Unsent;
 
@@ -91,6 +93,13 @@ pub struct Session<S> {
 
     /// 什么时候看一眼 Server 上用着的是不是活动窗口那个应用的会话；输入框激活期间活动窗口换了应用才排上。
     follow_at: Option<Instant>,
+
+    /// 候选窗上那一帧最近一次回包带的展示身份：点选、翻页、右键菜单原样带回去。
+    /// 抬键的回包帧没变也换身份，Server 只认最新的那个。
+    identity: Option<DisplayIdentity>,
+
+    /// 弹着的候选右键菜单；收着是 `None`。
+    menu: Option<Menu>,
 }
 
 impl<S: Server> Session<S> {
@@ -111,6 +120,8 @@ impl<S: Server> Session<S> {
             poll_at: None,
             app: None,
             follow_at: None,
+            identity: None,
+            menu: None,
         }
     }
 
@@ -125,6 +136,8 @@ impl<S: Server> Session<S> {
             Input::Modifiers(modifiers) => self.modifiers(modifiers, out),
             Input::Repeat { rate, delay } => self.repeat.configure(rate, delay),
             Input::App(app) => self.switch_app(app, now),
+            Input::Click(click) => self.click(click, out, now),
+            Input::Scroll { next, epoch } => self.scroll(next, epoch, out, now),
         }
     }
 

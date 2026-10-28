@@ -282,3 +282,26 @@ fn a_password_field_only_reports_capabilities() {
         ]
     );
 }
+
+/// 点候选、翻页、问菜单、点菜单项都发给当前应用的会话，带着回包上的展示身份；问菜单回的是那几项，不是按键结果。
+#[test]
+fn mouse_requests_go_to_the_current_session() {
+    let wire = Wire::start();
+    let mut link = link(&wire);
+    enter(&mut link, Some("firefox"), Capabilities::default());
+    let identity = link
+        .poll()
+        .expect("轮询")
+        .identity
+        .expect("回包带着展示身份");
+    link.candidate(identity.clone(), 1).expect("点候选");
+    link.page(identity.clone(), true).expect("翻页");
+    assert!(link.menu(identity.clone(), 0).expect("问菜单").is_empty());
+    link.menu_pick(identity, 0, 1).expect("点菜单项");
+    assert!(link.connected());
+    let tail: Vec<String> = log(&wire).into_iter().skip(5).collect();
+    assert_eq!(
+        tail,
+        ["0 Candidate 1", "0 Page 1", "0 Menu 1", "0 MenuPick 1"]
+    );
+}

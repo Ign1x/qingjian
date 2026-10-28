@@ -1,13 +1,16 @@
-//! 一条连接上的对话：照真 Server（`apps/linux/server/src/ipc/connection.rs`）的壳回包，按下照脚本答。
+//! 一条连接上的对话：照真 Server（`apps/linux/server/src/ipc/connection.rs`）的壳回包，按下与候选窗上的点击照脚本答。
 
 use std::collections::VecDeque;
 use std::sync::{Mutex, PoisonError};
 
-use qingjian_platform::protocol::linux::LinuxEvent;
+use qingjian_platform::protocol::linux::{DisplayIdentity, LinuxEvent};
 use qingjian_platform::protocol::{Frame, KeyOutcome, ServerMessage, SessionId};
 use serde_json::{Value, json};
 
 use super::Answer;
+
+/// 右键菜单回的几项：编号与字，与真 Server 的候选菜单一样带编号。
+pub const MENU: [(u32, &str); 2] = [(1, "置顶"), (5, "删除")];
 
 #[derive(Default)]
 pub struct Conversation {
@@ -44,6 +47,9 @@ impl Conversation {
         if let Some(request) = message.get("LinuxEvent") {
             let event: LinuxEvent =
                 serde_json::from_value(request["event"].clone()).expect("合法的 LinuxEvent");
+            if let Some(reply) = self.panel(&event, request) {
+                return Some(reply);
+            }
             let (outcome, commit) = self.handle(event, presses);
             self.revision += 1;
             let mut reply = serde_json::to_value(ServerMessage::KeyResult {
@@ -70,14 +76,18 @@ impl Conversation {
         None
     }
 
-    /// 一个事件的处置：按下照脚本（没有脚本就放行），失焦、失活、重置清掉组句，别的放行、帧不变。
+    /// 一个事件的处置：按下与候选窗上的点击、翻页、菜单项照脚本（没有脚本就放行），失焦、失活、重置清掉组句，
+    /// 别的放行、帧不变。
     fn handle(
         &mut self,
         event: LinuxEvent,
         presses: &Mutex<VecDeque<Answer>>,
     ) -> (KeyOutcome, Option<String>) {
         match event {
-            LinuxEvent::Key { release: false, .. } => {
+            LinuxEvent::Key { release: false, .. }
+            | LinuxEvent::Candidate { .. }
+            | LinuxEvent::Page { .. }
+            | LinuxEvent::MenuPick { .. } => {
                 let answer = presses
                     .lock()
                     .unwrap_or_else(PoisonError::into_inner)
@@ -105,6 +115,35 @@ impl Conversation {
             "context": self.context,
             "revision": self.revision,
         })
+    }
+
+    /// 候选窗上的鼠标操作（点候选、翻页、问菜单、点菜单项）像真 Server 那样先核对展示身份：对不上当前帧回 `Ignored`；
+    /// 问菜单只回那几项，不推进身份。别的事件是 `None`，照常处理。
+    fn panel(&self, event: &LinuxEvent, request: &Value) -> Option<Value> {
+        let identity = match event {
+            LinuxEvent::Candidate { identity, .. }
+            | LinuxEvent::Page { identity, .. }
+            | LinuxEvent::Menu { identity, .. }
+            | LinuxEvent::MenuPick { identity, .. } => identity,
+            _ => return None,
+        };
+        let session = &request["session"];
+        let current = DisplayIdentity {
+            generation: self.generation,
+            context: self.context.clone(),
+            revision: self.revision,
+        };
+        if *identity != current {
+            return Some(json!({"Ignored": {"session": session}}));
+        }
+        if !matches!(event, LinuxEvent::Menu { .. }) {
+            return None;
+        }
+        let items: Vec<Value> = MENU
+            .iter()
+            .map(|(id, label)| json!({"id": id, "label": label}))
+            .collect();
+        Some(json!({"Menu": {"session": session, "items": items}}))
     }
 }
 

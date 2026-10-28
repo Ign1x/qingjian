@@ -78,7 +78,7 @@ Typing a letter closes the panel and continues typing. Details in [Punctuation, 
 |---|---|---|---|
 | Commit the first gloss of candidate N | `⌥ + number` | `Ctrl + number` | `Alt + number` |
 | Commit the second gloss (when the entry has one) | `⇧⌥ + number` | `Ctrl + Shift + number` | `Alt + Shift + number` |
-| Pin / demote / delete a candidate | Right-click it, or Control-click | Right-click it | Not yet |
+| Pin / demote / delete a candidate | Right-click it, or Control-click | Right-click it | Right-click it in the Wayland native edition; not yet in the fcitx edition |
 
 These only work while typing pinyin. See [Glosses beside candidates](../learning/translation.md#Committing-the-gloss-directly) and [Typing habits](../personalize/habits.md#Candidate-right-click-menu).
 

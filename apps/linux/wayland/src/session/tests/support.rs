@@ -5,7 +5,7 @@ use std::time::{Duration, Instant};
 
 use qingjian_core::{Candidate, CandidateKind, CandidateList};
 use qingjian_platform::protocol::linux::client::{ClientError, Reply};
-use qingjian_platform::protocol::linux::{AppSurrounding, Capabilities, DisplayIdentity};
+use qingjian_platform::protocol::linux::{AppSurrounding, Capabilities, DisplayIdentity, MenuItem};
 use qingjian_platform::protocol::{Frame, KeyEvent, KeyOutcome, PreeditKind, PreeditSegment};
 
 use super::super::{Field, Input, Key, Modifiers, Output, Preedit, Server, Session};
@@ -26,6 +26,14 @@ pub enum Call {
     },
     Poll,
     Acknowledge(u64),
+    /// 点了第几个候选，带的展示身份的版本号。
+    Candidate(usize, u64),
+    /// 翻页：是不是下一页。
+    Page(bool),
+    /// 右键第几个候选。
+    Menu(usize),
+    /// 点了菜单里的一项：右键的那一格、那一项的编号。
+    MenuPick(usize, u32),
 }
 
 /// 一次按下的脚本化答复。
@@ -54,6 +62,12 @@ pub struct FakeServer {
 
     /// Server 挂了：所有请求都失败。
     pub down: bool,
+
+    /// 点候选、翻页、点菜单项的答复，按先后用掉；没有就吃掉、帧不变。
+    pub clicks: VecDeque<Answer>,
+
+    /// 右键菜单的几项。
+    pub menu: Vec<MenuItem>,
 
     /// 选着的应用。
     app: Option<String>,
@@ -94,6 +108,28 @@ impl FakeServer {
         }
         self.connected = true;
         Ok(())
+    }
+
+    /// 帧在 Server 那边换了、前端还不知道（别的请求推进了展示身份）：之后带旧身份的点选都过期。
+    pub fn advance(&mut self) {
+        self.revision += 1;
+    }
+
+    /// 点选这一类：身份对不上当前帧就像真 Server 那样回 `Ignored`（客户端读成缺省答复），对得上照脚本答。
+    fn click(&mut self, identity: &DisplayIdentity) -> Result<Reply, ClientError> {
+        self.check()?;
+        if identity.revision != self.revision {
+            return Ok(Reply::default());
+        }
+        let answer = self.clicks.pop_front();
+        let (commit, english) = match answer {
+            Some(answer) => {
+                self.frame = answer.frame;
+                (answer.commit, answer.english)
+            }
+            None => (None, None),
+        };
+        Ok(self.reply(KeyOutcome::Consumed, commit, english))
     }
 }
 
@@ -199,6 +235,40 @@ impl Server for FakeServer {
     fn retry_at(&self) -> Option<Instant> {
         self.retry_at
     }
+
+    fn candidate(&mut self, identity: DisplayIdentity, index: usize) -> Result<Reply, ClientError> {
+        self.calls.push(Call::Candidate(index, identity.revision));
+        self.click(&identity)
+    }
+
+    fn page(&mut self, identity: DisplayIdentity, next: bool) -> Result<Reply, ClientError> {
+        self.calls.push(Call::Page(next));
+        self.click(&identity)
+    }
+
+    /// 只是问一句：帧与身份都不变；身份过期回空的。
+    fn menu(
+        &mut self,
+        identity: DisplayIdentity,
+        index: usize,
+    ) -> Result<Vec<MenuItem>, ClientError> {
+        self.calls.push(Call::Menu(index));
+        self.check()?;
+        if identity.revision != self.revision {
+            return Ok(Vec::new());
+        }
+        Ok(self.menu.clone())
+    }
+
+    fn menu_pick(
+        &mut self,
+        identity: DisplayIdentity,
+        index: usize,
+        action: u32,
+    ) -> Result<Reply, ClientError> {
+        self.calls.push(Call::MenuPick(index, action));
+        self.click(&identity)
+    }
 }
 
 /// 假合成器记下的动作。
@@ -211,6 +281,9 @@ pub enum Out {
     Text(String, String),
     Show(Vec<String>),
     Hide,
+    /// 弹出右键菜单，各项的字。
+    Menu(Vec<String>),
+    CloseMenu,
 }
 
 /// 记录输出的假合成器。`sync` 时可以假装焦点换了。
@@ -222,6 +295,9 @@ pub struct Recorder {
 
     /// 下一次 `sync` 时焦点代次跳一下（等回包期间用户点到了别处）。
     pub switch_on_sync: bool,
+
+    /// 右键菜单画不出来（菜单的字体库建不起来）。
+    pub menu_fails: bool,
 }
 
 impl Output for Recorder {
@@ -269,6 +345,18 @@ impl Output for Recorder {
 
     fn hide(&mut self) {
         self.log.push(Out::Hide);
+    }
+
+    fn open_menu(&mut self, items: &[String]) -> bool {
+        if self.menu_fails {
+            return false;
+        }
+        self.log.push(Out::Menu(items.to_vec()));
+        true
+    }
+
+    fn close_menu(&mut self) {
+        self.log.push(Out::CloseMenu);
     }
 }
 

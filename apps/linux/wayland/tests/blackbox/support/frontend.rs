@@ -6,7 +6,7 @@ use std::process::{Child, ChildStderr, Command, Stdio};
 use std::thread::{self, JoinHandle};
 use std::time::{Duration, Instant};
 
-use super::{Exit, Log, PATIENCE, Sandbox};
+use super::{Exit, Log, PATIENCE, Sandbox, Targets};
 
 /// 就绪的那行日志：装好 SIGTERM / SIGINT 的处理、进主循环之前打（`src/wayland/mod.rs` 的 `run`）。
 const READY: &str = "输入法就绪";
@@ -140,6 +140,21 @@ impl Frontend {
             .entries()
             .iter()
             .any(|line| line.contains(PAINTER))
+    }
+
+    /// 日志到现在有几行：之后等某一行从这里数起。
+    pub fn mark(&self) -> usize {
+        self.lines.len()
+    }
+
+    /// 日志里有没有含 `text` 的一行。
+    pub fn logged(&self, text: &str) -> bool {
+        self.lines.entries().iter().any(|line| line.contains(text))
+    }
+
+    /// 等日志第 `from` 行起记下的候选窗上能点的地方（每次贴上去的那一张变了记一行）。
+    pub fn targets(&self, from: usize) -> Targets {
+        Targets::wait(&self.lines, from)
     }
 
     fn stderr(&self) -> String {

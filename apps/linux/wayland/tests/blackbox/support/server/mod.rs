@@ -1,11 +1,12 @@
 //! 假的青简 Server：同一套线上格式（4 字节小端长度 + JSON），在测试进程里自己的线程上听一个 Unix socket。
 //! 只复刻协议的形状、不复刻引擎（与 `qingjian_platform::protocol::linux::client` 的测试同一个思路）：
-//! 按下照测试排好的 [`Answer`] 答，别的照真 Server 的壳回，收到的每条消息都记下来给测试核对。
+//! 按下与候选窗上的点击按测试排好的 [`Answer`] 答，别的照真 Server 的壳回，收到的每条消息都记下来给测试核对。
 
 mod answer;
 mod conversation;
 
 pub use answer::Answer;
+pub use conversation::MENU;
 
 use std::collections::VecDeque;
 use std::io::ErrorKind;
@@ -78,9 +79,18 @@ impl Server {
         }
     }
 
-    /// 排一个按下的答复。没排到的按下与所有抬起都放行、帧不变，与真 Server 一样。
+    /// 排一个按下（或候选窗上的点候选、翻页、点菜单项）的答复。没排到的与所有抬起都放行、帧不变，与真 Server 一样。
     pub fn answer(&self, answer: Answer) {
         lock(&self.presses).push_back(answer);
+    }
+
+    /// 收到的某一种 `LinuxEvent`（`Candidate`、`Page`、`Menu`…）的内容，按先后。
+    pub fn events(&self, name: &str) -> Vec<Value> {
+        self.received
+            .entries()
+            .iter()
+            .filter_map(|message| message.get("LinuxEvent")?.get("event")?.get(name).cloned())
+            .collect()
     }
 
     /// 收到的按键，按先后：（按键，是不是抬起）。

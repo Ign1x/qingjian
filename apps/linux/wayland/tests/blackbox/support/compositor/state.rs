@@ -6,6 +6,7 @@ use std::os::fd::AsFd;
 use wayland_protocols_misc::zwp_input_method_v2::server::zwp_input_method_keyboard_grab_v2::ZwpInputMethodKeyboardGrabV2;
 use wayland_protocols_misc::zwp_input_method_v2::server::zwp_input_method_v2::ZwpInputMethodV2;
 use wayland_server::protocol::wl_keyboard::{KeyState, KeymapFormat};
+use wayland_server::protocol::wl_pointer::WlPointer;
 use wayland_server::protocol::wl_surface::WlSurface;
 
 use super::{Request, Setup};
@@ -32,11 +33,14 @@ pub struct State {
     /// 发过几次 done：输入法 commit 的 serial 该等于它。
     pub dones: u32,
 
-    /// 按键与修饰键事件的 serial。
-    serial: u32,
+    /// 客户端从 seat 拿的指针；还没拿或放掉了是 `None`。
+    pub pointer: Option<WlPointer>,
 
-    /// 合成器的时间轴（毫秒），按键事件的时间戳从这里取。
-    time: u32,
+    /// 按键、修饰键与指针事件的 serial。
+    pub(super) serial: u32,
+
+    /// 合成器的时间轴（毫秒），按键与指针事件的时间戳从这里取。
+    pub(super) time: u32,
 
     /// 最近一次发的修饰键：depressed、latched、locked、group。
     modifiers: [u32; 4],
@@ -56,6 +60,7 @@ impl State {
             grab: None,
             popup: None,
             dones: 0,
+            pointer: None,
             serial: 0,
             time: 1000,
             modifiers: [0; 4],

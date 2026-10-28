@@ -32,4 +32,11 @@ pub trait Output {
 
     /// 收起候选窗。
     fn hide(&mut self);
+
+    /// 在候选窗上弹出右键菜单，`items` 是各项的字，摆在最近一次按下鼠标的地方；画不出来返回 `false`。
+    /// 换上新的一帧（[`Self::show`]）或收起候选窗时菜单一并收起。
+    fn open_menu(&mut self, items: &[String]) -> bool;
+
+    /// 收起右键菜单，候选窗照旧。
+    fn close_menu(&mut self);
 }

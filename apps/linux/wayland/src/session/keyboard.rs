@@ -3,7 +3,7 @@
 use std::time::Instant;
 
 use qingjian_platform::protocol::KeyOutcome;
-use qingjian_platform::protocol::linux::key::to_key_event;
+use qingjian_platform::protocol::linux::key::{keysym, to_key_event};
 
 use super::keys::Held;
 use super::{Key, Modifiers, Output, Server, Session};
@@ -41,6 +41,20 @@ impl<S: Server> Session<S> {
         if !self.grabbed {
             // 交还键盘之后才排到的按下：转出去的话它的抬起不再经过这里，虚拟键盘上就卡住了
             return;
+        }
+        // 右键菜单开着：Esc 只收起菜单（抬起也吃掉），别的键收起菜单后照常处理，与 macOS 一样
+        if self.menu.is_some() {
+            self.close_menu(out, now);
+            if key.keysym == keysym::ESCAPE {
+                self.keys.press(
+                    key.code,
+                    Held {
+                        forwarded: false,
+                        reported: false,
+                    },
+                );
+                return;
+            }
         }
         if !self.serving() {
             self.flush(out, now);

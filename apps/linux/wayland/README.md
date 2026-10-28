@@ -61,6 +61,7 @@ LD_LIBRARY_PATH=$(nix-build '<nixpkgs>' -A libxkbcommon --no-out-link)/lib targe
 
 不加 `--stderr` 时日志写 `$XDG_STATE_HOME/qingjian/logs/wayland.<日期>.log`，与 Server 的日志在同一个目录。
 排查协议往来时加 `WAYLAND_DEBUG=1`（会打印按键与上屏内容，只在自己机器上用）。
+鼠标点不中时看 `RUST_LOG=debug` 的「候选窗上能点的地方」（各候选与菜单项中心的 surface 坐标）与「鼠标按在候选窗上」，对照 `WAYLAND_DEBUG=1` 里合成器给的指针坐标。
 
 装好之后的开机启动见上面「安装」；手动跑的开发版不要与装好的服务同时开着（同一个 seat 只能有一个输入法，后起的那个收到 `unavailable`）。
 
@@ -70,11 +71,12 @@ LD_LIBRARY_PATH=$(nix-build '<nixpkgs>' -A libxkbcommon --no-out-link)/lib targe
 cargo test -p qingjian-linux-wayland
 ```
 
-会话规则（按键转发、抬起跟着按下走、过期回包、上屏切块、重复、Server 断开重连、按应用分会话）、input-method-v2 的状态机、活动窗口的跟踪、位图裁边与缩放都是纯逻辑，不要合成器；
+会话规则（按键转发、抬起跟着按下走、过期回包、上屏切块、重复、Server 断开重连、按应用分会话、鼠标点选与右键菜单）、input-method-v2 的状态机、活动窗口的跟踪、
+位图裁边与缩放、鼠标落点与菜单合成、滚轮折成翻页都是纯逻辑，不要合成器；
 与 Server 的连接（一个应用一个会话、关最久没用的、重连补开）对着走真 socket 的假 Server 测。
 
 `tests/blackbox/` 是黑盒测试：真的二进制连测试进程里的假合成器（wayland-server）与假 Server，过一遍起不来的两种退出、SIGTERM、
-接管键盘、行内拼音与上屏、放行的键经虚拟键盘转出、失活时还按着的键、候选窗贴图与分数缩放。怎么搭的见 crate-notes。
+接管键盘、行内拼音与上屏、放行的键经虚拟键盘转出、失活时还按着的键、候选窗贴图与分数缩放，以及鼠标（点候选上屏、滚轮翻页、右键菜单与点项、Esc 收菜单）。怎么搭的见 crate-notes。
 二进制运行时 dlopen libxkbcommon，加载不了时这些测试打印「跳过 …」后通过（CI 的裸容器就是这样）。NixOS 上：
 
 ```bash

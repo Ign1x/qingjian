@@ -25,7 +25,8 @@ impl<S: Server> Session<S> {
             out,
             now,
         );
-        self.present(&reply, out);
+        let remode = self.adopt(reply.mode.as_ref(), out);
+        self.present(&reply, remode, out);
         self.poll_at =
             (!reply.frame.is_empty() || reply.translation_pending).then(|| now + POLL_INTERVAL);
     }
@@ -69,8 +70,8 @@ impl<S: Server> Session<S> {
     }
 
     /// 候选窗：空帧收起；版本号没变（轮询回来帧没变）不理；帧内容没变（抬键的回包）不重画，
-    /// 但回执照发——展示身份换了，Server 认的是新身份。
-    fn present(&mut self, reply: &Reply, out: &mut impl Output) {
+    /// 但回执照发——展示身份换了，Server 认的是新身份。`remode` 是这次回包换了输入模式：主题可能按它画，帧没变也重画。
+    fn present(&mut self, reply: &Reply, remode: bool, out: &mut impl Output) {
         if reply.frame.is_empty() {
             self.hide(out);
             return;
@@ -81,10 +82,11 @@ impl<S: Server> Session<S> {
         {
             return;
         }
-        if self
-            .drawn
-            .as_ref()
-            .is_none_or(|(frame, _)| *frame != reply.frame)
+        if remode
+            || self
+                .drawn
+                .as_ref()
+                .is_none_or(|(frame, _)| *frame != reply.frame)
         {
             let senses = out.show(&reply.frame);
             self.drawn = Some((reply.frame.clone(), senses));
@@ -125,5 +127,6 @@ impl<S: Server> Session<S> {
         tracing::warn!(%error, "与 Server 的往返失败，组句作废，键先原样交给应用");
         self.repeat.stop();
         self.clear(out);
+        self.forget_mode(out);
     }
 }

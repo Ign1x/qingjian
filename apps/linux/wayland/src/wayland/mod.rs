@@ -11,6 +11,7 @@ mod popup;
 mod present;
 mod shm;
 mod state;
+mod status;
 mod toplevel;
 mod xkb;
 

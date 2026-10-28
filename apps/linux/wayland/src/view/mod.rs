@@ -4,6 +4,7 @@
 
 mod bitmap;
 mod look;
+mod mode;
 
 #[cfg(test)]
 mod tests;
@@ -64,6 +65,9 @@ pub struct Painter {
 
     /// 上一帧的外观设置：只有「跟随系统」的帧要跟着桌面换深浅。
     appearance: Appearance,
+
+    /// 输入模式（Server 回包上的），主题里的 `mode.*` 照它画；还没收到时是缺省（中文）。
+    mode: Mode,
 }
 
 impl Painter {
@@ -97,6 +101,7 @@ impl Painter {
             seen: desktop.preference(),
             desktop,
             appearance: Appearance::default(),
+            mode: Mode::default(),
         };
         painter
             .renderer
@@ -121,7 +126,7 @@ impl Painter {
         let mut rendered = self
             .renderer
             .render(
-                &display::render_frame(frame, Mode::default()),
+                &display::render_frame(frame, self.mode.clone()),
                 display::layout(frame.layout),
                 &self.theme.with_dark(dark),
                 scale,

@@ -326,6 +326,7 @@ Fcitx5 / Fcitx4 插件写死 3、不用跟着改；一个会话只能发它握�
 Ctrl 键本身 `0x11`、Super 与 Hyper（Mod3）都算 `win`；`mapping.rs` 的测试逐条读 `mapping.cpp` 对照，那边加了键这边就挂）。`client` 与 `key` 只在 Linux 上编（要 `SO_PEERCRED`）。
 `display`（`render` 特性）是自绘候选窗的壳共用的「协议帧 → `qingjian_render::Frame`」：候选折成行（读音、全部义项、词性开关、假名注音、生词 `Tone::Fresh`、云标、辅码）、
 拼音行按 `preedit_mode` 决定画不画（带调拼音另给的 `window_preedit` 优先）、`usize::MAX` 不高亮、多页才画 `1/6`、矩阵只标高亮那一行的序号；
+`render_mode` 把 Linux 回包上的 `InputMode` 换成渲染器的 `Mode`（方案名用 `scheme_name`，单开全拼也写「全拼」）；
 照 Windows Server 的 `ui/candidates/{row,render_data}.rs` 写，Linux Wayland 前端在用，Windows 与 macOS 待改用。TSF DLL 不开这个特性，依赖树不变。
 
 ## crates/qingjian-render
@@ -664,13 +665,15 @@ Wayland 原生版的前端（设计见 `docs/design/linux-wayland.md`）：自�
   断开重连只补开当前应用的会话、先报能力再补报焦点，别的应用用到再开。Link 的测试对着走真 socket 的假 Server（`session/tests/wire.rs`，像真 Server 一样对上下文重复、报能力前发事件直接断开）。
   活动窗口的应用由 `Input::App` 报来，输入框激活时 `select` 它；激活期间换了应用，等 200 毫秒（`FOLLOW`）、不在组句时才换会话
   （切换窗口时活动窗口与输入框失活 / 激活的先后不定，中间常有一下没有活动窗口，紧接着的失活、激活会直接用上新应用）；跟过去只动 Server 那一侧，键盘与应用里的东西不动。
+  回包上的输入模式（`mode`，焦点的回包也带）变了才经 `Output::mode` 交给显示面，候选窗开着时模式变了帧没变也重画（主题的 `mode.*`）；往返失败交 `None`（Server 那边的会话连同模式都没了）。
 - `wayland/`：`method/` 是 input-method-v2 的双缓冲（`done` 计数即 commit 的 serial，激活 / 失活各给焦点代次加一，又激活一次先当失活）；
   `toplevel/` 跟踪 `zwlr_foreign_toplevel_manager_v1` 报的顶层窗口（按协议对象编号记，`done` 时生效，几个激活着取最后激活的，空 app_id 当没有，标题不读），
   活动窗口的应用变了才排一件 `Input::App`；合成器没有这个全局对象时启动记一句 info，之后什么都不报，所有输入框共用不知道哪个应用的那一个会话；
   `grab.rs` 读键位表（`MAP_PRIVATE` 映射）、用 `xkb.rs`（xkbcommon-dl，运行时 dlopen）算 keysym 与 X11 掩码，按到达顺序排队；
   `keyboard.rs` 是进程里唯一的虚拟键盘（与输入法同一条连接，合成器才不会把转出去的键又送回 grab）；`popup.rs` 有分数缩放时用 viewport、buffer scale 保持 1；
   `shm.rs` 三块缓冲轮换；`context.rs` 实现 `Output`；`mod.rs` 是主循环（`poll` 等合成器事件或下一个到点的事，SIGINT / SIGTERM 退出前替按着的键补抬起）。
-- `view/`：`Painter`（字体库、渲染器、主题，配置与主题目录每秒查一次戳；外观「跟随系统」按 `portal::Desktop` 取深浅，桌面的偏好变得影响到画着的那一帧时 `reload` 也返回 `true`）、
+- `view/`：`Painter`（字体库、渲染器、主题，配置与主题目录每秒查一次戳；外观「跟随系统」按 `portal::Desktop` 取深浅，桌面的偏好变得影响到画着的那一帧时 `reload` 也返回 `true`；
+  记着回包的模式（`set_mode`，经 `qingjian_platform::display::render_mode` 换成渲染器的 `Mode`），画帧时交给主题）、
   `bitmap.rs`（位图左上的阴影边裁到 4 点、补齐到整逻辑像素、RGBA → ARGB8888）、`senses`（从点击区域取画出的义项回执）。
 - `portal/`：外观跟随系统。`watch()` 起后台线程 `qingjian-portal`，里面一个单线程 tokio 运行时跑 zbus
   （不开 zbus 的 blocking-api：它的阻塞调用另起一个按核数开线程的运行时；zbus 连 Unix socket 时借 tokio 的阻塞线程池开一个线程，闲 10 秒自己退掉）。

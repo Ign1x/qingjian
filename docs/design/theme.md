@@ -64,6 +64,7 @@
 - **输入状态**（`Frame::mode`）：渲染器只给事实（三个布尔与方案名），显示什么字由主题用 `when` 分支写，渲染器里没有「中 / 英」这类文案。
   mac 壳组装候选帧时填（中英看 Caps Lock，与菜单栏一致；简繁、标点、方案看配置；英文模式标点算半角）；
   Windows 由 Router 现算（与状态条同一来源），经 `CandidateSink::show` 交给 UI 线程，不进 Server ↔ DLL 协议。方案名 `qingjian_platform::scheme_name`：同状态条的 `scheme_label`，单开全拼时也写「全拼」。
+  Linux Wayland 原生版照 Server 回包上附的 `mode` 填（`qingjian_platform::display::render_mode`，方案名同样单开全拼也写「全拼」）。
 - **设置里的字号**：`[general] candidate_font_size` / `annotation_font_size`（0 用主题的，不限范围）由壳经 `Theme::with_text_sizes` 盖到主题上：
   `candidate` 与 `annotation` 换成设置的字号，行高同比例；`index`、`preedit` 与表格 `row_height` 按候选字的比例缩放（`theme/text_sizes.rs`）。
   节点里在样式上写死的字号（`{ "base": "candidate", "size": 19 }`，手机候选条这样写）也按那个样式的比例缩放。
@@ -172,4 +173,4 @@ theme.json + Frame 数据
 - 没有窗口出现 / 消失动画、混合模式、图层模糊、渐变字、变体覆盖（用 `when` 分支与条件颜色代替）。
 - 背景毛玻璃做不到：自绘位图读不到窗口后面的内容。
 - 主题只能以目录形式安装，`extends` 只能继承内置主题。
-- Linux 上候选窗由 Fcitx5 / IBus 画，主题不生效。
+- Linux 的 fcitx 版候选窗由 Fcitx5 / IBus 画，主题不生效；Wayland 原生版自绘，主题生效。

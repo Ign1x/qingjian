@@ -115,6 +115,9 @@ Server 对这样的会话照旧：↑ / ↓ 只移高亮、帧上不带键盘。
 - **字体。** 与 Windows 同一流程：`[general] font` 空用 `FontLibrary::system("zh-CN")`，否则按字族名找文件；Linux 的「按字族名找文件」与清单路径缺失时的兜底走 fontconfig（见 crate-notes 的 bamboo-slip 一节）。
 - **主题。** `ThemeLibrary::load($XDG_DATA_HOME/qingjian/themes).resolve(id, 深浅)`，再套用户字号与动画开关；配置文件与主题目录每秒查一次戳，变了就重读。
   Hyprland 的 `decoration:blur:input_methods = true` 会给 popup 加背景模糊，配半透明背景的主题就是毛玻璃效果。
+- **主题里的模式。** 回包上的 `mode` 用 `qingjian_platform::display::render_mode` 换成渲染器的 `Mode`（方案名单开全拼时也写「全拼」，与 Windows 一样），
+  主题里的 `mode.*`（中 / 英、简 / 繁、标点、方案）照它画。输入框激活时焦点的回包就带着那个应用的会话的模式，换应用跟着换；
+  模式变了而帧没变（托盘切了全角标点）时重画一次。与 Server 断了当不知道，候选窗沿用上一次的。
 - **外观跟随系统。** 帧里的外观是 `System` 时深浅看桌面：后台线程在会话总线上读 xdg-desktop-portal Settings 的 `org.freedesktop.appearance` `color-scheme`，
   1（偏好深色）为深色，0（无偏好）、2（偏好浅色）与不认识的值为浅色。先订 `SettingChanged` 再读初值（读的途中改了也漏不掉），之后跟着信号变；
   读用 `ReadOne`，第 1 版的 portal 没有它，退回 `Read`（值多包一层 variant）。

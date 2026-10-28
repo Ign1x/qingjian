@@ -9,6 +9,7 @@ mod input;
 mod keyboard;
 mod keys;
 mod link;
+mod mode;
 mod output;
 mod preedit;
 mod repeat;
@@ -28,7 +29,7 @@ pub use server::Server;
 use std::time::{Duration, Instant};
 
 use qingjian_platform::protocol::Frame;
-use qingjian_platform::protocol::linux::AppSurrounding;
+use qingjian_platform::protocol::linux::{AppSurrounding, InputMode};
 
 use keys::Keys;
 use repeat::Repeat;
@@ -91,6 +92,9 @@ pub struct Session<S> {
 
     /// 什么时候看一眼 Server 上用着的是不是活动窗口那个应用的会话；输入框激活期间活动窗口换了应用才排上。
     follow_at: Option<Instant>,
+
+    /// Server 上当前那个应用的会话现在的输入模式（回包上的 `mode`）；还没收到过、或与 Server 断了是 `None`。
+    mode: Option<InputMode>,
 }
 
 impl<S: Server> Session<S> {
@@ -111,6 +115,7 @@ impl<S: Server> Session<S> {
             poll_at: None,
             app: None,
             follow_at: None,
+            mode: None,
         }
     }
 

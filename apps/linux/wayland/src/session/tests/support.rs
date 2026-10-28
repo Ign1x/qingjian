@@ -1,11 +1,13 @@
 //! 假 Server 与假合成器。
 
-use std::collections::VecDeque;
+use std::collections::{HashMap, VecDeque};
 use std::time::{Duration, Instant};
 
 use qingjian_core::{Candidate, CandidateKind, CandidateList};
 use qingjian_platform::protocol::linux::client::{ClientError, Reply};
-use qingjian_platform::protocol::linux::{AppSurrounding, Capabilities, DisplayIdentity};
+use qingjian_platform::protocol::linux::{
+    AppSurrounding, Capabilities, DisplayIdentity, InputMode,
+};
 use qingjian_platform::protocol::{Frame, KeyEvent, KeyOutcome, PreeditKind, PreeditSegment};
 
 use super::super::{Field, Input, Key, Modifiers, Output, Preedit, Server, Session};
@@ -55,6 +57,9 @@ pub struct FakeServer {
     /// Server 挂了：所有请求都失败。
     pub down: bool,
 
+    /// 各应用的会话现在的模式（键是应用，`None` 是不知道哪个应用的那一个），回包带上当前应用的；没写的应用回包不带模式（老 Server）。
+    pub modes: HashMap<Option<String>, InputMode>,
+
     /// 选着的应用。
     app: Option<String>,
 
@@ -82,6 +87,7 @@ impl FakeServer {
             identity: Some(identity(self.revision)),
             english,
             translation_pending: false,
+            mode: self.modes.get(&self.app).cloned(),
             ..Reply::default()
         }
     }
@@ -211,6 +217,8 @@ pub enum Out {
     Text(String, String),
     Show(Vec<String>),
     Hide,
+    /// 模式交给显示面，`None` 是不知道了。
+    Mode(Option<InputMode>),
 }
 
 /// 记录输出的假合成器。`sync` 时可以假装焦点换了。
@@ -269,6 +277,10 @@ impl Output for Recorder {
 
     fn hide(&mut self) {
         self.log.push(Out::Hide);
+    }
+
+    fn mode(&mut self, mode: Option<&InputMode>) {
+        self.log.push(Out::Mode(mode.cloned()));
     }
 }
 

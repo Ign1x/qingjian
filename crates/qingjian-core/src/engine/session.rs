@@ -1,6 +1,7 @@
 //! 可挂起的会话输入状态；词库与用户学习服务仍由同一个 Engine 持有。
 
 use super::commit::CommitChain;
+use super::held::HeldSelection;
 use super::statistics::Typing;
 use super::vocabulary::ExampleCollector;
 use super::{Engine, LastCommit, Transition};
@@ -12,6 +13,12 @@ use std::time::Instant;
 pub struct EngineSession {
     /// 拼音与光标位置。
     composition: Composition,
+
+    /// 前面选好、还没交给应用的词：跟着拼音走，换到别的输入框不能接在那边的组句前面。
+    held: Vec<HeldSelection>,
+
+    /// 辅码码段（`None` 是拼音态）：同上，换出去的码段不能去筛别的输入框的候选。
+    aux_code: Option<String>,
 
     /// 当前中英文模式。
     english_mode: bool,
@@ -66,6 +73,8 @@ impl Engine {
         self.cancel_prediction();
         self.set_rescoring_context(None);
         std::mem::swap(&mut self.composition, &mut session.composition);
+        std::mem::swap(&mut self.held, &mut session.held);
+        std::mem::swap(&mut self.aux_code, &mut session.aux_code);
         std::mem::swap(&mut self.english_mode, &mut session.english_mode);
         std::mem::swap(&mut self.punctuation, &mut session.punctuation);
         std::mem::swap(&mut self.recent_commits, &mut session.recent_commits);
@@ -102,6 +111,8 @@ impl EngineSession {
     /// 丢弃本上下文的输入状态，不写日志、不学习，也不把私密文本带到下一次普通输入。
     pub fn discard_input(&mut self) {
         self.composition.clear();
+        self.held.clear();
+        self.aux_code = None;
         self.english_mode = false;
         self.punctuation = Punctuation::default();
         self.recent_commits.clear();
@@ -125,6 +136,8 @@ impl Engine {
     pub fn discard_input(&mut self) {
         self.cancel_prediction();
         self.composition.clear();
+        self.held.clear();
+        self.aux_code = None;
         self.english_mode = false;
         self.punctuation = Punctuation::default();
         self.recent_commits.clear();

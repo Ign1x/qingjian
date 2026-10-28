@@ -103,14 +103,14 @@ mac 存在 `Session::spelling`（`Host::follow_highlight`）、Windows / Linux �
   纠正之间比较时换位减 `TypoCosts::correction_transpose_discount`（1 nat，CLI `--tune correction-transpose=`），与原样比不减；
   2026-09-15 回放 283 词 / 23 句：词首选 89.0%、整句 82.6%，与改前持平（折扣若也用在与原样比，`zhongwne` 会误纠成 中文，整句掉一条）。
 
-`EngineSession` 保存可挂起的组句、标点、历史与学习链，`Engine::swap_session` 在同一个引擎里交换输入状态，共用词库与落盘服务。切换上下文时清除查询及异步预测缓存，并由平台恢复各自私密状态。
+`EngineSession` 保存可挂起的组句（连同先选好还没上屏的词 `held` 与辅码码段 `aux_code`）、标点、历史与学习链，`Engine::swap_session` 在同一个引擎里交换输入状态，共用词库与落盘服务。切换上下文时清除查询及异步预测缓存，并由平台恢复各自私密状态。
 
 异步预测按请求序号保存待处理状态：组句请求与翻译请求分别只保留最新一条，可同时等待结果；同类旧请求与清空输入后的结果都会丢弃。
 
 `Engine::raw_preedit()`（`engine/raw/`）只读返回 `RawPreedit { text, cursor_bytes }`：完整未上屏组合及 UTF-8 字节光标，与随后 `take_raw()` 共用文本生成，保留大小写、显式分隔符及光标后的剩余内容，不包含待处理辅码；不运行候选查询、不学习、不记日志、统计、历史或展示回报。
 注音继续输出符号；光标按解码单元内按键前缀产生的符号数映射到完整单元的同序字符边界，轻声先敲时采用逻辑位置，一声空格不占显示字符。未知键仍按原解码规则聚到尾串，其光标跟随输出位置而可能不单调；首位固定 0，末位固定完整文本长度。`take_raw()` 的提交和清理顺序不变。
 
-`Engine::discard_input` / `EngineSession::discard_input` 用于隐私能力变化时无痕清理输入，包括透传缓冲、学习链和暂存词汇曝光；`set_private` 只切换写入开关，保留已输入的组句。
+`Engine::discard_input` / `EngineSession::discard_input` 用于隐私能力变化时无痕清理输入，包括先选好的词、辅码码段、透传缓冲、学习链和暂存词汇曝光；`set_private` 只切换写入开关，保留已输入的组句。
 
 语音（`voice/`、`engine/voice.rs`）：`Transcriber` 是云端与本地离线识别的接口（非阻塞，`start` / `feed` 单声道 16 位 PCM / `finish` / `cancel`，`poll` 取 `TranscriptEvent`），现在只有 `NoTranscriber`；系统识别器留在各平台壳里。不论哪种识别方式，结果都经 `Engine::commit_voice` 上屏：繁体输出开着时转繁体，记输入历史、例句、输入日志（`InputSource::Voice`）与输入统计（词数按语言模型切，不算选词、不计键数时长），不记词频。设计见 `docs/design/voice-and-swipe.md`。
 

@@ -18,7 +18,7 @@ pub struct ShortcutConfig {
     /// 中 / 英切换键（Windows、Linux 用），可多选：`["shift", "control", "ctrl+alt+space"]`。详见 [`SwitchKeys`]。
     pub switch_mode: SwitchKeys,
 
-    /// 候选高亮由 `↑` / `↓` 还是 `←` / `→` 移动（Windows 用）。详见 [`HighlightKeys`]。
+    /// 候选高亮由 `↑` / `↓` 还是 `←` / `→` 移动。详见 [`HighlightKeys`]。
     pub highlight_keys: HighlightKeys,
 
     /// 切换当前中英模式的全 / 半角标点（macOS 只切中文模式的），空串禁用，例如 `ctrl+.`。

@@ -17,11 +17,11 @@ All changeable keys are in 设置 → 快捷键 (Settings → Shortcuts), and ch
 
 There are also 额外翻页键 (Extra paging keys): three sets you can combine, used together with the paging keys above. While typing pinyin these keys page first; operators in calculations, direct English input and the auxiliary code trigger key keep their usual roles.
 
-## Highlight keys (macOS, Windows)
+## Highlight keys
 
 By default `↑` / `↓` move the highlight and `←` / `→` move the pinyin cursor. If you choose `←` / `→` instead, `←` / `→` move between candidates:
 
-- **Horizontal layout**: `↑` moves into the pinyin (the candidates show no highlight then), where `←` / `→` move the pinyin cursor; `↓` goes back to the candidates. With 横排时 ↑ / ↓ 展开成多行 (Expand to rows with ↑ / ↓ in horizontal layout) ticked, `↓` on the candidates expands them; once expanded `↑` / `↓` move between rows, and `↑` on the first row goes back into the pinyin. `↑` again in the pinyin opens the symbol panel.
+- **Horizontal layout**: `↑` moves into the pinyin (the candidates show no highlight then), where `←` / `→` move the pinyin cursor; `↓` goes back to the candidates. With 横排时 ↑ / ↓ 展开成多行 (Expand to rows with ↑ / ↓ in horizontal layout) ticked, `↓` on the candidates expands them; once expanded `↑` / `↓` move between rows, and `↑` on the first row goes back into the pinyin. `↑` again in the pinyin opens the symbol panel (Linux has no symbol panel).
 - **Vertical layout**: the highlight and the pinyin cursor form one line: only when the pinyin cursor is at the end does `→` move to the next candidate, and only when the first candidate is highlighted does `←` go back into the pinyin; `↑` / `↓` do nothing while typing pinyin.
 
 When you're not typing, the arrow keys go to the app as usual. This applies in both Chinese and English mode.

@@ -1,6 +1,7 @@
 //! 单个 Fcitx 输入上下文保存的输入状态。
 use crate::dispatch::composed::Composed;
 use qingjian_core::EngineSession;
+use qingjian_core::candidate::arrows::Focus;
 
 pub(crate) struct SessionInfo {
     /// 应用标识。
@@ -46,6 +47,9 @@ pub(crate) struct SessionInfo {
 
     /// 本轮是否移动候选。
     pub(crate) navigated: bool,
+
+    /// 挂起时方向键归拼音行还是候选（方向键分两区时）。
+    pub(crate) focus: Focus,
 }
 impl SessionInfo {
     pub(crate) fn new(app: Option<String>, english: bool) -> Self {
@@ -65,6 +69,7 @@ impl SessionInfo {
             composed: None,
             highlight: 0,
             navigated: false,
+            focus: Focus::default(),
         }
     }
 }

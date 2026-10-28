@@ -1,10 +1,10 @@
 //! Linux 首版按键与候选配置。
 use qingjian_core::TraditionalVariant;
-use qingjian_platform::PageKeys;
 use qingjian_platform::protocol::KeyModifiers;
 use qingjian_platform::{
     Appearance, AppsConfig, Config, KeyCombo, LayoutMode, PreeditMode, Scheme, SwitchKeys,
 };
+use qingjian_platform::{HighlightKeys, PageKeys};
 
 /// Router 要用的配置项，与 macOS 壳的 `Host` 字段对齐。
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -78,6 +78,9 @@ pub struct RouterConfig {
 
     /// 主翻页键之外同时启用的符号键对（`[shortcut] extra_page_keys`）。
     pub extra_page_keys: PageKeys,
+
+    /// 候选高亮由哪对方向键移动（`[shortcut] highlight_keys`）。
+    pub highlight_keys: HighlightKeys,
 }
 
 impl RouterConfig {
@@ -98,6 +101,11 @@ impl RouterConfig {
     /// 新会话的初始模式。
     pub fn starts_english(&self) -> bool {
         self.english_mode && self.default_english
+    }
+
+    /// 方向键分拼音行与候选两区（Core 的 `arrows::route`）：横排，而且高亮移动键选了 `←` / `→`。
+    pub fn two_area_arrows(&self) -> bool {
+        self.layout == LayoutMode::Horizontal && self.highlight_keys == HighlightKeys::LeftRight
     }
 }
 
@@ -134,6 +142,7 @@ impl From<&Config> for RouterConfig {
             translate_selection: config.shortcut.translate_selection,
             translation_pos: config.general.translation_pos,
             extra_page_keys: config.shortcut.extra_page_keys,
+            highlight_keys: config.shortcut.highlight_keys,
         }
     }
 }

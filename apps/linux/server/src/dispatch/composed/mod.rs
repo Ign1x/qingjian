@@ -2,6 +2,7 @@
 
 mod state;
 
+use qingjian_core::candidate::arrows::Focus;
 use qingjian_core::{
     Candidate, CandidateKind, CandidateLayout, CandidateList, CloudWord, Query, SurroundingText,
 };
@@ -17,6 +18,7 @@ impl Router {
         self.navigated = false;
         self.sentence = None;
         if self.engine.composition().is_empty() {
+            self.focus = Focus::default();
             self.composed = None;
             self.engine.cancel_prediction();
             self.stop_rescoring();
@@ -302,7 +304,12 @@ impl Router {
                     window_preedit: None,
                     preedit_mode: self.config.preedit,
                     candidates,
-                    highlight: highlight - page * page_size,
+                    // 方向键在拼音行里时候选不画高亮，空格照样上屏原来高亮的那个
+                    highlight: if self.config.two_area_arrows() && self.focus == Focus::Pinyin {
+                        usize::MAX
+                    } else {
+                        highlight - page * page_size
+                    },
                     page,
                     page_count: layout.pages().max(1),
                     layout: self.config.layout,

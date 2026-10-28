@@ -58,8 +58,7 @@ The macOS and Windows versions are in beta with nearly the same features; keys f
 | Feature | macOS | Windows | Linux | Android |
 |---|---|---|---|---|
 | Changing paging keys | ✓ | ✓ | ✓ | — |
-| Extra paging keys | ✓ | ✓ | ✓ | — |
-| Highlight keys | ✓ | ✓ | — | — |
+| Extra paging keys, highlight keys | ✓ | ✓ | ✓ | — |
 | Full-width/half-width punctuation shortcut | ✓ | ✓ | — | — |
 
 ## AI services

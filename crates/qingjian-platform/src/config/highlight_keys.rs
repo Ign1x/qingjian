@@ -2,7 +2,7 @@
 
 use serde::{Deserialize, Serialize};
 
-/// 候选高亮由哪对方向键移动（`[shortcut] highlight_keys`，只有 Windows 用）。
+/// 候选高亮由哪对方向键移动（`[shortcut] highlight_keys`）。
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum HighlightKeys {

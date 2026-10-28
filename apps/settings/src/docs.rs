@@ -162,7 +162,7 @@ const LINKS: &[(PageId, &str, &str, &str)] = &[
         PageId::Shortcuts,
         "高亮移动键",
         "personalize/keys-settings",
-        "高亮移动键（macOS、Windows）",
+        "高亮移动键",
     ),
     (
         PageId::Shortcuts,

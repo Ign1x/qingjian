@@ -23,6 +23,7 @@ use self::rescore::{ModelLoader, RescoreState};
 use self::session::SessionInfo;
 use self::translate::Translation;
 use qingjian_core::Engine;
+use qingjian_core::candidate::arrows::Focus;
 use qingjian_platform::protocol::{ClientMessage, ServerMessage, SessionId};
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -85,6 +86,9 @@ pub struct Router {
 
     /// 配置热加载；没开（测试）为 `None`。
     reload: Option<ConfigReload>,
+
+    /// 方向键分两区时归拼音行还是候选（`arrows::route`）。改拼音时每敲一键都重查，所以跨查询保留，缓冲清空才回到候选。
+    focus: Focus,
 }
 
 impl Router {
@@ -112,6 +116,7 @@ impl Router {
             model_loader: None,
             rescore: RescoreState::default(),
             reload: None,
+            focus: Focus::default(),
         }
     }
     /// 一条客户端消息；无需答复的通知返回 None。

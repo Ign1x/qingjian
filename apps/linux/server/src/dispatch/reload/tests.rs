@@ -6,7 +6,7 @@ use std::time::{Duration, Instant, SystemTime};
 use qingjian_core::Engine;
 use qingjian_dictionary::{Dictionary, import};
 use qingjian_platform::protocol::{ClientMessage, PROTOCOL_VERSION, SessionId};
-use qingjian_platform::{Config, SwitchKeys};
+use qingjian_platform::{Config, HighlightKeys, SwitchKeys};
 
 use super::CONFIG_POLL_INTERVAL;
 use crate::dispatch::{Router, RouterConfig};
@@ -99,14 +99,16 @@ fn key_settings_apply_on_next_tick() {
     let dir = temp_dir("keys");
     let mut router = watched(&dir, "");
     assert_eq!(router.config.extra_page_keys.step(','), None);
+    assert_eq!(router.config.highlight_keys, HighlightKeys::UpDown);
 
     write_config(
         &dir.join("config.toml"),
-        "[shortcut]\nextra_page_keys = [\",.\"]\n",
+        "[shortcut]\nextra_page_keys = [\",.\"]\nhighlight_keys = \"leftright\"\n",
         200,
     );
     poll(&mut router);
     assert_eq!(router.config.extra_page_keys.step(','), Some(-1));
+    assert_eq!(router.config.highlight_keys, HighlightKeys::LeftRight);
     std::fs::remove_dir_all(&dir).unwrap();
 }
 

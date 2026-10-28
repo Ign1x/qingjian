@@ -338,7 +338,7 @@ Ctrl 键本身 `0x11`、Super 与 Hyper（Mod3）都算 `win`；`mapping.rs` 的
 中文与 emoji 按语言再拿 `fc-list :lang=…` 核对一遍（`fc-match` 总会给个文件，哪怕不带那种字）。同一个文件只加载一次。
 它也是 Linux 的 `system_fonts::family_files`（与 Windows 的 DirectWrite 版同名同签名），主题点名的字族与 `[general] font` 按它找文件。
 
-横排矩阵：视口与高亮移动在 Core `candidate::layout::Grid`（`GRID_ROWS` = 6，列宽 `Grid::column_ems` 按整份候选估、单格封顶 `MAX_CELL_EMS` = 4 字宽）。横排且高亮移动键选了 ← / → 时（`two_area_arrows`），方向键怎么走在 Core `candidate::arrows::route`：拼音行与候选两区，↑ / ↓ 换区与换行，← / → 只在当前区里移动；两个壳只记焦点（mac `Session::focus`、Windows `Router::focus`，缓冲清空才回到候选）并执行它给的动作，焦点在拼音时帧里不给高亮（`usize::MAX`），拼音区里再按 ↑ 才开符号面板。其余组合（竖排、或横排用 ↑ / ↓ 移高亮）仍是原来那套：拼音行 + 候选连成一条序列。
+横排矩阵：视口与高亮移动在 Core `candidate::layout::Grid`（`GRID_ROWS` = 6，列宽 `Grid::column_ems` 按整份候选估、单格封顶 `MAX_CELL_EMS` = 4 字宽）。横排且高亮移动键选了 ← / → 时（`two_area_arrows`），方向键怎么走在 Core `candidate::arrows::route`：拼音行与候选两区，↑ / ↓ 换区与换行，← / → 只在当前区里移动；各壳只记焦点（mac `Session::focus`、Windows 与 Linux Server 的 `Router::focus`，缓冲清空才回到候选）并执行它给的动作，焦点在拼音时帧里不给高亮（`usize::MAX`），拼音区里再按 ↑ 才开符号面板。其余组合（竖排、或横排用 ↑ / ↓ 移高亮）仍是原来那套：拼音行 + 候选连成一条序列。
 青简渲染器在 `renderer/build/matrix.rs` 画矩阵：`Frame.columns` 不为 0 时，横排模板里候选的 `repeat` 改包进一个网格（主题不另写模板），
 列宽至少 `column_ems`、超宽截尾加「…」（字宽估法与 Core 相同），格子里不画逐项译文；主题写了 `highlighted.annotation` 的照常画在网格下面，没有单独的信息行。
 Windows Server 自绘候选窗（GDI）按 `Frame.columns` / `column_ems` 画矩阵：列宽滚动时不变、超宽候选截尾加「…」、网格下一行信息给出完整文本与译文；
@@ -597,7 +597,7 @@ Windows 可选的 `[shortcut] toggle_punctuation` 经 `InputSettings` 下发，�
 `qingjian-linux-server` 为独立产品，装配本地 Engine、词库、释义、频率学习、个人 n-gram、词汇记录与可选输入日志，
 本地整句模型优先加载用户 `~/.local/share/qingjian/models/hanzhang-tongbian/` 或随包 `data/models/hanzhang-tongbian/`，缺失时回退 `models/hanzhang-zhiwei/`；旧用户目录兼容读取。按 `[model] enabled` 在后台加载、停键 80 ms 后重排，节拍与 Windows Server 的 `dispatch/rescore` 相同；云联想按 `[predict]` 接入，用量累计到用户目录的 `api-usage.json`（设置统计页读同一份），释义兜底与生词本整句翻译随 `enabled` 一起接，结果由 `tick` 里的 `poll_glosses` 收。配置热加载在 `dispatch/reload`：`tick` 每秒看 `config.toml` mtime 与用户 `dicts/` 快照，`[predict]` / `[model]` / `[dictionaries]` / 学习语言按变化重建，其余无条件重设；`preedit`、`input_log` 仍要重启。`dispatch/session` 交换每个上下文的 EngineSession；真正的能力变化丢弃输入，普通焦点切换隔离保存。
 默认面板插件仅转换事件（Shift / Ctrl 本身报成 VK `0x10` / `0x11`），中英切换、候选点击、分页和失焦提交都由 Server 决定：`[shortcut] switch_mode` 的单击 Shift / Ctrl 在按下时记进会话的 `switch_tap`、中间按了别的键或失焦就作废，松开时切换；`Ctrl + Alt + Space` 在按下时切换。`[general] default_english` 定新会话的初始模式，`english_mode` 关掉时切换键全不认、热加载时把所有会话拉回中文。
-按键分流照 Windows Server 的 `dispatch/key` 移植：额外翻页键（`[shortcut] extra_page_keys`）与主翻页键并用（`Router::page_step`），`-` `=` 翻不动时落回原字符（`can_page`），英文候选里翻页键排在连字符前面，不然 `-` 翻不回上一页。
+按键分流照 Windows Server 的 `dispatch/key` 移植：额外翻页键（`[shortcut] extra_page_keys`）与主翻页键并用（`Router::page_step`），`-` `=` 翻不动时落回原字符（`can_page`），英文候选里翻页键排在连字符前面，不然 `-` 翻不回上一页。组句中的方向键在 `dispatch/key/arrows.rs`：高亮移动键（`[shortcut] highlight_keys`）与横排时的两区走法（`RouterConfig::two_area_arrows`，Core `arrows::route`），焦点 `Router::focus` 随组句一起挂起到 `SessionInfo::focus`。
 启动与热加载共用 `assembly::attach_cloud`（签名与 Windows 的 `dispatch::attach_cloud` 对齐：`[predict]` 配置 + 用量文件路径）；切换服务先取消旧请求与选区翻译，重建所有会话的本地候选布局以清除旧云词，保留本地高亮，聚焦会话再发新请求。无密钥时退回本地，不预留云词槽。按需联想在 `LinuxEvent::Key` 里拦 `[shortcut] predict` 组合键（按字符匹配，`.` 的键码与 Delete 冲突），结果按模型顺序置顶；自动请求由 `RouterConfig::cloud_enabled` 门控，`automatic = false` 时只剩按需触发。插件把缺失的可选 `kind` / `sentence` 按本地候选 / 无整句处理。
 插件在清空预编辑之前上屏；上屏回调重入后核对生命周期和帧身份，跳过过期重画而不撤销或重复提交，见 [Linux 协议与状态](linux-fcitx5.md#协议与状态)。
 

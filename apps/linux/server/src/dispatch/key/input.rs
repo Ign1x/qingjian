@@ -1,5 +1,6 @@
 //! 按键怎么作用到 Engine / 高亮上。分流规则与 macOS 壳的 `handle_text` / `handle_command` 对齐。
 
+use qingjian_core::candidate::arrows::Arrow;
 use qingjian_core::{CandidateKind, QUESTION_PREFIX, punctuation};
 use qingjian_platform::protocol::KeyEvent;
 
@@ -138,14 +139,10 @@ impl Router {
                     Effect::Navigated
                 }
             },
-            codes::DOWN => {
-                self.move_highlight(1);
-                Effect::Navigated
-            }
-            codes::UP => {
-                self.move_highlight(-1);
-                Effect::Navigated
-            }
+            codes::DOWN if self.config.two_area_arrows() => self.two_area_key(Arrow::Down),
+            codes::DOWN => self.vertical_key(1),
+            codes::UP if self.config.two_area_arrows() => self.two_area_key(Arrow::Up),
+            codes::UP => self.vertical_key(-1),
             codes::NEXT => {
                 self.page(1);
                 Effect::Navigated
@@ -154,14 +151,10 @@ impl Router {
                 self.page(-1);
                 Effect::Navigated
             }
-            codes::LEFT => {
-                self.engine.move_cursor_left();
-                Effect::Changed(None)
-            }
-            codes::RIGHT => {
-                self.engine.move_cursor_right();
-                Effect::Changed(None)
-            }
+            codes::LEFT if self.config.two_area_arrows() => self.two_area_key(Arrow::Left),
+            codes::RIGHT if self.config.two_area_arrows() => self.two_area_key(Arrow::Right),
+            codes::LEFT => self.horizontal_key(-1),
+            codes::RIGHT => self.horizontal_key(1),
             codes::HOME => {
                 self.engine.move_cursor_home();
                 Effect::Changed(None)

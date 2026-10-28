@@ -3,6 +3,7 @@ use super::{
     Answer, Router,
     key::{Effect, codes},
 };
+use qingjian_core::candidate::arrows::Focus;
 use qingjian_platform::protocol::linux::{
     DisplayIdentity, LinuxEvent, LinuxRequest, MenuReply, ModeCommand,
 };
@@ -308,6 +309,7 @@ impl Router {
         info.composed = None;
         info.highlight = 0;
         info.navigated = false;
+        info.focus = Focus::default();
         if let Some(identity) = &mut info.display_identity {
             self.display_revision += 1;
             identity.revision = self.display_revision;
@@ -320,6 +322,7 @@ impl Router {
             self.notice = None;
             self.highlight = 0;
             self.navigated = false;
+            self.focus = Focus::default();
         } else {
             info.engine.discard_input();
         }

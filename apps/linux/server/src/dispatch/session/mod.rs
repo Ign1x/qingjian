@@ -2,6 +2,7 @@
 mod info;
 pub(super) use self::info::SessionInfo;
 use super::Router;
+use qingjian_core::candidate::arrows::Focus;
 use qingjian_platform::protocol::SessionId;
 
 impl Router {
@@ -28,6 +29,7 @@ impl Router {
             previous.composed = self.composed.take();
             previous.highlight = self.highlight;
             previous.navigated = self.navigated;
+            previous.focus = self.focus;
             previous.display_frame = None;
             previous.last_frame = None;
             previous.switch_tap = None;
@@ -39,6 +41,7 @@ impl Router {
         self.composed = next.composed.take();
         self.highlight = next.highlight;
         self.navigated = next.navigated;
+        self.focus = next.focus;
         self.engine.set_application(next.app.clone());
         self.engine.set_private(next.private);
         self.notice = None;
@@ -69,6 +72,7 @@ impl Router {
         info.composed = None;
         info.highlight = 0;
         info.navigated = false;
+        info.focus = Focus::default();
         // 真正的隐私能力变化是输入边界。仅在切换上下文时恢复 private 不走这里，
         // 因此普通与私密会话来回切换不会丢掉各自尚未上屏的组句。
         if self.focused == Some(session) {
@@ -80,6 +84,7 @@ impl Router {
             self.notice = None;
             self.highlight = 0;
             self.navigated = false;
+            self.focus = Focus::default();
         } else {
             info.engine.discard_input();
         }
@@ -95,6 +100,7 @@ impl Router {
         self.notice = None;
         self.highlight = 0;
         self.navigated = false;
+        self.focus = Focus::default();
     }
     pub(super) fn close_session(&mut self, session: SessionId) {
         if !self.sessions.contains_key(&session) {

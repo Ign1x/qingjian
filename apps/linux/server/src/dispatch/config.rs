@@ -4,7 +4,7 @@ use qingjian_platform::protocol::KeyModifiers;
 use qingjian_platform::{
     Appearance, AppsConfig, Config, KeyCombo, LayoutMode, PreeditMode, Scheme, SwitchKeys,
 };
-use qingjian_platform::{HighlightKeys, PageKeys};
+use qingjian_platform::{HighlightKeys, NumpadDigit, PageKeys};
 
 /// Router 要用的配置项，与 macOS 壳的 `Host` 字段对齐。
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -84,6 +84,9 @@ pub struct RouterConfig {
 
     /// 横排时上 / 下键把单行展开成多行矩阵（`[general] horizontal_grid`）；还要前端画得了，见 `Router::grid_keys`。
     pub horizontal_grid: bool,
+
+    /// 中文组句中小键盘数字的用途（`[general] numpad_digit`）。
+    pub numpad_digit: NumpadDigit,
 }
 
 impl RouterConfig {
@@ -152,6 +155,7 @@ impl From<&Config> for RouterConfig {
             extra_page_keys: config.shortcut.extra_page_keys,
             highlight_keys: config.shortcut.highlight_keys,
             horizontal_grid: config.general.horizontal_grid,
+            numpad_digit: config.general.numpad_digit,
         }
     }
 }

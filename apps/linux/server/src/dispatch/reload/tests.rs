@@ -6,7 +6,7 @@ use std::time::{Duration, Instant, SystemTime};
 use qingjian_core::Engine;
 use qingjian_dictionary::{Dictionary, import};
 use qingjian_platform::protocol::{ClientMessage, PROTOCOL_VERSION, SessionId};
-use qingjian_platform::{Config, HighlightKeys, SwitchKeys};
+use qingjian_platform::{Config, HighlightKeys, NumpadDigit, SwitchKeys};
 
 use super::CONFIG_POLL_INTERVAL;
 use crate::dispatch::{Router, RouterConfig};
@@ -101,11 +101,12 @@ fn key_settings_apply_on_next_tick() {
     assert_eq!(router.config.extra_page_keys.step(','), None);
     assert_eq!(router.config.highlight_keys, HighlightKeys::UpDown);
     assert!(!router.config.horizontal_grid);
+    assert_eq!(router.config.numpad_digit, NumpadDigit::Select);
 
     write_config(
         &dir.join("config.toml"),
         concat!(
-            "[general]\nhorizontal_grid = true\n",
+            "[general]\nhorizontal_grid = true\nnumpad_digit = \"direct\"\n",
             "[shortcut]\nextra_page_keys = [\",.\"]\nhighlight_keys = \"leftright\"\n",
         ),
         200,
@@ -114,6 +115,7 @@ fn key_settings_apply_on_next_tick() {
     assert_eq!(router.config.extra_page_keys.step(','), Some(-1));
     assert_eq!(router.config.highlight_keys, HighlightKeys::LeftRight);
     assert!(router.config.horizontal_grid);
+    assert_eq!(router.config.numpad_digit, NumpadDigit::Direct);
     std::fs::remove_dir_all(&dir).unwrap();
 }
 

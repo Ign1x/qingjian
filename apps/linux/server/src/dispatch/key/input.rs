@@ -2,6 +2,7 @@
 
 use qingjian_core::candidate::arrows::Arrow;
 use qingjian_core::{CandidateKind, QUESTION_PREFIX, punctuation};
+use qingjian_platform::NumpadDigit;
 use qingjian_platform::protocol::KeyEvent;
 
 use super::{Effect, codes, with_prefix};
@@ -287,6 +288,19 @@ impl Router {
                 self.engine.push(c);
                 return Effect::Changed(None);
             }
+        }
+        // 小键盘数字直接输入（`[general] numpad_digit`）：只改普通中文组句，表达式、码点、问字与注音保留各自数字键语义。
+        // 键码 0x60–0x69 是小键盘数字；Linux 上小写字母 a–i 的键码（keysym）也落在这一段，靠字符是不是数字排除
+        if self.config.numpad_digit == NumpadDigit::Direct
+            && (0x60..=0x69).contains(&event.virtual_key)
+            && c.is_ascii_digit()
+            && !expression
+            && !self.engine.question_mode()
+            && !self.engine.is_zhuyin_mode()
+        {
+            self.engine.clear_aux();
+            self.engine.push(c);
+            return Effect::Changed(None);
         }
         if let Some(digit) = codes::digit(event)
             && (!self.engine.is_zhuyin_mode() || self.navigated)

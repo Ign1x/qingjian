@@ -1,8 +1,8 @@
-//! Windows 中文组句中小键盘数字的用途，供配置与设置界面共用。
+//! 中文组句中小键盘数字的用途（Windows 与 Linux 的 Server 读），供配置与设置界面共用。
 
 use serde::{Deserialize, Serialize};
 
-/// `[general] numpad_digit`；其他平台不使用这项设置。
+/// `[general] numpad_digit`；macOS 不使用这项设置。
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum NumpadDigit {

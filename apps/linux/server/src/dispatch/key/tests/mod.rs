@@ -2,6 +2,7 @@
 mod arrows;
 mod behavior;
 mod grid;
+mod numpad;
 mod paging;
 mod schemes;
 mod support;

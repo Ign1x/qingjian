@@ -127,7 +127,7 @@ impl Feature {
             Self::ShowTones => [Yes, Yes, Todo],
             // Windows、Linux 的服务进程还没接知意；没有 GPU 时 CPU 上打分要发烫，先只开 macOS（Metal）
             Self::ExperimentalModels => [Yes, Yes, Todo],
-            Self::NumpadDigit => [Todo, Yes, Todo],
+            Self::NumpadDigit => [Todo, Yes, Yes],
         }
     }
 

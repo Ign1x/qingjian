@@ -7,7 +7,7 @@
 use std::collections::HashMap;
 
 use qingjian_platform::protocol::linux::{
-    DisplayAcknowledged, DisplayIdentity, LINUX_UI_PROTOCOL, LinuxEvent,
+    DisplayAcknowledged, DisplayIdentity, KeyHintView, LINUX_UI_PROTOCOL, LinuxEvent,
 };
 use qingjian_platform::protocol::{Frame, KeyOutcome, PROTOCOL_VERSION, ServerMessage, SessionId};
 use serde_json::{Value, json};
@@ -37,6 +37,9 @@ pub struct Conversation {
 
     /// 现在的帧：抬键、轮询、焦点这些不改帧的回包照真 Server 的样子带着它。
     frame: Frame,
+
+    /// 这一帧旁边要画的键位提示：答复带了就换上，帧空了（组句结束）与失活时收起。
+    key_hint: Option<KeyHintView>,
 
     /// 帧的版本号，每个事件的回包加一；轮询不加（帧没变，前端据此不重画），交出译文那一次加一。
     revision: u64,
@@ -176,8 +179,15 @@ impl Conversation {
                     );
                 }
                 if let Some(frame) = answer.frame {
+                    // 组句结束（空帧）：真 Server 这时候就不带键位提示了，之后重新组句也不该自己冒出来
+                    if frame.is_empty() {
+                        self.key_hint = None;
+                    }
                     self.frame = frame;
                     self.pending = false;
+                }
+                if let Some(hint) = answer.key_hint {
+                    self.key_hint = Some(hint);
                 }
                 if let Some(mode) = answer.mode {
                     self.sessions.get_mut(&session).expect("已核对会话").mode = Some(mode);
@@ -260,6 +270,7 @@ impl Conversation {
     /// 组句与翻译都丢掉。
     fn clear(&mut self) {
         self.frame = Frame::default();
+        self.key_hint = None;
         self.pending = false;
         self.requested = None;
     }
@@ -292,6 +303,12 @@ impl Conversation {
             "revision": self.revision,
         });
         body["frame"]["translation_pending"] = json!(self.pending);
+        // 帧空了（组句结束）就照真 Server 的规矩不带
+        if let Some(hint) = &self.key_hint
+            && !self.frame.is_empty()
+        {
+            body["key_hint"] = json!(hint);
+        }
         if let Some(mode) = self
             .sessions
             .get(&session)

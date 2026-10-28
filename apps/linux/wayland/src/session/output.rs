@@ -1,7 +1,7 @@
 //! [`super::Session`] 对合成器那一侧要做的事。真实现在 `crate::wayland`，测试里换成记录器。
 
 use qingjian_platform::protocol::Frame;
-use qingjian_platform::protocol::linux::InputMode;
+use qingjian_platform::protocol::linux::{InputMode, KeyHintView};
 
 use super::{Field, Modifiers, Preedit};
 
@@ -34,6 +34,10 @@ pub trait Output {
 
     /// 画出这一帧并贴到候选窗上，返回真正画出来的译词义项 `(候选在本页的位置, 义项编号)`。
     fn show(&mut self, frame: &Frame) -> Vec<(usize, usize)>;
+
+    /// 换掉候选窗旁画着的键位提示（Server 回包上的 `key_hint`）：键盘与候选窗合成进同一个 popup，
+    /// `None` 收起键盘。先换键盘再换帧，旧键盘不会多闪一帧。
+    fn key_hint(&mut self, hint: Option<&KeyHintView>);
 
     /// 收起候选窗。
     fn hide(&mut self);

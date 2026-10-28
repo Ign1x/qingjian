@@ -16,6 +16,9 @@ pub struct Part {
 
     pub height: f32,
 
+    /// 位图的像素宽高：合成位图的宽高按各块伸到哪儿算。
+    pub size: (u32, u32),
+
     /// 能点的区域，内容区像素（`Rendered::hits`）。
     hits: Vec<HitRegion>,
 }
@@ -28,8 +31,17 @@ impl Part {
             top: origin.1 as f32 + rendered.content_y as f32,
             width: rendered.content_width as f32,
             height: rendered.content_height as f32,
+            size: (rendered.pixmap.width(), rendered.pixmap.height()),
             hits: rendered.hits.clone(),
         }
+    }
+
+    /// 整块平移（像素）：键盘翻到候选窗上方时，候选窗与菜单一起下移让位。
+    pub fn shift(&mut self, dx: i32, dy: i32) {
+        self.origin.0 += dx;
+        self.origin.1 += dy;
+        self.left += dx as f32;
+        self.top += dy as f32;
     }
 
     /// 合成位图里一点（像素）在内容区里时，交出它在内容区里的位置；卡片外（阴影、补的边）是 `None`。

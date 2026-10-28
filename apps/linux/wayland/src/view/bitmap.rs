@@ -28,17 +28,17 @@ pub struct Placement {
 }
 
 impl Placement {
-    /// `width` / `height` 是位图的像素宽高，`content_x` / `content_y` 是内容区在位图里的位置
-    /// （`Rendered` 的同名字段，即左上阴影边）；`scale` 是画位图用的倍数。
-    pub fn new(width: u32, height: u32, content_x: u32, content_y: u32, scale: f64) -> Self {
+    /// `width` / `height` 是位图的像素宽高；`margin_x` / `margin_y` 是位图左上那块可以整个裁掉的透明边
+    /// （候选窗单独用时就是它的阴影边，即 `Rendered` 的 `content_x` / `content_y`）；`scale` 是画位图用的倍数。
+    pub fn new(width: u32, height: u32, margin_x: u32, margin_y: u32, scale: f64) -> Self {
         let scale = if scale.is_finite() && scale > 0.0 {
             scale
         } else {
             1.0
         };
         let keep = (KEEP_POINTS * scale).round() as u32;
-        let (crop_x, width, logical_width) = axis(width, content_x, keep, scale);
-        let (crop_y, height, logical_height) = axis(height, content_y, keep, scale);
+        let (crop_x, width, logical_width) = axis(width, margin_x, keep, scale);
+        let (crop_y, height, logical_height) = axis(height, margin_y, keep, scale);
         Self {
             crop_x,
             crop_y,
@@ -52,8 +52,9 @@ impl Placement {
 
 /// 一个方向上的（裁掉的像素，缓冲像素，逻辑尺寸）。逻辑尺寸取 `ceil(可见 ÷ 缩放)`，缓冲取 `round(逻辑 × 缩放)`：
 /// 与分数缩放协议给的换算一致，合成器按 1:1 贴、不糊；整数缩放时缓冲正好是逻辑尺寸的整数倍。
-fn axis(size: u32, content: u32, keep: u32, scale: f64) -> (u32, u32, i32) {
-    let crop = content.saturating_sub(keep).min(size.saturating_sub(1));
+/// `margin` 是可以整个裁掉的透明边，只留 `keep` 像素免得裁剪痕迹贴到内容上。
+fn axis(size: u32, margin: u32, keep: u32, scale: f64) -> (u32, u32, i32) {
+    let crop = margin.saturating_sub(keep).min(size.saturating_sub(1));
     let visible = (size - crop).max(1);
     let logical = ((f64::from(visible) / scale - EPSILON).ceil() as i32).max(1);
     let buffer = ((f64::from(logical) * scale).round() as u32).max(visible);
@@ -117,5 +118,19 @@ pub fn paste(src: &[u8], src_width: u32, at: (i32, i32), dst: &mut [u8], dst_wid
                 *channel = blended.min(255) as u8;
             }
         }
+    }
+}
+
+/// 预乘 RGBA 位图整体乘一个不透明度（四个通道一起乘，四舍五入）：键位提示的 `opacity` 乘到贴出去的键盘上。
+/// 预乘的像素连 alpha 一起乘，合成时颜色不会比不透明处亮；`alpha` 不小于 1 时原样不动。
+pub fn fade(pixels: &mut [u8], alpha: f32) {
+    let alpha = alpha.clamp(0.0, 1.0);
+    if alpha >= 1.0 {
+        return;
+    }
+    // 逐像素浮点乘太费，先把不透明度折成 0–255 的一份，再用整数乘除四舍五入
+    let factor = (alpha * 255.0).round() as u32;
+    for channel in pixels {
+        *channel = ((u32::from(*channel) * factor + 127) / 255) as u8;
     }
 }

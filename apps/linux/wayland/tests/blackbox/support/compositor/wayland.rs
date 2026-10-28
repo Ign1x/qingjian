@@ -11,7 +11,7 @@ use wayland_server::protocol::wl_seat::{self, Capability, WlSeat};
 use wayland_server::protocol::wl_shm::{self, Format, WlShm};
 use wayland_server::protocol::wl_shm_pool::{self, WlShmPool};
 use wayland_server::protocol::wl_surface::{self, WlSurface};
-use wayland_server::{Client, DataInit, Dispatch, DisplayHandle, GlobalDispatch, New};
+use wayland_server::{Client, DataInit, Dispatch, DisplayHandle, GlobalDispatch, New, Resource};
 
 use super::{Buffer, Pool, State, Surface};
 
@@ -43,7 +43,7 @@ impl Dispatch<WlCompositor, ()> for State {
                 data_init.init(id, Mutex::new(Surface::default()));
             }
             wl_compositor::Request::CreateRegion { id } => {
-                data_init.init(id, ());
+                data_init.init(id, Mutex::new(Vec::<(i32, i32, i32, i32)>::new()));
             }
             _ => {}
         }
@@ -64,6 +64,18 @@ impl Dispatch<WlSurface, Mutex<Surface>> for State {
         match request {
             wl_surface::Request::Attach { buffer, .. } => surface.attach(buffer),
             wl_surface::Request::SetBufferScale { scale } => surface.scale = scale,
+            // 收鼠标的区域：region 对象设完马上就 destroy，得趁着这会儿把矩形拷出来
+            wl_surface::Request::SetInputRegion { region } => {
+                surface.input_region = region
+                    .and_then(|region| {
+                        region
+                            .data::<Mutex<Vec<(i32, i32, i32, i32)>>>()
+                            .map(|rects| {
+                                rects.lock().unwrap_or_else(PoisonError::into_inner).clone()
+                            })
+                    })
+                    .unwrap_or_default();
+            }
             wl_surface::Request::Frame { callback } => {
                 data_init.init(callback, ()).done(0);
             }
@@ -78,16 +90,29 @@ impl Dispatch<WlSurface, Mutex<Surface>> for State {
     }
 }
 
-impl Dispatch<WlRegion, ()> for State {
+/// 区域里只关心 `add` 加进来的矩形（客户端只拿它拼收鼠标的区域，不 subtract）。
+impl Dispatch<WlRegion, Mutex<Vec<(i32, i32, i32, i32)>>> for State {
     fn request(
         _: &mut Self,
         _: &Client,
         _: &WlRegion,
-        _: wl_region::Request,
-        _: &(),
+        request: wl_region::Request,
+        rects: &Mutex<Vec<(i32, i32, i32, i32)>>,
         _: &DisplayHandle,
         _: &mut DataInit<'_, Self>,
     ) {
+        if let wl_region::Request::Add {
+            x,
+            y,
+            width,
+            height,
+        } = request
+        {
+            rects
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .push((x, y, width, height));
+        }
     }
 }
 

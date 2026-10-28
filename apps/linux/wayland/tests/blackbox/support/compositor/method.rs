@@ -83,7 +83,7 @@ impl Dispatch<ZwpInputMethodV2, ()> for State {
                 state.requests.push(Request::Commit(serial));
             }
             zwp_input_method_v2::Request::GetInputPopupSurface { id, surface } => {
-                data_init.init(id, ());
+                state.input_popup = Some(data_init.init(id, ()));
                 state.popup = Some(surface);
             }
             zwp_input_method_v2::Request::GrabKeyboard { keyboard } => {

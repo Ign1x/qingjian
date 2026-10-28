@@ -42,6 +42,20 @@ pub struct Popup {
 
     /// 收鼠标的区域（surface 逻辑像素的矩形）；没变就不重设。
     region: Vec<(i32, i32, i32, i32)>,
+
+    /// 合成器报的光标矩形（surface 逻辑坐标，`(x, y, 宽, 高)`）：从它看出 popup 被翻到了光标哪一侧。
+    caret: Option<(i32, i32, i32, i32)>,
+}
+
+/// 合成器把 popup 翻到光标上方了没有：光标矩形在 surface 上方（`y < 0`）时 popup 贴在光标下沿，
+/// `y ≥ 0` 时翻到了光标上方。还没收到过光标矩形时按没翻转算。
+fn flipped(caret: Option<(i32, i32, i32, i32)>) -> bool {
+    caret.is_some_and(|(_, y, _, _)| y >= 0)
+}
+
+/// 新报告的光标矩形会不会改变翻转判断（同一侧里挪光标、换大小都不算）。
+fn turns(caret: Option<(i32, i32, i32, i32)>, next: (i32, i32, i32, i32)) -> bool {
+    flipped(caret) != flipped(Some(next))
 }
 
 impl Popup {
@@ -75,6 +89,7 @@ impl Popup {
             rescaled: false,
             mapped: false,
             region: Vec::new(),
+            caret: None,
         }
     }
 
@@ -86,6 +101,19 @@ impl Popup {
     /// 这是不是候选窗的 surface（指针进来的是哪一个）。
     pub fn is(&self, surface: &WlSurface) -> bool {
         self.surface == *surface
+    }
+
+    /// 合成器把 popup 翻到光标上方了没有。Hyprland 把 popup 贴在光标下沿时光标矩形在 surface 上方（`y < 0`），
+    /// 翻到光标上方时 `y ≥ 0`；还没收到过光标矩形时按没翻转算。
+    pub fn flipped(&self) -> bool {
+        flipped(self.caret)
+    }
+
+    /// 记下合成器报的光标矩形（surface 逻辑坐标）。翻转判断变了返回 `true`：候选窗与键盘要按新的一侧重排。
+    pub fn set_caret(&mut self, x: i32, y: i32, width: i32, height: i32) -> bool {
+        let changed = turns(self.caret, (x, y, width, height));
+        self.caret = Some((x, y, width, height));
+        changed
     }
 
     /// 贴上一块画好的缓冲，收鼠标的区域换成 `region`（surface 逻辑像素的矩形）。有 viewport 时 buffer scale 保持 1、
@@ -172,14 +200,14 @@ impl Dispatch<WlSurface, ()> for Wayland {
 
 impl Dispatch<ZwpInputPopupSurfaceV2, ()> for Wayland {
     fn event(
-        _: &mut Self,
+        state: &mut Self,
         _: &ZwpInputPopupSurfaceV2,
         event: zwp_input_popup_surface_v2::Event,
         _: &(),
         _: &Connection,
         _: &QueueHandle<Self>,
     ) {
-        // 光标相对候选窗的位置：从它能看出合成器有没有把候选窗翻到光标上方（以后按它调排布）
+        // 光标相对候选窗的位置：从它能看出合成器有没有把候选窗翻到光标上方，键盘据此换到另一侧
         if let zwp_input_popup_surface_v2::Event::TextInputRectangle {
             x,
             y,
@@ -188,6 +216,36 @@ impl Dispatch<ZwpInputPopupSurfaceV2, ()> for Wayland {
         } = event
         {
             tracing::trace!(x, y, width, height, "光标相对候选窗的位置");
+            if state.popup.set_caret(x, y, width, height) && state.keyboard.is_some() {
+                // 翻转判断变了：键盘在的那一侧跟着换，下一次 tick 重排
+                state.rekey = true;
+            }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{flipped, turns};
+
+    /// 光标矩形在 surface 上方（`y < 0`）时 popup 贴在光标下沿，`y ≥ 0` 时翻到了光标上方；没收到过按没翻转算。
+    #[test]
+    fn the_caret_rectangle_says_which_side_the_popup_is_on() {
+        assert!(!flipped(None));
+        assert!(!flipped(Some((10, -30, 2, 24))));
+        assert!(flipped(Some((10, 0, 2, 24))));
+        assert!(flipped(Some((10, 30, 2, 24))));
+    }
+
+    /// 只有翻转判断变了才算变：同一侧里挪光标、换个光标大小都不重排，跨过 `y = 0` 才重排。
+    #[test]
+    fn only_a_flip_counts_as_a_change() {
+        let below = (10, -30, 2, 24);
+        assert!(!turns(Some(below), (12, -20, 3, 24)), "仍在光标下方");
+        assert!(turns(Some(below), (10, 8, 2, 24)), "翻到光标上方");
+        assert!(turns(Some(below), (10, 0, 2, 24)), "y = 0 算翻上来");
+        assert!(!turns(Some((10, 8, 2, 24)), (10, 20, 2, 24)), "仍在上方");
+        assert!(turns(None, (10, 8, 2, 24)), "第一次收到就翻上来");
+        assert!(!turns(None, (10, -8, 2, 24)));
     }
 }

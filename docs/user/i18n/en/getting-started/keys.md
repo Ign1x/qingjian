@@ -43,7 +43,7 @@ On Windows and Linux, the Chinese / English switch can also be a tap of `Ctrl` o
 | Move the cursor to the start / end | `⌘ + ←` / `⌘ + →`, or `Home` / `End` | `Home` / `End` | `Home` / `End` |
 | Open the symbol panel | `↑` while the first candidate is highlighted (in horizontal layout with highlight keys set to `←` / `→`, press `↑` once to move into the pinyin, then again) | Same | — |
 | Enter auxiliary code | `;` | `;` | `;` |
-| Expand to several rows in horizontal layout (enable in Settings) | `↑` / `↓` | `↑` / `↓` | — |
+| Expand to several rows in horizontal layout (enable in Settings) | `↑` / `↓` | `↑` / `↓` | `↑` / `↓` (Wayland native edition) |
 
 On Windows and Linux, numpad digits also pick candidates by default. Set 小键盘数字 (Numpad digits) under 设置 → 候选 (Settings → Candidates) to 直接输入数字 (Type digits) and numpad digits typed while composing are appended to the letters and committed with them (`wenti`, then numpad `5` and `Space`, gives `wenti5`); the main keyboard digits still pick candidates. Num Lock must be on.
 

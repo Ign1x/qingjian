@@ -1,7 +1,7 @@
 //! 假 Server 对一次按下的答复。
 
 use qingjian_core::{Candidate, CandidateKind, CandidateList};
-use qingjian_platform::protocol::linux::InputMode;
+use qingjian_platform::protocol::linux::{InputMode, KeyHintView};
 use qingjian_platform::protocol::{Frame, KeyOutcome, PreeditKind, PreeditSegment};
 
 #[derive(Debug, Clone)]
@@ -20,6 +20,10 @@ pub struct Answer {
     pub english: Option<bool>,
 
     pub mode: Option<InputMode>,
+
+    /// 回包上带的键位提示（`key_hint`）；回包之后的帧都带着它，直到 `clear()`（失活、重置）。
+    /// 帧空了（组句结束）时照真 Server 的规矩不带。
+    pub key_hint: Option<KeyHintView>,
 }
 
 impl Answer {
@@ -32,6 +36,7 @@ impl Answer {
             select: None,
             english: None,
             mode: None,
+            key_hint: None,
         }
     }
 
@@ -44,6 +49,7 @@ impl Answer {
             select: None,
             english: None,
             mode: None,
+            key_hint: None,
         }
     }
 
@@ -56,6 +62,7 @@ impl Answer {
             select: None,
             english: None,
             mode: None,
+            key_hint: None,
         }
     }
 
@@ -73,6 +80,12 @@ impl Answer {
             frame.page = page;
             frame.page_count = count;
         }
+        self
+    }
+
+    /// 回包带上键位提示：之后的帧都带着它，帧空了（组句结束）或失活才收起。
+    pub fn with_key_hint(mut self, hint: KeyHintView) -> Self {
+        self.key_hint = Some(hint);
         self
     }
 

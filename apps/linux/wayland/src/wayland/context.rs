@@ -1,6 +1,6 @@
 //! [`Output`] 的真实现：会话的决定变成 input-method-v2、虚拟键盘与候选窗上的请求。
 
-use qingjian_platform::protocol::linux::InputMode;
+use qingjian_platform::protocol::linux::{InputMode, KeyHintView};
 use wayland_client::EventQueue;
 use wayland_client::backend::WaylandError;
 
@@ -53,15 +53,15 @@ impl Output for Context<'_> {
     }
 
     fn keymap(&mut self, keymap: &str) {
-        self.wayland.keyboard.keymap(keymap);
+        self.wayland.virtual_keyboard.keymap(keymap);
     }
 
     fn forward(&mut self, code: u32, pressed: bool, time: u32) {
-        self.wayland.keyboard.key(time, code, pressed);
+        self.wayland.virtual_keyboard.key(time, code, pressed);
     }
 
     fn modifiers(&mut self, modifiers: Modifiers) {
-        self.wayland.keyboard.modifiers(modifiers);
+        self.wayland.virtual_keyboard.modifiers(modifiers);
     }
 
     fn text(&mut self, commit: &str, preedit: &Preedit) {
@@ -95,5 +95,9 @@ impl Output for Context<'_> {
 
     fn hint(&mut self, mode: &InputMode) -> bool {
         self.wayland.hint(mode)
+    }
+
+    fn key_hint(&mut self, hint: Option<&KeyHintView>) {
+        self.wayland.set_key_hint(hint);
     }
 }

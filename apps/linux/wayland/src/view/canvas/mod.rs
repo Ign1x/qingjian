@@ -1,6 +1,7 @@
-//! 贴在 popup 上的那一张：候选窗或中 / 英提示，右键菜单弹着时把菜单叠在候选上面。input-method-v2 只有一个 popup、位置由合成器定，
-//! 菜单只能和候选窗画进同一张位图，popup 跟着变大。这里记下两块各在合成位图的哪儿：
-//! 从 surface 坐标认出鼠标落在什么上、算出收鼠标的区域。只做算术，不碰 Wayland 对象。
+//! 贴在 popup 上的那一张：候选窗或中 / 英提示，键位提示亮着时旁边再摆一块键盘，右键菜单弹着时把菜单叠在候选上面。
+//! input-method-v2 只有一个 popup、位置由合成器定，键盘与菜单只能和候选窗画进同一张位图，popup 跟着变大。
+//! 这里记下几块各在合成位图的哪儿：从 surface 坐标认出鼠标落在什么上、算出收鼠标的区域（键盘不收）。
+//! 只做算术，不碰 Wayland 对象。
 
 mod part;
 
@@ -14,22 +15,28 @@ use qingjian_render::{HitTarget, Rendered};
 
 use part::Part;
 
-use super::{Placement, paste};
+use super::{Placement, Side, paste, place};
 use crate::session::Spot;
 
+/// 键盘与候选窗之间的间隙（逻辑像素）：乘上缩放就是位图里的像素。
+const GAP_POINTS: f32 = 4.0;
+
 pub struct Canvas {
-    /// 合成位图的像素宽高（裁边之前）。左上与候选窗的位图对齐，菜单伸出候选窗的右下时跟着变大。
+    /// 合成位图的像素宽高（裁边之前）。左上与候选窗的位图对齐，菜单、键盘伸出候选窗时跟着变大。
     width: u32,
 
     height: u32,
 
-    /// 合成位图放进缓冲的裁边与尺寸。按候选窗的阴影边裁，弹出菜单时候选窗在 popup 里不挪。
+    /// 合成位图放进缓冲的裁边与尺寸。按各块内容区的左上角取能裁掉的透明边，弹出菜单、键盘时候选窗在 popup 里不挪。
     pub placement: Placement,
 
     window: Part,
 
     /// 弹着的右键菜单。
     menu: Option<Part>,
+
+    /// 画着的键位提示键盘；它不收鼠标，只占画面。
+    keyboard: Option<Part>,
 
     /// 画位图用的倍数（点 → 像素）。
     scale: f32,
@@ -57,6 +64,7 @@ impl Canvas {
             placement: Placement::new(width, height, window.content_x, window.content_y, scale),
             window: window_part,
             menu,
+            keyboard: None,
             scale: window.scale,
             interactive: true,
         }
@@ -70,34 +78,107 @@ impl Canvas {
         }
     }
 
+    /// 把画好的键盘摆进合成位图，返回这段输入用的那一侧（下一次先试它，键盘不随光标左右跳）。
+    /// `flipped` 是合成器把 popup 翻到光标上方。键盘位图的原点按内容位置减位图阴影边摆，负的那一截贴图时裁掉。
+    pub fn place_key_hint(
+        &mut self,
+        keyboard: &Rendered,
+        flipped: bool,
+        sticky: Option<Side>,
+    ) -> Side {
+        let gap = (GAP_POINTS * self.scale).round() as i32;
+        let candidate = (
+            self.window.left as i32,
+            self.window.top as i32,
+            self.window.width as u32,
+            self.window.height as u32,
+        );
+        let (side, shift, content) = place(
+            candidate,
+            (
+                keyboard.content_width,
+                keyboard.content_height,
+                keyboard.content_x,
+                keyboard.content_y,
+            ),
+            flipped,
+            sticky,
+            gap,
+        );
+        // 候选窗与菜单一起挪（菜单相对候选窗的位置不变）
+        self.window.shift(shift.0, shift.1);
+        if let Some(menu) = &mut self.menu {
+            menu.shift(shift.0, shift.1);
+        }
+        let keyboard = Part::new(
+            keyboard,
+            (
+                content.0 - keyboard.content_x as i32,
+                content.1 - keyboard.content_y as i32,
+            ),
+        );
+        let mut width = reach(self.window.origin.0, self.window.size.0)
+            .max(reach(keyboard.origin.0, keyboard.size.0));
+        let mut height = reach(self.window.origin.1, self.window.size.1)
+            .max(reach(keyboard.origin.1, keyboard.size.1));
+        let mut margin_x = self.window.left.min(keyboard.left);
+        let mut margin_y = self.window.top.min(keyboard.top);
+        if let Some(menu) = &self.menu {
+            width = width.max(reach(menu.origin.0, menu.size.0));
+            height = height.max(reach(menu.origin.1, menu.size.1));
+            margin_x = margin_x.min(menu.left);
+            margin_y = margin_y.min(menu.top);
+        }
+        self.width = width;
+        self.height = height;
+        // 各块内容区起点里最靠左 / 最靠上的那个，就是位图左上能整个裁掉的透明边
+        self.placement = Placement::new(
+            width,
+            height,
+            margin_x.max(0.0).round() as u32,
+            margin_y.max(0.0).round() as u32,
+            f64::from(self.scale),
+        );
+        self.keyboard = Some(keyboard);
+        side
+    }
+
     /// 合成位图的像素宽（每行 `width * 4` 字节）。
     pub fn width(&self) -> u32 {
         self.width
     }
 
-    /// 合成位图（预乘 RGBA）：先铺候选窗，再把菜单叠上去；没有菜单时就是候选窗的位图本身。
-    /// `window` 与 `menu` 要与建它时的是同一份。
-    pub fn compose<'a>(&self, window: &'a Rendered, menu: Option<&Rendered>) -> Cow<'a, [u8]> {
-        let (Some(part), Some(menu)) = (&self.menu, menu) else {
+    /// 合成位图（预乘 RGBA）：先铺键盘，再铺候选窗，最后把菜单叠上去；没有菜单也没有键盘时就是候选窗的位图本身。
+    /// `window`、`menu`、`keyboard` 要与建它并摆好位置时的是同一份。
+    pub fn compose<'a>(
+        &self,
+        window: &'a Rendered,
+        menu: Option<&Rendered>,
+        keyboard: Option<&Rendered>,
+    ) -> Cow<'a, [u8]> {
+        let menu = self.menu.as_ref().zip(menu);
+        let keyboard = self.keyboard.as_ref().zip(keyboard);
+        if menu.is_none() && keyboard.is_none() {
             return Cow::Borrowed(window.pixmap.data());
-        };
+        }
         let mut pixels = vec![0; self.width as usize * self.height as usize * 4];
-        let window = &window.pixmap;
-        paste(
-            window.data(),
-            window.width(),
-            (0, 0),
-            &mut pixels,
-            self.width,
-        );
-        let menu = &menu.pixmap;
-        paste(
-            menu.data(),
-            menu.width(),
-            part.origin,
-            &mut pixels,
-            self.width,
-        );
+        let mut draw = |part: &Part, rendered: &Rendered| {
+            let pixmap = &rendered.pixmap;
+            paste(
+                pixmap.data(),
+                pixmap.width(),
+                part.origin,
+                &mut pixels,
+                self.width,
+            );
+        };
+        if let Some((part, rendered)) = keyboard {
+            draw(part, rendered);
+        }
+        draw(&self.window, window);
+        if let Some((part, rendered)) = menu {
+            draw(part, rendered);
+        }
         Cow::Owned(pixels)
     }
 

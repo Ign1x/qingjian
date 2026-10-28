@@ -4,7 +4,7 @@ use super::{Answer, Call, identity};
 use crate::session::Server;
 use qingjian_platform::protocol::linux::client::{ClientError, Reply};
 use qingjian_platform::protocol::linux::{
-    AppSurrounding, Capabilities, DisplayIdentity, InputMode, MenuItem, ModeCommand,
+    AppSurrounding, Capabilities, DisplayIdentity, InputMode, KeyHintView, MenuItem, ModeCommand,
 };
 use qingjian_platform::protocol::{Frame, KeyEvent, KeyOutcome};
 use std::collections::{HashMap, VecDeque};
@@ -41,6 +41,9 @@ pub struct FakeServer {
     /// 右键菜单的几项。
     pub menu: Vec<MenuItem>,
 
+    /// 回包上带的键位提示（Server 开了 `[general] key_hint` 时才有）。
+    pub key_hint: Option<KeyHintView>,
+
     /// 选着的应用。
     app: Option<String>,
 
@@ -69,6 +72,7 @@ impl FakeServer {
             english,
             translation_pending: self.pending,
             mode: self.modes.get(&self.app).cloned(),
+            key_hint: self.key_hint.clone(),
             ..Reply::default()
         }
     }

@@ -120,7 +120,7 @@ Closing the terminal you started Qingjian from stops Qingjian; after your next l
 
 ## Wayland native edition
 
-The Wayland native edition doesn't go through Fcitx or IBus, and Qingjian draws the candidate window itself: themes, fonts, font sizes, vertical and horizontal layouts and transition animations are the same as on macOS / Windows, and every gloss is shown beside a candidate.
+The Wayland native edition doesn't go through Fcitx or IBus, and Qingjian draws the candidate window itself: themes, fonts, font sizes, vertical and horizontal layouts (in a horizontal layout, the up and down arrow keys expand it into a grid of candidates), key hints (the double pinyin keyboard and the Wubi radical chart) and transition animations are the same as on macOS / Windows, and every gloss is shown beside a candidate.
 Everyday typing has been verified on Hyprland and sway; behavior in individual apps hasn't been checked one by one yet.
 
 - Desktops it works on: Hyprland, sway (1.10 and later), niri, labwc, mango and similar.

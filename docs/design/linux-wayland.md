@@ -92,7 +92,8 @@ qingjian-linux-wayland ──Unix socket，protocol::linux（与 Fcitx5 插件�
 （`{"grid": bool, "key_hint": bool}`，客户端 `Connection::with_features`），只增不改、不升版，没报的（Fcitx5 / Fcitx4 插件、IBus 前端）按画不了算，
 Server 对这样的会话不展开矩阵，回包不带键位提示。报了却解不出当协议错误断开。
 报了 `grid` 的会话在 `[general] horizontal_grid` 开着、横排时由 Server 出矩阵帧（`columns` / `column_ems`，按键规则同 Windows），这时 `Candidate` / `Menu` / `MenuPick` 的 `index` 是帧里视口的第几格（行优先），不是当前页的第几个。
-回包上的 `key_hint` 客户端读成 `Reply::key_hint`，`qingjian_platform::display::key_hint_keyboard` 把它换成渲染器的键盘；Wayland 前端画矩阵与键盘、打开这两项能力在之后（见「分期」）。
+回包上的 `key_hint` 客户端读成 `Reply::key_hint`，`qingjian_platform::display::key_hint_keyboard` 把它换成渲染器的键盘。
+Wayland 前端两样都已接上：握手报 `grid` 与 `key_hint`，画横排矩阵与键位提示（见「显示」）。
 
 ## 按键
 
@@ -115,8 +116,9 @@ Server 对这样的会话不展开矩阵，回包不带键位提示。报了却�
 - **一个 popup 用到进程退出。** wl_surface + `zwp_input_popup_surface_v2`，挂缓冲即显示、挂空缓冲即隐藏（同时 `Renderer::forget()`，下次出现不接着上次的动画）。
   收鼠标的区域只有候选窗（与弹着的右键菜单）的卡片，阴影与透明补边让鼠标穿到下面的应用，见「鼠标」。
 - **位置由合成器定。** Hyprland（`InputMethodPopup.cpp`）把 popup 左上角贴在光标下沿，碰到屏幕底就翻到光标上方，碰到右沿往左推；
-  `text_input_rectangle` 是光标相对 popup 的矩形，从它能看出翻没翻。渲染器的位图四周带二三十点的阴影边，原样贴上去候选框会离光标很远，
-  所以左边与上边的阴影裁到只剩 4 点（右下的阴影保留）；翻到光标上方时底边阴影仍在，候选框与光标之间会空出一截，按 `text_input_rectangle` 调排布留到 P2。
+  `text_input_rectangle` 是光标相对 popup 的矩形，从它能看出翻没翻：矩形顶边落在 popup 里（y ≥ 0）就是合成器把 popup 翻到光标上方了。
+  渲染器的位图四周带二三十点的阴影边，原样贴上去候选框会离光标很远，所以左边与上边的阴影裁到只剩 4 点（右下的阴影保留）。
+  键盘提示也塞在同一个 popup 里（见下「键位提示」），占哪一侧照样看这个矩形：没翻先往候选窗右边，翻了先往上方，另一边是备选。
 - **缩放。** 有 `wp_fractional_scale_v1` 就按它给的缩放出位图，`wp_viewport` 设逻辑尺寸、`buffer_scale` 保持 1（Hyprland 拿「viewport 尺寸 ÷ buffer_scale」当 popup 尺寸去摆位置）；
   逻辑尺寸取 `ceil(像素 ÷ 缩放)`，位图透明补边到 `round(逻辑 × 缩放)`，保证 1:1 像素不糊。没有分数缩放就退回整数缩放。缩放变了按新缩放重画当前帧。
 - **像素格式。** 渲染器出预乘 RGBA；合成器支持 `ABGR8888`（内存序 R,G,B,A）就直接拷，否则换成 `ARGB8888`（B,G,R,A，与 Windows 那份换法相同）。
@@ -136,6 +138,16 @@ Server 对这样的会话不展开矩阵，回包不带键位提示。报了却�
   popup 只有输入框激活时合成器才显示，所以只在激活着、回包没过期时亮；没有输入框时从托盘切换只换托盘图标。
   提示与候选、右键菜单共用 `window` / `Canvas` / `paint` 和三块缓冲；换成提示时丢弃旧菜单、点击与候选动画，整个提示 surface 不收鼠标。
   缓冲暂不可写时保留提示待归还后补贴；缩放或主题变了重画当前提示，非空候选接替时取消提示定时器。
+- **横排矩阵。** 握手报了 `features.grid` 的会话（见「协议对照」）在 `[general] horizontal_grid` 开着、横排时收到矩阵帧：帧里带 `columns` 与 `column_ems`，
+  候选按列数排成多行（每格的宽度照 `column_ems` 算），`qingjian_platform::display::render_frame` 照排，渲染器把候选框排成网格。
+  这时 `Candidate` / `Menu` / `MenuPick` 的 `index` 是帧里视口的第几格（行优先），不是当前页的第几个：前端照帧上的格子发，Server 用 `frame_cells` 换回整份候选。
+  滚轮仍发 `Page`，Server 在矩阵里一次翻 `GRID_ROWS` 行。没报 `grid` 的会话 Server 不展开矩阵，帧与以前一样。
+- **键位提示。** 回包带 `key_hint`（`{"content", "opacity", "size"}`）时，前端用**单独一个渲染器** `Renderer::render_keyboard(&keyboard, &theme.with_dark(dark), scale, zoom)` 画键盘——
+  与候选窗共用一个渲染器会打断候选窗的过渡动画（同 Windows）；`opacity` 乘到预乘 alpha 上，再与候选窗 / 右键菜单合成进同一个 popup 位图（`Canvas`）；`size` 换成键盘的缩放，`content` 经 `key_hint_keyboard` 变成渲染器的键盘。
+  摆放：popup 在光标下方时先往候选窗右边并排、其次下面；合成器把 popup 翻到光标上方（`text_input_rectangle` 的 y ≥ 0）时先往上方、其次右边。
+  只能往右或背向光标的那一侧长（往左、往光标那一侧扩会把候选窗整体挪离光标），所以摆放总能给出一个位置，不像 Windows 那样可能因为没地方而这次不显示。
+  键盘放上方时整张位图在候选窗上方多出一块、候选窗随之在 surface 里下移，保证候选窗相对光标不跳；同一段输入里粘住用过的那一侧，键盘不随光标左右跳。回包不再带 `key_hint` 就收起键盘。
+  键盘不收鼠标：input region 只有候选窗与菜单卡片的矩形（见「鼠标」）。主题换肤时键盘渲染器重装字体，与候选窗、菜单互不影响。
 - **托盘。** 前端在会话总线上提供 StatusNotifierItem 与 DBusMenu，由 waybar 等托盘宿主画图标与原生菜单。
   图标按回包的 `mode.english` 显示中 / 英；还没拿到模式、或与 Server 往返失败时显示青简标志。左键切中 / 英；右键菜单提供中文、英文、全角标点、繁体输出、设置与版本号。
   菜单的勾只照 Server 回包更新，不先在本地翻转；点选排进主循环，先 `Poll` 查询目标会话的当前模式，不是目标才发 `Indicator`，避免菜单显示滞后时切反。
@@ -214,22 +226,27 @@ Server 对这样的会话不展开矩阵，回包不带键位提示。报了却�
   `install.sh --frontend wayland`、systemd 用户服务（退出码 2 不重启）、deb / rpm 另出 `qingjian-wayland` 包、用户文档；对着假合成器与假 Server 的黑盒测试。
 - **第二轮 Server 输入功能（已做）**：自动加空格、额外翻页键与高亮移动键、全半角与简繁快捷键、小键盘数字、缺省共用或按应用记中英、拼音行声调，
   以及辅码及 v3 插件帧降级、形码与自定义双拼、实验模型（知意 CPU 两线程、含章·知微），fcitx 版与 Wayland 原生版共用；方案名随 `mode.scheme` 返回，用户方案与形码词库支持热加载。
-  横排矩阵与键位提示的数据也已接上，只对握手报了对应能力的会话提供，各前端（含 Wayland）的展示留在下一轮。Linux 知意需要另装 ONNX Runtime 1.24+，缺失时回退含章。
+  横排矩阵与键位提示的数据也已接上，只对握手报了对应能力的会话提供；Wayland 前端的展示在第三轮接上，fcitx 版不走这条路。Linux 知意需要另装 ONNX Runtime 1.24+，缺失时回退含章。
 - **第二轮第二批（已做）**：前端接上 v4——鼠标点选与滚轮翻页（`Canvas::spot` → `Candidate` / `Page`，先验合成器肯不肯把指针事件给 popup）、
   候选右键菜单（`Renderer::render_menu` 与候选合成到同一个 popup，与 macOS / Windows 一样自绘）、中 / 英提示（`Renderer::render_status` 在 popup 里亮不到一秒）与主题里的模式、
   托盘（StatusNotifierItem + DBusMenu，原生菜单）、选区翻译；鼠标、选区替换、中 / 英提示与托盘仍待独立会话验证，见「验证」。
   黑盒测试补齐：content_type（密码框、敏感框）、前后文与 text_change_cause、选区翻译，假 Server 对没想到的消息报错，测完查正常退出；
   CI 跑黑盒测试（Linux job 装 libxkbcommon 与 libwayland-client，`QINGJIAN_BLACKBOX_REQUIRED=1` 缺库即失败）。
-- **之后**：按 `text_input_rectangle` 判断翻没翻、调排布；设置程序支持表区分两个版本；Wayland 前端画横排矩阵与键位提示。
+- **第三轮（已做）**：Wayland 前端握手报 `grid` / `key_hint`，画横排矩阵与键位提示——矩阵帧按视口格号排成多行、点选与菜单带格号（Server 按格号换回整份候选）、滚轮一次翻多行；
+  键位提示用单独渲染器画键盘、乘 opacity 后与候选窗合成进同一个 popup，按 `text_input_rectangle` 判断合成器翻没翻来决定放哪一侧，键盘不收鼠标；只验过纯逻辑与黑盒，真会话里的摆放见「验证」。
+- **之后**：设置程序支持表区分两个版本。
 
 ## 验证
 
 能自动跑的都是纯逻辑（按键表、抬键与重复、`content_type` 映射、偏移换算与前后文截取、选区取字与选区翻译的往返、4 KB 切块、像素换算与补边、回包身份判断、
-活动窗口的跟踪、按应用分会话、外观偏好的取值与要不要重画、鼠标落点与收鼠标的区域、滚轮折成翻页、点选与右键菜单的规则），
+活动窗口的跟踪、按应用分会话、外观偏好的取值与要不要重画、鼠标落点与收鼠标的区域、滚轮折成翻页、点选与右键菜单的规则、
+键位提示的摆放与翻转判断、键盘合成后的位置与收鼠标区域），
 不要合成器，CI 照跑；按应用分会话另有一组对着走真 socket 的假 Server 测连接上的消息。
 黑盒测试（`tests/blackbox`）让真二进制对着假合成器与假 Server 走一遍真的两套协议：起不来的两种退出、SIGTERM、打字上屏、转发、失活时还按着的键、候选窗贴图与缩放，
 密码框（不开会话、不接管键盘、里面敲的键不到 Server、「显示密码」后接回来）、敏感框（不带前后文、不报能读选区）、前后文、组句中应用改了文字、选区翻译的一整轮，
 以及鼠标点候选上屏、滚轮翻页、右键菜单弹出与点项、Esc 收菜单、旧落点竞态与缓冲背压；另测点选译文上屏，以及点选回包期间选区或隐私变化时丢弃旧译文。
+键位提示与横排矩阵另测：带 `key_hint` 的帧让 popup 变宽、收鼠标的区域不变（仍只有候选窗卡片），假合成器发 `text_input_rectangle` 演翻转（键盘从候选窗右边换到上方、popup 变高、候选窗在 surface 里下移，报回去又回到右边）；
+矩阵帧（`columns > 0`）按视口格号点选，假 Server 收到的是帧上那一格的行优先序号（不是整份候选里的位置）。
 点哪儿按前端调试日志里记的可点位置（surface 坐标）找。
 断言按 SETTLE 的节奏走（要连着发的更新先让假合成器转一次应用的 done），同步点按这次 grab 发过的修饰键个数等待；
 假 Server 只接受测试逐种允许的鼠标请求，其他未预期消息仍报违规并断开。每个测试结束时查被测进程正常退出、没有残留。
@@ -242,6 +259,8 @@ portal 的 D-Bus 往来另有对着私有 dbus-daemon 上假 portal 的测试（
 打字上屏、数字选词、翻页、Shift 切换后 Shift 不卡、组句中按住退格、Ctrl+C 先上原文、NumLock、密码框、组句中切窗口、整句重排换帧、1.5 倍缩放不糊、热加载换主题、桌面切深浅、Server 中途重启、
 两个应用里各自切中 / 英后来回切换各自记住、`[apps]` 英文候选名单里的应用出英文候选、GTK4 / Qt6 / Firefox 里选中一段按 `Alt+Shift+T` 后回车用译文替换选区（按应用分会话、跟随深浅与选区翻译还没在真会话里验过）。
 鼠标点选、滚轮翻页（滚轮与触摸板）、右键菜单的悬停与点项还没在真会话里验过：先看合成器给不给 popup 指针事件、点 popup 会不会让应用失焦（`RUST_LOG=debug` 看「鼠标按在候选窗上」与「候选窗上能点的地方」）。
+键位提示的摆放（尤其是合成器翻到光标上方时键盘换成候选窗上方、碰到屏幕右边或底边时的退让）与横排矩阵在真会话里会排成什么样，也还要在 Hyprland / sway 真会话里逐项看：
+黑盒里的翻转只是一个假合成器照一种规则发出的 `text_input_rectangle`，真合成器各家把 popup 推开、翻走、夹在屏幕边上的做法不一。
 嵌套 sway 1.12（headless 后端，不开窗口、不碰宿主会话）+ foot 1.28 + wtype 已经过了一遍（2026-10-28）：
 连发与按人速打字的行内拼音、空格 / 数字 / 翻页选词、Esc、回车上原文、退格、单击 Shift 切中英、组句中 Ctrl+A 先上原文、空闲时 Ctrl+C 原样交给应用、
 1.5 倍缩放、Server 中途停掉键照常直通与重启后自动接上、按住退格的重复与删空后交还应用、组句中切换窗口、改配置换主题（樱花主题）、第二个输入法收到 `unavailable`。

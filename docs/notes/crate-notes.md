@@ -706,11 +706,15 @@ Wayland 原生版的前端（设计见 `docs/design/linux-wayland.md`）：自�
   托盘操作在查询模式前先收候选右键菜单，避免查询或切换推进展示身份后仍使用旧菜单；没有输入框时的回包也先同步合成器并核对输入目标代次，查询期间激活了输入框就取消切换。
   回包上的输入模式（`mode`，焦点的回包也带）变了才经 `Output::mode` 交给显示面，候选窗开着时模式变了帧没变也重画（主题的 `mode.*`）；往返失败交 `None`（Server 那边的会话连同模式都没了）。
   回包带 `english`（切了中 / 英）且候选窗空着时 `Output::hint` 在 popup 里亮提示，`HINT`（0.9 秒）后收起；提示亮着时空帧不收它（组合切换键抬起另几个键的回包也是空帧），非空帧换成候选，失焦与断开时跟候选窗一起收。
+  握手报的能力在 `Link` 建连接时给（`Connection::with_features`）：这个前端画得了矩阵与键盘，所以报 `features {grid: true, key_hint: true}`，Server 才会出矩阵帧、回包才带 `key_hint`。
+  键位提示不归会话判断：回包里带了新的就交 `Output::key_hint`（先换键盘再换帧，旧键盘不会多闪一帧），帧内容没变、只是版本号变新（Server 停顿后弹出键位提示）也照换；
+  第一帧就带提示时先把键盘记下，紧接着的 `show` 把它与候选窗一起贴出去。回包不再带、`hide`（键盘画在候选窗那一个 popup 里，收起候选窗就跟着没了）与失焦时清掉。
 - `wayland/`：`method/` 是 input-method-v2 的双缓冲（`done` 计数即 commit 的 serial，激活 / 失活各给焦点代次加一，又激活一次先当失活）；
   `toplevel/` 跟踪 `zwlr_foreign_toplevel_manager_v1` 报的顶层窗口（按协议对象编号记，`done` 时生效，几个激活着取最后激活的，空 app_id 当没有，标题不读），
   活动窗口的应用变了才排一件 `Input::App`；合成器没有这个全局对象时启动记一句 info，之后什么都不报，所有输入框共用不知道哪个应用的那一个会话；
   `grab.rs` 读键位表（`MAP_PRIVATE` 映射）、用 `xkb.rs`（xkbcommon-dl，运行时 dlopen）算 keysym 与 X11 掩码，按到达顺序排队；
   `keyboard.rs` 是进程里唯一的虚拟键盘（与输入法同一条连接，合成器才不会把转出去的键又送回 grab）；`popup.rs` 有分数缩放时用 viewport、buffer scale 保持 1，
+  `set_caret` 记下 `text_input_rectangle`（`caret`，逻辑坐标），`flipped()` 判翻没翻（顶边 y ≥ 0 即在光标上方），翻转判断变了 `set_caret` 返回 `true`、叫主循环重排；
   收鼠标的区域（wl_region）设成 `Canvas::input_region` 的卡片矩形，变了才重设；
   `pointer/` 绑 wl_seat 第 8 版，按 seat 的能力拿 / 放 wl_pointer（`release` 第 3 版才有），只认落在候选窗 surface 上的事件：按下时按 `Wayland::canvas` 认出 `Spot` 排 `Input::Click`，
   换候选帧或隐藏时清掉队列里按旧位图认出的点击；没有有效 `Canvas` 时不排点击，避免把旧序号配上新展示身份误选。
@@ -720,15 +724,21 @@ Wayland 原生版的前端（设计见 `docs/design/linux-wayland.md`）：自�
   缓冲耗尽时 `repaint` 留住最新画面，归还缓冲唤醒主循环后补贴，再恢复命中区域；渲染失败则清旧位图与动画，保留新帧供后续重画。
   `wheel.rs` 把 `axis_value120`（第 5–7 版 `axis_discrete`）、`axis` 与 `axis_stop` 按帧折成翻页（一格 120、触摸板 50 逻辑像素一页，一帧最多一页，第 5 版之前没有 `frame` 时每个事件自成一帧）；
   进来时有 `wp_cursor_shape_manager_v1` 就设 `default` 形状；`menu.rs` 把会话要弹的菜单画好（锚点是最近一次按下的位置换成候选窗内容区里的点）、跟着指针换悬停项重画；
-  `shm.rs` 三块缓冲轮换；`context.rs` 实现 `Output`；`present.rs` 留着当前候选或提示的 `Rendered`（菜单与候选合成，动画帧换掉候选），每次贴图后换上新的 `Canvas`，
+  `shm.rs` 三块缓冲轮换；`context.rs` 实现 `Output`；`key_hint.rs` 是 `set_key_hint`（回包带来的键盘存下来，`None` 收起；`Context` 的 `Output::key_hint` 只转调它）；
+  `present.rs` 留着当前候选或提示的 `Rendered`（菜单与候选合成，动画帧换掉候选），`paint` 里建 `Canvas`、有键盘时 `place_key_hint(keyboard, popup.flipped(), keyboard_side)` 再 `compose` 把键盘一起合成进同一张位图，每次贴图后换上新的 `Canvas`，
   可点的地方变了在 debug 日志记一行「候选窗上能点的地方」（各候选与菜单项中心的 surface 坐标）。`status.rs` 把模式交给 `Painter` 与托盘，
   提示也走同一套 `window` / `paint` / `repaint`；`shown` 与 `hinted` 分别留着候选帧与提示模式，缩放或主题变化时重画当前显示内容，换成提示时清旧菜单、点击与动画。
   `mod.rs` 是主循环（`poll` 等合成器事件、托盘唤醒 fd 或下一个到点的事，SIGINT / SIGTERM 退出前替按着的键补抬起）。
 - `view/`：`Painter`（字体库、渲染器、主题，配置与主题目录每秒查一次戳；外观「跟随系统」按 `portal::Desktop` 取深浅，桌面的偏好变得影响到画着的那一帧时 `reload` 也返回 `true`；
   `set_mode` 经 `qingjian_platform::display::render_mode` 记下 Server 模式，画帧时交给主题；`render_status` 用同一个渲染器画一格提示，`status_text` 为「英」、「中」或「中 · 方案名」，深浅跟上一帧的外观设置），
+  `key_hint/` 是键位提示的三块：`side`（`Side::Right` 并排、`Side::Away` 往背向光标那一侧，`order(flipped)` 定先试哪个）、
+  `place`（纯算术：候选窗、键盘两块内容区与间隙算进同一张位图，翻到上方时位图原点在 y = 0、键盘从上方阴影起、候选窗下移给它让位，相对光标不跳）、
+  `paint`（`Painter::render_key_hint` 用单独一个渲染器画键盘——与候选窗共用会打断候选窗的过渡动画，同 Windows；第一次用时才 `FontLibrary::system` 建，建不成不再试），
+  字根图的键盘画过一次就留着复用（解析整张表贵），双拼的键随敲的音节变、每次现算，深浅跟候选窗，`bitmap::fade` 拿回包的 `opacity` 乘到预乘 alpha 上；主题换肤时与候选窗一起重装字体；
   `bitmap.rs`（位图左上的阴影边裁到 4 点、补齐到整逻辑像素、RGBA → ARGB8888，`paste` 按预乘 source-over 叠图）、`senses`（从点击区域取画出的义项回执）；
   `canvas/` 是贴在 popup 上的那一张：候选窗在左上原点，菜单的卡片左上角摆在锚点（候选窗内容区里的点），伸出右下时合成位图变大，裁边仍按候选窗的阴影；
-  `spot` 把 surface 坐标乘「缓冲 ÷ 逻辑尺寸」、加回裁边，菜单在上先认，译词算它那个候选；`input_region` 是两块卡片；提示用 `Canvas::hint` 沿用裁边与缩放，但没有命中目标或输入区域，整个 surface 穿透；
+  `place_key_hint` 加键盘这块 `Part`，只往候选窗右边 / 下面或上方扩、不压候选窗，翻到上方时候选窗与菜单一起 `shift`，并返回这段输入用的那一侧（主循环记成 `keyboard_side`，下一次先试它）；`input_region` 不含键盘（键盘上的点穿到应用）；
+  `spot` 把 surface 坐标乘「缓冲 ÷ 逻辑尺寸」、加回裁边，菜单在上先认，译词算它那个候选；提示用 `Canvas::hint` 沿用裁边与缩放，但没有命中目标或输入区域，整个 surface 穿透；
   `menu/` 是菜单画的那一侧（各项的字、悬停项、锚点与位图），`Painter::render_menu` 用单独一个渲染器（第一次弹菜单时才 `FontLibrary::system` 建，建不成不再试），深浅取候选窗那一帧的。
 - `portal/`：外观跟随系统。`watch()` 起后台线程 `qingjian-portal`，里面一个单线程 tokio 运行时跑 zbus
   （不开 zbus 的 blocking-api：它的阻塞调用另起一个按核数开线程的运行时；zbus 连 Unix socket 时借 tokio 的阻塞线程池开一个线程，闲 10 秒自己退掉）。
@@ -759,6 +769,8 @@ Wayland 原生版的前端（设计见 `docs/design/linux-wayland.md`）：自�
   `Server::allow` 由测试逐种允许 `Candidate` / `Page` / `Menu` / `MenuPick` / `Indicator`，未列出的鼠标或托盘事件仍是违规；`pointer_events` 按名字取操作记录，内部 `events` 解出完整的 Linux 事件。
   `server/tests.rs` 验允许范围、跨会话与过期身份、选区与鼠标共用脚本，以及单独放行 Indicator 不扩大鼠标权限；`selection/pointer.rs` 黑盒验点译文上屏，以及点选回包期间选区或隐私变化时旧译文不落地。
   `Answer::switched` 带切换的 `english` 与新 `mode`，后续回包沿用该会话的模式；`status.rs` 黑盒验提示换成候选与右键菜单，以及缓冲归还后补贴提示、不恢复旧候选或落点。
+  `key_hint.rs` 验握手报 `grid` / `key_hint`、带 `key_hint` 的帧让 popup 变宽而收鼠标的区域不变、合成器报 `text_input_rectangle` 后键盘换边（假合成器记每次 popup 的缓冲尺寸、目标尺寸与 input region）；
+  `grid.rs` 验矩阵帧按行优先排出来、点视口中的第几格就报几格。
   `Answer::select` 演选区翻译快捷键：先回 `RequestSelection`，前端回了选区照真 Server 的规矩答（空串或超过 500 字放行，不然吃掉、换上「翻译中…」），
   `Server::translated` 之后的下一次轮询换上译文。没想到的消息不回空包：握手不合规矩、报能力之前的事件、未允许的鼠标或托盘操作、
   没要过的选区回话、认不出的消息都记成违规并断开连接（与真 Server 一样不再往下答）。

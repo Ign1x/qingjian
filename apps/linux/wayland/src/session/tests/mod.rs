@@ -2,6 +2,7 @@
 
 mod apps;
 mod focus;
+mod hint;
 mod keys;
 mod link;
 mod mode;

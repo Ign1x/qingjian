@@ -87,9 +87,8 @@ The Linux column in the tables above is the fcitx edition. The Wayland native ed
 | Seven built-in themes, light and dark | — | ✓ (follow system is light for now) |
 | Custom themes, candidate fonts and sizes | — | ✓ |
 | Glosses beside candidates | First gloss only | All glosses |
-| Chinese/English mode | Each window keeps its own | Shared by all windows |
-| Mode indicator (pop-up or tray) | Shown by Fcitx / IBus | — |
-| Candidates in English mode | Per the app list | Only after unticking 只在写字的应用里给 (Only in writing apps) |
+| Chinese/English mode | Each window keeps its own | Each app keeps its own |
+| Mode indicator (pop-up or tray) | Shown by Fcitx / IBus | A hint where the candidate window appears |
 | Picking candidates with the mouse | ✓ | — |
 | Translating selected text | ✓ | — |
 | X11 apps | ✓ | — |

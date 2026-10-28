@@ -80,4 +80,8 @@ impl Output for Context<'_> {
     fn mode(&mut self, mode: Option<&InputMode>) {
         self.wayland.set_mode(mode);
     }
+
+    fn hint(&mut self, mode: &InputMode) -> bool {
+        self.wayland.hint(mode)
+    }
 }

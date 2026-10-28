@@ -5,6 +5,7 @@
 mod bitmap;
 mod look;
 mod mode;
+mod status;
 
 #[cfg(test)]
 mod tests;

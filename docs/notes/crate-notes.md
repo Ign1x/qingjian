@@ -666,14 +666,16 @@ Wayland 原生版的前端（设计见 `docs/design/linux-wayland.md`）：自�
   活动窗口的应用由 `Input::App` 报来，输入框激活时 `select` 它；激活期间换了应用，等 200 毫秒（`FOLLOW`）、不在组句时才换会话
   （切换窗口时活动窗口与输入框失活 / 激活的先后不定，中间常有一下没有活动窗口，紧接着的失活、激活会直接用上新应用）；跟过去只动 Server 那一侧，键盘与应用里的东西不动。
   回包上的输入模式（`mode`，焦点的回包也带）变了才经 `Output::mode` 交给显示面，候选窗开着时模式变了帧没变也重画（主题的 `mode.*`）；往返失败交 `None`（Server 那边的会话连同模式都没了）。
+  回包带 `english`（切了中 / 英）且候选窗空着时 `Output::hint` 在 popup 里亮提示，`HINT`（0.9 秒）后收起；提示亮着时空帧不收它（组合切换键抬起另几个键的回包也是空帧），非空帧换成候选，失焦与断开时跟候选窗一起收。
 - `wayland/`：`method/` 是 input-method-v2 的双缓冲（`done` 计数即 commit 的 serial，激活 / 失活各给焦点代次加一，又激活一次先当失活）；
   `toplevel/` 跟踪 `zwlr_foreign_toplevel_manager_v1` 报的顶层窗口（按协议对象编号记，`done` 时生效，几个激活着取最后激活的，空 app_id 当没有，标题不读），
   活动窗口的应用变了才排一件 `Input::App`；合成器没有这个全局对象时启动记一句 info，之后什么都不报，所有输入框共用不知道哪个应用的那一个会话；
   `grab.rs` 读键位表（`MAP_PRIVATE` 映射）、用 `xkb.rs`（xkbcommon-dl，运行时 dlopen）算 keysym 与 X11 掩码，按到达顺序排队；
   `keyboard.rs` 是进程里唯一的虚拟键盘（与输入法同一条连接，合成器才不会把转出去的键又送回 grab）；`popup.rs` 有分数缩放时用 viewport、buffer scale 保持 1；
-  `shm.rs` 三块缓冲轮换；`context.rs` 实现 `Output`；`mod.rs` 是主循环（`poll` 等合成器事件或下一个到点的事，SIGINT / SIGTERM 退出前替按着的键补抬起）。
+  `shm.rs` 三块缓冲轮换；`status.rs` 把模式交给 `Painter`、把中 / 英提示贴进候选窗的 popup（贴上后不再拿候选那一帧做缩放与主题的重画）；`context.rs` 实现 `Output`；`mod.rs` 是主循环（`poll` 等合成器事件或下一个到点的事，SIGINT / SIGTERM 退出前替按着的键补抬起）。
 - `view/`：`Painter`（字体库、渲染器、主题，配置与主题目录每秒查一次戳；外观「跟随系统」按 `portal::Desktop` 取深浅，桌面的偏好变得影响到画着的那一帧时 `reload` 也返回 `true`；
-  记着回包的模式（`set_mode`，经 `qingjian_platform::display::render_mode` 换成渲染器的 `Mode`），画帧时交给主题）、
+  记着回包的模式（`set_mode`，经 `qingjian_platform::display::render_mode` 换成渲染器的 `Mode`），画帧时交给主题；
+  `render_status` 画中 / 英提示：`Renderer::render_status` 的一格（`status_text`：「英」、「中」或「中 · 方案名」），深浅跟上一帧的外观设置）、
   `bitmap.rs`（位图左上的阴影边裁到 4 点、补齐到整逻辑像素、RGBA → ARGB8888）、`senses`（从点击区域取画出的义项回执）。
 - `portal/`：外观跟随系统。`watch()` 起后台线程 `qingjian-portal`，里面一个单线程 tokio 运行时跑 zbus
   （不开 zbus 的 blocking-api：它的阻塞调用另起一个按核数开线程的运行时；zbus 连 Unix socket 时借 tokio 的阻塞线程池开一个线程，闲 10 秒自己退掉）。

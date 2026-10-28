@@ -192,8 +192,7 @@ On other desktops, run the same command from their autostart configuration. The 
 ### Differences from the fcitx edition
 
 - Change the candidate window's theme, fonts and font sizes under 设置 → 外观 (Settings → Appearance), see [Appearance and themes](../personalize/appearance.md); with 外观 (Appearance) set to follow the system, it's shown in light mode for now.
-- One Chinese/English mode is shared by all windows; switching shows no indicator, and there's no tray icon.
-- English mode can't tell which app you're in yet: English candidates only appear after you untick 只在写字的应用里给 (Only in writing apps) under 设置 → 中英文 (Settings → Chinese/English).
+- The Chinese/English mode is remembered per app (windows of the same app share it), and newly opened apps start in the default mode. When you switch, Qingjian briefly shows 中 or 英 where the candidate window appears (with the scheme name when you use Shuangpin or another scheme); it goes away in under a second, or as soon as candidates appear when you start typing. There's no tray icon yet.
 - If you switch to another window while typing, the pinyin not yet committed is lost (the fcitx edition commits it as typed).
 - Selecting text with the mouse while holding `Shift` switches between Chinese and English when you release `Shift`.
 - Not yet supported: picking candidates with the mouse, the candidate right-click menu, translating selected text, and everything listed above as not yet supported in the fcitx edition.

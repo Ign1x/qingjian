@@ -64,7 +64,7 @@ impl Wayland {
             .min()
     }
 
-    fn paint(&mut self, rendered: &Rendered) {
+    pub(super) fn paint(&mut self, rendered: &Rendered) {
         let pixmap = &rendered.pixmap;
         let placement = Placement::new(
             pixmap.width(),

@@ -207,6 +207,7 @@ The floating status bar at the bottom right of the screen on Windows can also be
 - The whole status bar can also use `mode.english` and the others from "Showing input status" to decide what to draw.
 - Decorations can sit between cells; clicking a decoration counts as the cell before it.
 - Without `root`, the status bar is drawn as usual, using only the colours and sizes in `status`. macOS has no floating status bar.
+- The hint the Linux Wayland native edition briefly shows where the candidate window appears when you switch between Chinese and English is also drawn from `status`, with just the Chinese/English cell (plus the scheme name when you use Shuangpin or another scheme).
 
 ## Transition animation
 

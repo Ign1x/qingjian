@@ -219,6 +219,8 @@ pub enum Out {
     Hide,
     /// 模式交给显示面，`None` 是不知道了。
     Mode(Option<InputMode>),
+    /// 在候选窗的位置亮中 / 英提示。
+    Hint(InputMode),
 }
 
 /// 记录输出的假合成器。`sync` 时可以假装焦点换了。
@@ -281,6 +283,11 @@ impl Output for Recorder {
 
     fn mode(&mut self, mode: Option<&InputMode>) {
         self.log.push(Out::Mode(mode.cloned()));
+    }
+
+    fn hint(&mut self, mode: &InputMode) -> bool {
+        self.log.push(Out::Hint(mode.clone()));
+        true
     }
 }
 

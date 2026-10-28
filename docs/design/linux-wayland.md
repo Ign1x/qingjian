@@ -118,6 +118,11 @@ Server 对这样的会话照旧：↑ / ↓ 只移高亮、帧上不带键盘。
 - **主题里的模式。** 回包上的 `mode` 用 `qingjian_platform::display::render_mode` 换成渲染器的 `Mode`（方案名单开全拼时也写「全拼」，与 Windows 一样），
   主题里的 `mode.*`（中 / 英、简 / 繁、标点、方案）照它画。输入框激活时焦点的回包就带着那个应用的会话的模式，换应用跟着换；
   模式变了而帧没变（托盘切了全角标点）时重画一次。与 Server 断了当不知道，候选窗沿用上一次的。
+- **中 / 英提示。** 回包带着 `english`（切中 / 英的那一下：单击 Shift、切换键、托盘）时，在同一个 popup 里用 `Renderer::render_status` 画一格「中」/「英」
+  （开着双拼、注音或形码时跟方案名，同 Windows 状态条的模式格；按主题的 `status` 分节画，不跟设置里的候选字号），0.9 秒后挂空缓冲收起（与 macOS 右上角的提示一样，没有动画）。
+  位置由合成器定，就是候选窗出现的地方。候选窗开着时不盖住它（切中 / 英时组句原样上屏、候选本来就收了）；提示亮着时来了非空帧就换成候选，
+  空帧不收它（切换键是 Ctrl + Alt + Space 时抬起另几个键的回包也是空帧，收了就只闪一下）；失焦、与 Server 断开时跟候选窗一起收。
+  popup 只有输入框激活时合成器才显示，所以只在激活着、回包没过期时亮；没有输入框时从托盘切换只换托盘图标。
 - **外观跟随系统。** 帧里的外观是 `System` 时深浅看桌面：后台线程在会话总线上读 xdg-desktop-portal Settings 的 `org.freedesktop.appearance` `color-scheme`，
   1（偏好深色）为深色，0（无偏好）、2（偏好浅色）与不认识的值为浅色。先订 `SettingChanged` 再读初值（读的途中改了也漏不掉），之后跟着信号变；
   读用 `ReadOne`，第 1 版的 portal 没有它，退回 `Read`（值多包一层 variant）。
@@ -161,7 +166,7 @@ Server 对这样的会话照旧：↑ / ↓ 只移高亮、帧上不带键盘。
   托盘用的切换命令（`Indicator`）、候选右键菜单（`Menu` / `MenuPick`）、共用客户端的点选、翻页与选区翻译，Fcitx5 / Fcitx4 插件仍报 v3、不用改（见协议对照）；
   `install.sh --frontend wayland`、systemd 用户服务（退出码 2 不重启）、deb / rpm 另出 `qingjian-wayland` 包、用户文档；对着假合成器与假 Server 的黑盒测试。
 - **第二轮第二批**：前端接上 v4——鼠标点选与滚轮翻页（`Rendered::hit_at` → `Candidate` / `Page`，先验合成器肯不肯把指针事件给 popup）、
-  候选右键菜单（`Renderer::render_menu` 画在同一个 popup 里，与 macOS / Windows 一样自绘）、中 / 英提示（`Renderer::render_status` 在 popup 里亮一秒）与主题里的模式、
+  候选右键菜单（`Renderer::render_menu` 画在同一个 popup 里，与 macOS / Windows 一样自绘）、中 / 英提示与主题里的模式（已做，见「显示」）、
   托盘（StatusNotifierItem + DBusMenu，原生菜单）、选区翻译；Server 补齐设置程序里 Linux 标「待实现」的输入功能（辅码、形码、自动加空格、翻页与高亮键、
   全半角与简繁快捷键、小键盘数字、按应用记中英、横排矩阵、拼音行声调、键位提示、实验模型）。
 - **之后**：按 `text_input_rectangle` 判断翻没翻、调排布；设置程序支持表区分两个版本；CI 跑黑盒测试（要 libxkbcommon 与 libwayland-client）。

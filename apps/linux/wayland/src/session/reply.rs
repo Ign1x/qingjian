@@ -27,6 +27,9 @@ impl<S: Server> Session<S> {
         );
         let remode = self.adopt(reply.mode.as_ref(), out);
         self.present(&reply, remode, out);
+        if let Some(english) = reply.english {
+            self.flash(english, out, now);
+        }
         self.poll_at =
             (!reply.frame.is_empty() || reply.translation_pending).then(|| now + POLL_INTERVAL);
     }
@@ -71,9 +74,13 @@ impl<S: Server> Session<S> {
 
     /// 候选窗：空帧收起；版本号没变（轮询回来帧没变）不理；帧内容没变（抬键的回包）不重画，
     /// 但回执照发——展示身份换了，Server 认的是新身份。`remode` 是这次回包换了输入模式：主题可能按它画，帧没变也重画。
+    /// 中 / 英提示亮着时空帧不收它（切换键是组合键时，抬起另几个键的回包也是空帧），有了候选就换成候选。
     fn present(&mut self, reply: &Reply, remode: bool, out: &mut impl Output) {
         if reply.frame.is_empty() {
-            self.hide(out);
+            if self.drawn.take().is_some() {
+                out.hide();
+            }
+            self.shown = None;
             return;
         }
         let revision = reply.revision();
@@ -90,6 +97,7 @@ impl<S: Server> Session<S> {
         {
             let senses = out.show(&reply.frame);
             self.drawn = Some((reply.frame.clone(), senses));
+            self.hint_until = None;
         }
         self.shown = revision;
         if let (Some(identity), Some((_, senses))) = (reply.identity.clone(), &self.drawn) {
@@ -100,8 +108,10 @@ impl<S: Server> Session<S> {
         }
     }
 
+    /// 收起候选窗，连同亮着的中 / 英提示。
     pub(super) fn hide(&mut self, out: &mut impl Output) {
-        if self.drawn.take().is_some() {
+        let hinted = self.hint_until.take().is_some();
+        if self.drawn.take().is_some() || hinted {
             out.hide();
         }
         self.shown = None;

@@ -1,4 +1,4 @@
-//! 输入状态的显示：回包上的模式交给候选窗的主题。
+//! 输入状态的显示：回包上的模式交给候选窗的主题；切中 / 英时在候选窗的位置亮一下提示。
 
 use qingjian_platform::protocol::linux::InputMode;
 
@@ -10,5 +10,21 @@ impl Wayland {
         if let (Some(mode), Some(painter)) = (mode, &mut self.painter) {
             painter.set_mode(mode);
         }
+    }
+
+    /// 在候选窗的 popup 里画中 / 英提示；字体库没建起来时画不了，返回 `false`。收起走 [`Wayland::hide`]。
+    pub(super) fn hint(&mut self, mode: &InputMode) -> bool {
+        let scale = self.popup.scale();
+        let Some(rendered) = self
+            .painter
+            .as_mut()
+            .and_then(|painter| painter.render_status(mode, scale as f32))
+        else {
+            return false;
+        };
+        // popup 上换成了提示：缩放、主题变了时不再拿候选那一帧重画
+        self.shown = None;
+        self.paint(&rendered);
+        true
     }
 }

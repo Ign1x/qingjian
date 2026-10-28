@@ -51,10 +51,15 @@ impl Router {
     /// 热加载：只有模式策略（英文模式开关、默认英文、按应用记）变了才把记住的全部重置；
     /// 字体、标点这类无关的配置改动不能盖掉用户刚切出的模式。
     pub(super) fn reload_mode(&mut self, next: &RouterConfig) {
-        if self.config.english_mode == next.english_mode
-            && self.config.default_english == next.default_english
-            && self.config.remember_mode_per_app == next.remember_mode_per_app
-        {
+        let policy_changed = self.config.english_mode != next.english_mode
+            || self.config.default_english != next.default_english
+            || self.config.remember_mode_per_app != next.remember_mode_per_app;
+        if policy_changed || self.config.switch_mode != next.switch_mode {
+            for info in self.sessions.values_mut() {
+                info.switch_tap = None;
+            }
+        }
+        if !policy_changed {
             return;
         }
         let english = next.starts_english();

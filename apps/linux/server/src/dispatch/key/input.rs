@@ -274,7 +274,7 @@ impl Router {
         // 翻页键要排在连字符前面，否则 `-` 永远翻不回上一页；翻不动时 `-` 照旧是单词里的连字符（`well-known`）
         if composing
             && let Some(step) = self.page_step(event)
-            && (c != '-' || self.can_page(step))
+            && (!matches!(c, '-' | '=') || self.can_page(step))
         {
             self.page(step);
             return Effect::Navigated;

@@ -85,3 +85,22 @@ fn chinese_minus_equals_fall_back_to_characters_at_page_edges() {
     );
     assert_eq!(brackets.engine.composition().text(), "qq");
 }
+
+#[test]
+fn english_equals_at_last_page_is_committed_as_text() {
+    let mut router = router(1);
+    router.config.page_keys = ('-', '=');
+    let english = KeyModifiers {
+        english_mode: true,
+        ..Default::default()
+    };
+    compose(&mut router, "hel", english);
+    key(&mut router, b'=' as u32, Some('='), english);
+    assert_eq!(key(&mut router, b'=' as u32, Some('='), english).2.page, 2);
+    let (outcome, commit, frame) = key(&mut router, b'=' as u32, Some('='), english);
+    assert_eq!(
+        (outcome, commit.as_deref()),
+        (KeyOutcome::Consumed, Some("hel="))
+    );
+    assert!(frame.candidates.items.is_empty());
+}

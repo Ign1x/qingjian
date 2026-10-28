@@ -181,6 +181,7 @@ impl Router {
                         // 显式要求刷新时回到第一页，让新的 AI 首选可以置顶。
                         if self.request_manual_prediction(surrounding) {
                             self.highlight = 0;
+                            self.grid = None;
                             self.navigated = false;
                         }
                         outcome = KeyOutcome::Consumed;

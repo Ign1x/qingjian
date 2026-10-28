@@ -3,6 +3,7 @@
 //! 用户 `dicts/` 目录的文件增删也跟着重装。拼音显示位置在会话握手时交给插件，改了要重启服务。
 
 mod cloud;
+mod display;
 mod state;
 
 #[cfg(test)]
@@ -129,7 +130,7 @@ impl Router {
         self.reload_mode(&next);
         self.config = next;
         self.config.page_size = self.config.page_size.clamp(1, 9);
-        self.collapse_disabled_grids();
+        self.reload_display();
 
         let Some(mut reload) = self.reload.take() else {
             return;

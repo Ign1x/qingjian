@@ -1,8 +1,7 @@
 //! Linux Server 云结果回显与私密输入边界；用内存通道代替网络服务。
 
 use qingjian_core::{
-    CandidateKind, CloudWord, Engine, Prediction, PredictionKind, PredictionPolicy,
-    PredictionRequest, Predictor,
+    CandidateKind, CloudWord, Engine, Prediction, PredictionKind, PredictionRequest,
 };
 use qingjian_dictionary::Dictionary;
 use qingjian_linux_server::{Router, RouterConfig};
@@ -12,32 +11,10 @@ use qingjian_platform::protocol::{
 use serde_json::json;
 use std::sync::mpsc::{self, Receiver, Sender};
 
-struct ChannelPredictor {
-    /// 是否支持停键后自动联想；`false` 模拟关掉「自动联想」只留按需触发。
-    automatic: bool,
+mod grid;
+mod predictor;
 
-    requests: Sender<PredictionRequest>,
-
-    responses: Receiver<Prediction>,
-}
-
-impl Predictor for ChannelPredictor {
-    fn policy(&self) -> PredictionPolicy {
-        PredictionPolicy {
-            automatic: self.automatic,
-            slots: 2,
-            ..PredictionPolicy::default()
-        }
-    }
-
-    fn submit(&mut self, request: PredictionRequest) {
-        self.requests.send(request).unwrap();
-    }
-
-    fn poll(&mut self) -> Option<Prediction> {
-        self.responses.try_recv().ok()
-    }
-}
+use predictor::ChannelPredictor;
 
 fn setup() -> (Router, Receiver<PredictionRequest>, Sender<Prediction>) {
     setup_with_automatic(true)
@@ -45,6 +22,20 @@ fn setup() -> (Router, Receiver<PredictionRequest>, Sender<Prediction>) {
 
 fn setup_with_automatic(
     automatic: bool,
+) -> (Router, Receiver<PredictionRequest>, Sender<Prediction>) {
+    setup_with_config(
+        automatic,
+        RouterConfig {
+            cloud_slots: 2,
+            cloud_enabled: true,
+            ..RouterConfig::default()
+        },
+    )
+}
+
+fn setup_with_config(
+    automatic: bool,
+    config: RouterConfig,
 ) -> (Router, Receiver<PredictionRequest>, Sender<Prediction>) {
     let dictionary = Dictionary::parse("你\tni\t100\n泥\tni\t90\n拟\tni\t80\n逆\tni\t70\n腻\tni\t60\n匿\tni\t50\n溺\tni\t40\n尼\tni\t30\n呢\tni\t20\n").unwrap();
     let (request_tx, requests) = mpsc::channel();
@@ -54,11 +45,6 @@ fn setup_with_automatic(
         requests: request_tx,
         responses: response_rx,
     }));
-    let config = RouterConfig {
-        cloud_slots: 2,
-        cloud_enabled: true,
-        ..RouterConfig::default()
-    };
     let mut router = Router::new(engine, config);
     router.handle(ClientMessage::OpenSession {
         session: SessionId(1),

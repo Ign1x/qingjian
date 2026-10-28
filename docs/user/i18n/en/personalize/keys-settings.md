@@ -17,6 +17,8 @@ All changeable keys are in 设置 → 快捷键 (Settings → Shortcuts), and ch
 
 There are also 额外翻页键 (Extra paging keys): three sets you can combine, used together with the paging keys above. While typing pinyin these keys page first; operators in calculations, direct English input and the auxiliary code trigger key keep their usual roles.
 
+Linux English candidates commit the typed letters followed by `=` when `=` is pressed on the last page.
+
 ## Highlight keys
 
 By default `↑` / `↓` move the highlight and `←` / `→` move the pinyin cursor. If you choose `←` / `→` instead, `←` / `→` move between candidates:
@@ -26,11 +28,15 @@ By default `↑` / `↓` move the highlight and `←` / `→` move the pinyin cu
 
 When you're not typing, the arrow keys go to the app as usual. This applies in both Chinese and English mode.
 
+On Linux, changing the number of candidates per page updates both the current input field and fields you return to, while preserving the highlighted candidate.
+
 ## Full-width/half-width punctuation shortcut
 
 With Ctrl + . 切换全半角标点 (Ctrl + . switches punctuation width) on, `Ctrl + .` (`⌃ + .` on macOS) switches punctuation between full-width and half-width for the current Chinese/English mode, without changing letters or digits and without switching Chinese/English.
 It's off by default so it doesn't take over the app's own shortcut. On macOS, English-mode punctuation is always half-width, so the shortcut doesn't switch there and the key goes to the app.
 To use a different key combination, see [Editing the configuration file](../advanced/config-file.md).
+
+On Linux, if either the punctuation or simplified/traditional toggle uses the same shortcut as selection translation, that toggle is disabled and selection translation keeps the shortcut.
 
 ## Shortcut for switching Simplified and Traditional (Windows, Linux)
 

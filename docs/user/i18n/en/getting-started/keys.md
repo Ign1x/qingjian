@@ -50,6 +50,8 @@ On Windows and Linux, numpad digits also pick candidates by default. Set 小键�
 When the cursor is in the middle of the pinyin, candidates are based only on the pinyin before the cursor (`ni|hao` gives 你); after committing, the rest of the pinyin stays and the cursor moves to the end.
 A few keys differ with Dachen Zhuyin and Wubi; see [Pinyin schemes and fuzzy pinyin](../input/fuzzy-and-shuangpin.md#Dachen-Zhuyin) and [Wubi and mixed input](../input/wubi.md).
 
+Linux also supports additional paging keys and using `←` / `→` to move the highlight; see [Key settings](../personalize/keys-settings.md). In English candidates, pressing `=` on the last page commits the typed letters and `=` when it is configured as a paging key. Selection translation takes precedence over conflicting punctuation or simplified/traditional toggle shortcuts.
+
 ## In the symbol panel
 
 | Action | Keys |

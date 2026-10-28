@@ -337,9 +337,9 @@ system_text_replacements = true
 # enabled = true    # 是否启用
 
 [shortcut]
-# Windows：切换当前模式的全 / 半角标点；空串禁用，可设为 "ctrl+." 或其他修饰键加字母、数字、句号
+# 切换当前模式的全 / 半角标点（macOS 仅中文模式）；空串禁用，可设为 "ctrl+." 或其他修饰键加字母、数字、句号
 toggle_punctuation = ""
-# Windows：在简体与上次用的繁体字形之间切换；空串禁用，可设为 "ctrl+shift+f" 或其他修饰键加字母、数字
+# Windows、Linux：在简体与上次用的繁体字形之间切换；空串禁用，可设为 "ctrl+shift+f" 或其他修饰键加字母、数字
 toggle_traditional = ""
 # 主翻页键之外同时启用的键对，可多选，如 ["[]", ",.", "-="]
 extra_page_keys = []
@@ -351,7 +351,7 @@ question = "u"
 # 没在组句时敲 ? 是否也进问字模式（中英文模式都行，后面跟字母才是问题，跟别的键还原成问号）；false 的话问号就是问号
 question_mark = false
 # 候选高亮由哪对方向键移动：updown 用 ↑ / ↓ 移高亮、← / → 移拼音光标（缺省）；leftright 改用 ← / → 移高亮
-# leftright 时两键把「拼音行 + 候选栏」当成一条从左到右的序列走：→ 到拼音光标末位溢出成选词，← 到候选首位回拼音光标；↑ / ↓ 不做事
+# leftright 横排时 ↑ / ↓ 在拼音行与候选之间换区，← / → 只在当前区移动；竖排时 → 到拼音末尾转选词，← 到候选首位回拼音
 highlight_keys = "updown"
 "#,
     template_shortcut_keys!(),

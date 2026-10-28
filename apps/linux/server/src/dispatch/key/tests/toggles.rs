@@ -142,3 +142,10 @@ fn digit_combinations_match_the_number_row() {
     );
     assert!(!router.config.full_width);
 }
+
+#[test]
+fn punctuation_key_conflicting_with_selection_is_not_registered() {
+    let mut config = Config::default();
+    config.shortcut.toggle_punctuation = Some(config.shortcut.translate_selection);
+    assert!(RouterConfig::from(&config).toggle_punctuation.is_none());
+}

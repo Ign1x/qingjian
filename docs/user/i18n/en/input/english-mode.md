@@ -22,6 +22,8 @@ description: "Entering English mode, changing or turning off the Chinese/English
 On Windows and Linux, the Chinese/English mode is **shared by all apps** by default: switch to English in one app and other apps, including newly opened ones, are in English too. To let each app keep its own, turn on 按应用记住中英模式 (Remember mode per app) below.
 On Linux each window used to keep its own mode; it now works as on Windows. The Linux Wayland native edition shows no indicator when switching.
 
+On Linux, changes to the mode switch keys, default mode, or per-application mode memory apply from the next key press. Releasing a key held before saving these settings does not toggle the mode.
+
 ## Changing or turning off the Chinese / English switch
 
 Hitting `Shift` by accident while typing switches to English and interrupts your typing. On Windows and Linux you can adjust this under 切换键 (Switch key) in 设置 → 中英文 (Settings → Chinese/English); every option you tick works, and you can tick several:

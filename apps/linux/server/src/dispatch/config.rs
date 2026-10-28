@@ -165,7 +165,10 @@ impl From<&Config> for RouterConfig {
             highlight_keys: config.shortcut.highlight_keys,
             horizontal_grid: config.general.horizontal_grid,
             numpad_digit: config.general.numpad_digit,
-            toggle_punctuation: config.shortcut.toggle_punctuation,
+            toggle_punctuation: config
+                .shortcut
+                .toggle_punctuation
+                .filter(|key| *key != config.shortcut.translate_selection),
             toggle_traditional: config
                 .shortcut
                 .toggle_traditional

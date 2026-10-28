@@ -28,6 +28,7 @@ impl Router {
             self.config.cloud_slots = 0;
         }
         self.sentence = None;
+        self.grid = None;
         self.engine.note_displayed(std::iter::empty());
         clear_cloud(
             &mut self.composed,
@@ -36,6 +37,7 @@ impl Router {
             self.config.cloud_slots,
         );
         for session in self.sessions.values_mut() {
+            session.grid = None;
             clear_cloud(
                 &mut session.composed,
                 &mut session.highlight,

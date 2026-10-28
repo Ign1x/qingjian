@@ -17,7 +17,11 @@ impl Router {
     /// 发给 `session` 的这次回包要附的键位提示：前端握手报了画得了、焦点在这个会话上才有。
     pub(super) fn key_hint_for(&mut self, session: SessionId) -> Option<KeyHintView> {
         let info = self.sessions.get(&session)?;
-        if !info.features.key_hint || info.disabled || self.focused != Some(session) {
+        if self.focused != Some(session) {
+            return None;
+        }
+        if !info.features.key_hint || !info.active || info.disabled {
+            self.key_hint = KeyHintState::default();
             return None;
         }
         self.key_hint_view()
@@ -61,7 +65,7 @@ impl Router {
     /// `tick` 里调：「卡住时显示」的停顿到点了就记成弹出过，下一次轮询的回包带上键盘。
     pub(super) fn advance_key_hint(&mut self) {
         if !self.engine.composition().is_empty() {
-            self.key_hint.advance();
+            self.key_hint.advance(std::time::Instant::now());
         }
     }
 }

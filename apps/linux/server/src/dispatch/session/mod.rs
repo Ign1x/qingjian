@@ -76,6 +76,7 @@ impl Router {
         // 因此普通与私密会话来回切换不会丢掉各自尚未上屏的组句。
         if self.focused == Some(session) {
             self.stop_rescoring();
+            self.key_hint = KeyHintState::default();
             self.engine.discard_input();
             self.engine.set_private(private);
             self.composed = None;
@@ -88,6 +89,7 @@ impl Router {
         }
     }
     pub(super) fn reset_composition(&mut self) {
+        self.key_hint = KeyHintState::default();
         self.end_translation();
         self.stop_rescoring();
         self.engine.cancel_prediction();

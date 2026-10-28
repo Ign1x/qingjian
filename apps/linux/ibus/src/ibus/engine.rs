@@ -35,17 +35,12 @@ const PURPOSE_PIN: u32 = 9;
 /// `SetContentType` 的 hints：应用声明这是私密输入（`IBUS_INPUT_HINT_PRIVATE`）。
 const HINT_PRIVATE: u32 = 1 << 10;
 
-/// `SetCapabilities` 的位：应用自己画行内 preedit（`IBUS_CAP_PREEDIT_TEXT`）；没有时 ibus-daemon 把 preedit 交给面板画。
-const CAP_PREEDIT_TEXT: u32 = 1;
-
 /// 把一帧发给面板：preedit、候选表、辅助行各发一次，空的就发隐藏。
-/// `preedit_in_panel` 见 [`View::from_frame`]。
 pub(crate) async fn present_frame(
     emitter: &SignalEmitter<'_>,
     frame: &qingjian_platform::protocol::Frame,
-    preedit_in_panel: bool,
 ) -> zbus::Result<()> {
-    let view = View::from_frame(frame, preedit_in_panel);
+    let view = View::from_frame(frame);
 
     if view.preedit.is_empty() {
         IBusEngine::hide_preedit_text(emitter).await?;
@@ -125,7 +120,7 @@ impl IBusEngine {
         {
             tracing::warn!(%error, "上屏失败");
         }
-        if let Err(error) = present_frame(emitter, &reply.frame, polling.preedit_in_panel()).await {
+        if let Err(error) = present_frame(emitter, &reply.frame).await {
             tracing::warn!(%error, "更新候选窗失败");
         }
         self.poller.follow(
@@ -247,19 +242,11 @@ impl IBusEngine {
         tracing::debug!("停用");
     }
 
-    /// 应用报的能力：只看它画不画行内 preedit，决定面板上的拼音行用哪一串（见 [`View::from_frame`]）。
-    /// ibus-daemon 只在能力变了时才调（换到能力不同的输入框也算），没调过就是全没有。
-    async fn set_capabilities(&mut self, capabilities: u32) {
-        tracing::debug!(capabilities, "应用报了能力");
-        self.poller
-            .lock()
-            .await
-            .set_client_preedit(capabilities & CAP_PREEDIT_TEXT != 0);
-    }
-
     /// 下面这些 IBus 会调但我们不处理：翻页由 Core 的候选布局算（面板自己翻会和它打架），
     /// 光标位置用不着（面板自己定位），属性栏还没做。声明出来是因为
     /// 不实现的话 ibus-daemon 每次调用都会记一条错误。
+    async fn set_capabilities(&mut self, _capabilities: u32) {}
+
     async fn set_cursor_location(&mut self, _x: i32, _y: i32, _w: i32, _h: i32) {}
 
     async fn page_up(&mut self) {}

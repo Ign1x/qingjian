@@ -17,3 +17,6 @@ pub mod poller;
 pub mod service;
 pub mod variant;
 pub mod view;
+
+#[cfg(test)]
+mod tests;

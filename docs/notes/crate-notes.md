@@ -607,9 +607,9 @@ Unix socket 用共享长度前缀与 Frame（当前公共版本 9，与 `PROTOCO
 Linux 回包由 `dispatch/display/annotation` 给释义添加可选 `annotation`（词性与汉字段假名，`[general] translation_pos` 关掉时不带词性），Fcitx5 面板优先显示它；原始译文和快捷键提交不变，旧 Server 缺该字段时插件回退到 `text`。
 拼音行显示声调（`[general] show_tones`，启动与热加载都设）同 Windows：`dispatch/composed` 的 `window_parts` 按高亮候选的带调读音另给 `Frame::window_preedit`，与行内拼音相同时不给；Wayland 前端经 `display::window_preedit` 画在候选窗里，行内拼音仍是 `preedit`。
 Fcitx5 / Fcitx4 插件经 `apps/linux/preedit.h` 取面板拼音行那一串（`window_preedit` 是 `[分段, 光标]`，没有、为 null 或形状不对时退回 `preedit`），两处光标各按各的字节算；
-IBus 只有一串 preedit、由 ibus-daemon 决定放应用里还是面板上，前端记下 `SetCapabilities` 报没报 `IBUS_CAP_PREEDIT_TEXT`：没报（面板画 preedit）才换成带调那一串。
+IBus 的 preedit 在失焦时可能被框架原样提交，始终保留 `preedit`；`window_preedit` 另放面板辅助行，避免显示用读音被上屏，也不依赖内嵌编辑的开关。
 键位提示（`[general] key_hint` / `key_hint_opacity` / `key_hint_size`）照 Windows Server 的 `dispatch/key_hint` 算：挂着 86 五笔给字根图标识，否则给双拼键位；`auto` 敲完 700 毫秒没再敲（`KeyHintState`，`tick` 推进）或敲出配不成音节的键才给，这一段组句里给过就一直给。
-只对握手报了 `features.key_hint` 的会话由 `dispatch/display` 附在回包的 `key_hint` 上，换了焦点会话重新计时；轮询时帧与键位提示都没变才沿用展示身份，停顿到点弹出的那一次换新，前端才会重画。
+只对握手报了 `features.key_hint` 的会话由 `dispatch/display` 附在回包的 `key_hint` 上，换了焦点会话、原文提交或隐私边界清空输入后重新计时，失焦回包不附键盘；轮询时帧与键位提示都没变才沿用展示身份，停顿到点弹出的那一次换新，前端才会重画。
 每个 `KeyResult` / `Update` 另附这个会话的 `mode`（`dispatch/mode.rs`：`english` / `traditional` / `full_width` 取当前中英那一份 / `scheme`），方案名按 `scheme_label(config.scheme, None, None)` 算：
 Linux 还不装用户双拼与形码方案（没有 `SchemeSlot`），引擎按全拼跑的那些方案名也按全拼（空串）。插件不读它。
 v4 的两样给 Rust 前端：候选右键菜单（`dispatch/menu.rs`，与 Windows 的 `dispatch/key/menu.rs` 同用 `qingjian_platform::candidate_menu`）问菜单不推进展示身份，
@@ -650,8 +650,7 @@ IBus 的组件 XML 与 systemd 单元里都写死了安装后的绝对路径，�
 - `UpdatePreeditText` 的参数是 `(vubu)`，**最后那个 `mode` 不能省**：ibus-daemon 解不出来会整条丢掉，
   只在它自己的日志里留一条 CRITICAL，症状是拼音行不显示而这边一点错都看不到。
 - preedit 只有一串，放应用里还是面板上由 ibus-daemon 定（应用报了 `IBUS_CAP_PREEDIT_TEXT` 且开着「内嵌编辑」才放应用里）。
-  `SetCapabilities` 只在能力变了时来，记在 `PollState` 上（按键与轮询都在那把锁里画）；没报行内 preedit 时它就是面板上的拼音行，用帧的 `window_preedit`（拼音行显示声调）。
-  「内嵌编辑」是 ibus-daemon 的全局设置（`org.freedesktop.IBus` 的 `EmbedPreeditText` 属性），没读：用户关了它时面板上的拼音行不带调。
+  因为失焦时框架可能直接提交这串文字，不能把带调读音放进去。`window_preedit` 放辅助行，与整句补全、页码拼在一起；删候选提示仍优先。
 - `--check nihao`：连 Server、开会话、报能力与焦点、逐键发上去、打印回来的候选；Server 没起着时直接报连不上。
 - 端到端测试要等引擎激活再敲键：切引擎之后 daemon 还要走一遍 FocusOut → Enable → FocusIn，
   不等的话第一个字母会被 FocusOut 当「缓冲原样上屏」交出去（真人用的时候引擎早激活好了，撞不上）。

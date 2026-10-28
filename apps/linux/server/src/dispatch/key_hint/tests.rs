@@ -129,7 +129,9 @@ fn auto_pops_up_on_the_poll_after_a_pause() {
         "没到点：帧没变，身份沿用"
     );
 
-    std::thread::sleep(Duration::from_millis(750));
+    router
+        .key_hint
+        .advance(std::time::Instant::now() + Duration::from_millis(700));
     let popped = poll(&mut router, 1);
     assert!(popped.get("key_hint").is_some(), "停顿到点弹出");
     assert!(revision(&popped) > revision(&typed), "弹出要换展示身份");
@@ -156,4 +158,64 @@ fn auto_pops_up_at_once_on_a_stuck_key() {
     let stuck = type_keys(&mut router, 1, "b");
     assert_eq!(stuck["key_hint"]["content"]["Shuangpin"]["stuck"], true);
     assert!(type_keys(&mut router, 2, "k").get("key_hint").is_none());
+}
+
+#[test]
+fn commit_starts_a_fresh_hint_interval() {
+    let mut router = router(KeyHintMode::Auto, json!({"key_hint": true}));
+    assert!(type_keys(&mut router, 1, "nivb").get("key_hint").is_some());
+    let committed = router
+        .handle_linux(json!({"Commit": {"session": 1}}))
+        .unwrap();
+    assert!(committed.get("Committed").is_some());
+    assert!(type_keys(&mut router, 1, "k").get("key_hint").is_none());
+}
+
+#[test]
+fn unfocused_session_does_not_attach_a_keyboard() {
+    let mut router = router(KeyHintMode::Always, json!({"key_hint": true}));
+    type_keys(&mut router, 1, "k");
+    let blurred = event(&mut router, 1, json!({"Focus": {"focused": false}}));
+    assert!(blurred.get("key_hint").is_none());
+    assert!(poll(&mut router, 1).get("key_hint").is_none());
+}
+
+#[test]
+fn privacy_boundary_starts_a_fresh_hint_interval() {
+    let mut router = router(KeyHintMode::Auto, json!({"key_hint": true}));
+    assert!(type_keys(&mut router, 1, "nivb").get("key_hint").is_some());
+    router.handle(ClientMessage::Privacy {
+        session: SessionId(1),
+        private: true,
+    });
+    assert!(type_keys(&mut router, 1, "k").get("key_hint").is_none());
+    let password = event(
+        &mut router,
+        1,
+        json!({"Capabilities": {"password": true, "sensitive": false, "disabled": false}}),
+    );
+    assert!(password.get("key_hint").is_none());
+    assert!(
+        press(&mut router, 1, 'k' as u32, Some('k'))["frame"]["preedit"]
+            .as_array()
+            .unwrap()
+            .is_empty()
+    );
+}
+
+#[test]
+fn wubi_roots_take_precedence_over_shuangpin() {
+    use qingjian_core::CodeScheme;
+    use qingjian_dictionary::CodeTable;
+
+    for phonetic in [true, false] {
+        let mut router = router(KeyHintMode::Always, json!({"key_hint": true}));
+        router.engine.set_code_scheme(Some(CodeScheme::new(
+            "wubi",
+            CodeTable::parse("一\tggll\t100\n").unwrap(),
+        )));
+        router.engine.set_phonetic(phonetic);
+        let typed = type_keys(&mut router, 1, "g");
+        assert_eq!(typed["key_hint"]["content"], json!({"Roots": "wubi86"}));
+    }
 }

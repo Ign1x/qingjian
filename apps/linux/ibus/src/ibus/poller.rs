@@ -25,33 +25,17 @@ pub struct Poller {
     state: Arc<Mutex<PollState>>,
 }
 
-/// 面板上是哪一版帧、preedit 归谁画，以及轮询任务的开停。
+/// 面板上是哪一版帧，以及轮询任务的开停。
 #[derive(Default)]
 pub struct PollState {
     /// 面板上现在是哪一版帧（Server 的展示版本号）。
     shown: u64,
-
-    /// 应用自己画行内 preedit（`SetCapabilities` 报了 `IBUS_CAP_PREEDIT_TEXT`）。缺省是没报：
-    /// ibus-daemon 把 preedit 交给面板画，它就是候选窗口里的拼音行（见 [`super::view::View::from_frame`]）。
-    client_preedit: bool,
 
     /// 轮询任务的代次：每次重新起轮询、或者停掉，都加一；旧任务醒来看到代次变了就退出。
     epoch: u64,
 
     /// 有没有轮询任务在跑。
     running: bool,
-}
-
-impl PollState {
-    /// 记下应用报的能力里有没有行内 preedit。
-    pub fn set_client_preedit(&mut self, client_preedit: bool) {
-        self.client_preedit = client_preedit;
-    }
-
-    /// preedit 由面板画（应用不画行内 preedit）。
-    pub fn preedit_in_panel(&self) -> bool {
-        !self.client_preedit
-    }
 }
 
 impl Poller {
@@ -130,7 +114,7 @@ async fn run(
             continue;
         };
         state.shown = revision;
-        if let Err(error) = present_frame(&emitter, &reply.frame, state.preedit_in_panel()).await {
+        if let Err(error) = present_frame(&emitter, &reply.frame).await {
             tracing::warn!(%error, "重排结果到了，但更新候选窗失败");
         }
         tracing::debug!(revision, "重排结果到了，重画");

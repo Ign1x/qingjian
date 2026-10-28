@@ -5,6 +5,7 @@ mod grid;
 mod numpad;
 mod paging;
 mod schemes;
+mod spacing;
 mod support;
 mod tab;
 mod toggles;

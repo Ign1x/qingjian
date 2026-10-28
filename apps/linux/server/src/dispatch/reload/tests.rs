@@ -104,11 +104,12 @@ fn key_settings_apply_on_next_tick() {
     assert_eq!(router.config.numpad_digit, NumpadDigit::Select);
     assert_eq!(router.config.toggle_punctuation, None);
     assert_eq!(router.config.toggle_traditional, None);
+    assert!(!router.engine.auto_space());
 
     write_config(
         &dir.join("config.toml"),
         concat!(
-            "[general]\nhorizontal_grid = true\nnumpad_digit = \"direct\"\n",
+            "[general]\nhorizontal_grid = true\nnumpad_digit = \"direct\"\nauto_space = true\n",
             "[shortcut]\nextra_page_keys = [\",.\"]\nhighlight_keys = \"leftright\"\n",
             "toggle_punctuation = \"ctrl+.\"\ntoggle_traditional = \"ctrl+shift+f\"\n",
         ),
@@ -127,6 +128,7 @@ fn key_settings_apply_on_next_tick() {
         router.config.toggle_traditional,
         Some(KeyCombo::TRADITIONAL_DEFAULT)
     );
+    assert!(router.engine.auto_space());
     std::fs::remove_dir_all(&dir).unwrap();
 }
 

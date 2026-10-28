@@ -108,8 +108,7 @@ impl Feature {
             Self::RememberModePerApp => [Todo, Yes, Todo],
             // macOS 英文模式一律半角
             Self::EnglishPunctuation => [No, Yes, Yes],
-            // 要读应用里光标前的字
-            Self::AutoSpace => [Yes, Yes, Todo],
+            Self::AutoSpace => [Yes, Yes, Yes],
             // macOS 看菜单栏图标，Linux 看 Fcitx5 的托盘
             Self::StatusBar => [No, Yes, No],
             Self::HorizontalGrid => [Yes, Yes, Todo],

@@ -83,6 +83,7 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
     engine.set_english_max_in_chinese(config.general.english_max_in_chinese());
     engine.set_english_min_position(config.general.english_min_position());
     engine.set_mode_keys(config.shortcut.mode);
+    engine.set_auto_space(config.general.auto_space);
     engine
         .set_custom_phrases(config.custom_phrases.clone())
         .map_err(std::io::Error::other)?;

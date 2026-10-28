@@ -104,9 +104,9 @@ Typing a symbol like `-` `/` `@` switches to direct English input, so you can ty
 
 ## Automatic spacing between Chinese and Latin text
 
-On macOS and Windows you can turn on 中文与英文、数字之间自动加空格 (Add spaces between Chinese and English/digits) under 设置 → 中英文 (Settings → Chinese/English) (off by default). When on, a space is added automatically wherever Chinese characters meet half-width letters or digits:
+You can turn on 中文与英文、数字之间自动加空格 (Add spaces between Chinese and English/digits) under 设置 → 中英文 (Settings → Chinese/English) (off by default). When on, a space is added automatically wherever Chinese characters meet half-width letters or digits:
 用Go写了30行 is committed as 用 Go 写了 30 行. No space is added next to punctuation or an existing space, and custom phrases and candidates such as dates and calculations are committed as is.
-If the cursor has moved elsewhere, or the app doesn't provide the text before the cursor, the preceding text can't be checked and no space is added. Not yet supported on Linux.
+If the cursor has moved elsewhere, or the app doesn't provide the text before the cursor, the preceding text can't be checked and no space is added.
 
 ## Floating status bar (Windows)
 

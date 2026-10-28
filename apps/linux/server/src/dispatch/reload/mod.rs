@@ -118,6 +118,7 @@ impl Router {
             .set_symbol_limit(usize::from(config.general.symbols.get()));
         self.engine.set_traditional(config.general.traditional());
         self.engine.set_mode_keys(config.shortcut.mode);
+        self.engine.set_auto_space(config.general.auto_space);
         if let Err(error) = self
             .engine
             .set_custom_phrases(config.custom_phrases.clone())

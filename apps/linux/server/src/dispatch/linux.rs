@@ -3,6 +3,7 @@ use super::{
     Answer, Router,
     key::{Effect, codes},
 };
+use qingjian_core::SurroundingText;
 use qingjian_core::candidate::arrows::Focus;
 use qingjian_platform::protocol::linux::{
     DisplayIdentity, LinuxEvent, LinuxRequest, MenuReply, ModeCommand,
@@ -140,7 +141,7 @@ impl Router {
                         .into(),
                     );
                 }
-                let surrounding = (!self.sessions[&session].private)
+                let surrounding: Option<SurroundingText> = (!self.sessions[&session].private)
                     .then_some(surrounding)
                     .flatten()
                     .map(Into::into);
@@ -161,6 +162,14 @@ impl Router {
                 } else {
                     info.switch_tap = codes::switch_tap(keys, &event);
                     event.modifiers.english_mode = info.english;
+                    // 应用里光标前的文字：还没上屏过时自动加空格拿它判上文，本地整句模型拿它当前文（同 Windows、macOS 壳）；
+                    // 应用不报（或私密输入框）时为空，按本会话上屏的字算。Core 在组句清空时丢掉它，所以每键都给
+                    self.engine.set_rescoring_context(
+                        surrounding
+                            .as_ref()
+                            .map(|text| text.before.clone())
+                            .filter(|before| !before.is_empty()),
+                    );
                     if !codes::is_tap_modifier(event.virtual_key)
                         && !self.engine.composition().is_empty()
                         && self.config.cloud_enabled

@@ -25,7 +25,7 @@ The macOS and Windows versions are in beta with nearly the same features; keys f
 | Choice of Chinese/English switch key | — (`Caps Lock`) | ✓ | ✓ | — |
 | Start in English mode | — | ✓ | ✓ | — |
 | Remember mode per app | — | ✓ | — (each window keeps its own) | — |
-| Automatic spacing between Chinese and Latin text | ✓ | ✓ | — | — |
+| Automatic spacing between Chinese and Latin text | ✓ | ✓ | ✓ | — |
 | Symbol panel | ✓ | ✓ | — | ✓ (symbol keyboard) |
 | Dates, calculations, characters by code point | ✓ | ✓ | ✓ | ✓ |
 | Traditional Chinese output | ✓ | ✓ | ✓ | ✓ |

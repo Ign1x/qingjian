@@ -121,7 +121,7 @@ Closing the terminal you started Qingjian from stops Qingjian; after your next l
 ## Wayland native edition
 
 The Wayland native edition doesn't go through Fcitx or IBus, and Qingjian draws the candidate window itself: themes, fonts, font sizes, vertical and horizontal layouts (in a horizontal layout, the up and down arrow keys expand it into a grid of candidates), key hints (the double pinyin keyboard and the Wubi radical chart) and transition animations are the same as on macOS / Windows, and every gloss is shown beside a candidate.
-Everyday typing has been verified on Hyprland and sway; behavior in individual apps hasn't been checked one by one yet.
+Everyday typing has been verified on Hyprland, covering terminals such as foot and kitty, as well as GTK4, Firefox, Chromium and Qt6 apps, and one round was done on sway 1.12 (foot terminal). The following haven't been checked item by item yet: clicking and scrolling the wheel on the candidate window, the candidate right-click menu, the tray and the mode-switch hint, where the key hints and the expanded multi-row layout end up, per-app Chinese/English mode, following the desktop's light/dark preference, and translating selected text.
 
 - Desktops it works on: Hyprland, sway (1.10 and later), niri, labwc, mango and similar.
 - Desktops it doesn't work on: KDE Plasma and GNOME don't offer the input method interface it needs; use the fcitx edition (Fcitx5 or IBus) there.
@@ -202,7 +202,7 @@ On other desktops, run the same command from their autostart configuration. The 
 - If typing or paging changes the candidates, or a context menu opens or closes, queued clicks on the old layout are cancelled; click the updated candidate or menu again.
 - Touchpad paging counts the last movement before you lift your fingers, then starts a fresh total for the next gesture. If the desktop temporarily falls behind, the candidate window catches up with the latest content before accepting clicks again.
 - To translate selected text, select it in the app and press `Alt + Shift + T`, then press Enter once the translation appears to replace the selection. Sensitive and password fields don't expose selections; changing the selection or switching input fields cancels the translation.
-- Not yet supported: everything listed above as not yet supported in the fcitx edition.
+- Not yet supported: the symbol panel, which neither Linux edition has.
 - Run `systemctl --user status qingjian-wayland` to see whether it's running and why it stopped; if it stops working, restart it with `systemctl --user restart qingjian-wayland`.
 
 ## Updating and uninstalling

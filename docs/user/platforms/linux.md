@@ -135,7 +135,7 @@ apps/linux/scripts/install.sh --fcitx4
 ## Wayland 原生版
 
 Wayland 原生版不经过 Fcitx 或 IBus，候选窗口由青简绘制：主题、字体、字号、竖排与横排（横排时用上下方向键展开多行候选）、键位提示（双拼键位、五笔字根图）、过渡动画都与 macOS / Windows 相同，候选旁显示全部译词。
-已在 Hyprland 与 sway 上验证日常输入，各类应用里的表现尚未逐个验证。
+已在 Hyprland 上验证日常输入，覆盖 foot、kitty 等终端以及 GTK4、Firefox、Chromium、Qt6 应用；在 sway 1.12 上验证过一轮（foot 终端）。以下各项尚未逐项验证：鼠标点选、滚轮翻页与候选右键菜单，托盘与中英切换提示，键位提示与横排多行的摆放，按应用区分中英模式，跟随桌面深浅，以及选区翻译。
 
 - 可用的桌面：Hyprland、sway（1.10 及以后）、niri、labwc、mango 等。
 - 不能用的桌面：KDE Plasma 与 GNOME 不提供它需要的输入法接口，请用 fcitx 版（Fcitx5 或 IBus）。
@@ -216,7 +216,7 @@ apps/linux/scripts/install.sh --frontend wayland --enable-service
 - 打字或翻页恰好换了候选、右键菜单打开或关闭时，尚未处理的旧点击会取消；请对着更新后的候选或菜单再点一次。
 - 触摸板翻页会计入抬手前的最后一段滑动；抬手后重新累计。桌面暂时绘制不及，候选窗口会在恢复后补上最新内容，再接受点击。
 - 翻译选中文字：在应用中选中文字后按 `Alt + Shift + T`，译文出现后按回车替换选区。敏感或密码输入框不读取选区；翻译中修改选区或切换输入框会取消这次翻译。
-- 暂不支持：上文 fcitx 版暂不支持的各项。
+- 暂不支持：符号面板，Linux 的两个版本均不支持。
 - 执行 `systemctl --user status qingjian-wayland` 可查看运行状态与出错原因；停止工作时执行 `systemctl --user restart qingjian-wayland` 重新启动。
 
 ## 更新与卸载

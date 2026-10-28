@@ -171,9 +171,11 @@
   - [ ] 发版：Certum 开源代码签名证书、`windows-v<版本>` 标签与 CI
 - [x] Linux Fcitx5 第一阶段：Rust Server、默认候选面板、用户目录安装与手动启动（2026-09-18）；未改系统 Fcitx5 的 GTK4 / Qt6 X11 输入已验证
 - [ ] Linux 后续：Server 自绘 X11 窗口、Server 向 GNOME 扩展发送位图、神经重排、自动启动与 Debian 包；各自独立 PR，IBus 暂缓
-- [~] Linux Wayland 原生版（`apps/linux/wayland`，2026-10-27 起，设计见 `docs/design/linux-wayland.md`）：input-method-v2 客户端 + 自绘候选窗；
-  已做按应用会话、外观跟随系统、Linux 协议 v4（Server 一侧）、安装脚本与 systemd 服务、deb / rpm、用户文档；进行中：鼠标、候选右键菜单、中 / 英提示、托盘、选区翻译，
-  以及 Server 补齐 Linux 标「待实现」的输入功能
+- [~] Linux Wayland 原生版（`apps/linux/wayland`，2026-10-27 起，设计见 `docs/design/linux-wayland.md`）：input-method-v2 客户端 + 自绘候选窗，Hyprland 上日常使用中；
+  已做按应用会话、外观跟随系统、Linux 协议 v4（Server 与前端两侧）、鼠标点选与滚轮翻页、候选右键菜单、中 / 英提示与托盘、选区翻译、横排矩阵与键位提示、
+  Server 补齐 Linux 标「待实现」的输入功能、设置程序支持表分 fcitx 版与 Wayland 版两列、安装脚本与 systemd 服务、deb / rpm、用户文档；
+  进行中：真会话逐项验收（鼠标、托盘、按应用会话与跟随深浅、选区翻译、键位提示摆放与横排矩阵排布）、Wayland 预编译包进发版、
+  其它合成器（sway / niri / labwc）真机
 - [~] Android（`apps/android`，`feat/android` 分支）：输入核心、学习与统计、词库与繁体、高级、云联想已与 PC 对齐，外观（主题）进行中；
   实现要点见 `docs/notes/android.md`
 - [ ] 移动端与平板：iOS、iPadOS、HarmonyOS

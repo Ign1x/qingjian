@@ -144,22 +144,31 @@
     GNOME Wayland 上改在快捷键交给应用前先原样上屏，鼠标换框仍会丢，见 [notes/linux-bringup.md](../notes/linux-bringup.md)
   - ~~安装脚本按已装框架分支安装、Server 的启动策略~~：`install.sh --frontend auto` 已做，systemd 用户单元 `qingjian-server.service` 随装（`--enable-service` 顺手 enable），两个前端共用一个 Server
   - `[general] preedit` 三档在 IBus 面板下逐个真机验（它的面板能力比 fcitx5 弱），坑见 [notes/linux-bringup.md](../notes/linux-bringup.md)
-- [~] Linux Wayland 原生版（`apps/linux/wayland`，设计见 [design/linux-wayland.md](../design/linux-wayland.md)）：原型可用，Hyprland 真机验过。已做：按应用会话、外观跟随系统、
-  Linux 协议 v4 的 Server 一侧（回包带模式、托盘切换命令、候选右键菜单，Fcitx5 / Fcitx4 插件不用改）、安装脚本与 systemd 用户服务、deb / rpm、用户文档、黑盒测试，
-  以及前端的选区翻译、鼠标点选、滚轮翻页、候选右键菜单、中 / 英提示与主题里的模式、托盘。还差：
+- [~] Linux Wayland 原生版（`apps/linux/wayland`，设计见 [design/linux-wayland.md](../design/linux-wayland.md)）：日常可用，真会话验过 Hyprland（HyDE）日常输入、
+  多类应用（foot / kitty、GTK4、Firefox、Chromium、Qt6），以及嵌套 sway 1.12 + foot + wtype 的一轮。已做：按应用会话、外观跟随系统（桌面未给偏好时浅色）、
+  选区翻译、鼠标点选、滚轮翻页、候选右键菜单、中 / 英提示与主题里的模式、托盘、横排矩阵与键位提示，
+  Linux 协议 v4（Server 与前端两侧；回包带模式、托盘切换命令、候选右键菜单，Fcitx5 / Fcitx4 插件不用改）、安装脚本与 systemd 用户服务、deb / rpm、用户文档、黑盒测试。
+  Server 的输入功能补齐到与 Fcitx5 版一致（两版共用一个 Server）：自动加空格、额外翻页键与高亮移动键、全半角与简繁快捷键（Ctrl + . / Ctrl + Shift + F）、小键盘数字、
+  中英模式缺省共用或按应用记、带调拼音行、辅码（含 v3 插件帧降级）、形码与自定义双拼、实验模型（知意 CPU 两线程、含章·知微，Linux 知意需另装 ONNX Runtime 1.24+）；
+  横排矩阵与键位提示的数据也备好了，只对握手报了对应能力的会话提供。
+  前端的横排矩阵按视口格号排成多行、点选与菜单带格号、滚轮一次翻多行；键位提示（双拼键位、五笔字根图）与候选窗合成进同一个 popup，
+  通常放右边，合成器把候选窗翻到光标上方时放上方，同一段输入不换边，键盘不收鼠标。连发按键每键画一帧已测跟得上（重主题 1.5 倍 release 版每帧十几毫秒）。
+  设置程序支持表分 Linux fcitx 版与 Wayland 原生版两列；黑盒测试覆盖横排矩阵与键位提示，CI 的 Linux job 跑黑盒测试（装上 libxkbcommon 与 libwayland-client，设 `QINGJIAN_BLACKBOX_REQUIRED=1`，
+  缺库时失败而不是跳过）。还差：
   - 托盘与中 / 英提示待真会话验：waybar 等 StatusNotifierItem 宿主上图标随中英换、左键切换、右键菜单的勾选态与「设置」；宿主重启后重新注册
-  - 鼠标待真会话验（Hyprland、sway）：合成器给不给 popup 指针事件、点 popup 会不会让应用失焦、cursor-shape 的光标、滚轮与触摸板一下翻一页（触摸板 50 逻辑像素一页要不要调）、
-    右键菜单弹出时 popup 变大会不会被挪开或翻到光标上方（`RUST_LOG=debug` 看「鼠标按在候选窗上」「候选窗上能点的地方」）
+  - 鼠标待真会话验（Hyprland、sway）：点选、滚轮与触摸板一下翻一页（触摸板 50 逻辑像素一页要不要调）、右键菜单——合成器给不给 popup 指针事件、
+    点 popup 会不会让应用失焦、cursor-shape 的光标；菜单弹出时 popup 变大会不会被挪开或翻到光标上方（`RUST_LOG=debug` 看「鼠标按在候选窗上」「候选窗上能点的地方」）
   - 点候选右侧的译词上屏那条译词：Linux 协议现在只有点候选（`Candidate{identity, index}`），Wayland 前端点译词上屏的是候选本身；要协议加义项、Server 跟着改
-  - 按应用会话与跟随深浅待真会话验：两个应用里各自切中英、来回切换各自记住，`[apps]` 英文候选名单里的应用出英文候选，
-    切窗口时不白换会话（`RUST_LOG=debug` 看「活动窗口换了应用」）；桌面切深浅时候选窗一秒内跟着换；sway / niri / labwc 上报活动窗口与激活输入框的先后
+  - 按应用会话与跟随深浅待真会话验收：两个应用里各自切中英、来回切换各自记住，`[apps]` 英文候选名单里的应用出英文候选，
+    切窗口时不白换会话（`RUST_LOG=debug` 看「活动窗口换了应用」）；桌面切深浅时候选窗一秒内跟着换（跟随深浅只在 Hyprland 的 portal 上读过初值，桌面切换未验）；
+    sway / niri / labwc 上报活动窗口与激活输入框的先后
   - 选区翻译待真会话验：GTK4 / Qt6 / Firefox 里选中一段（鼠标拖与 Shift + 方向键两种）按 `Alt + Shift + T`，回车后译文替换选区（靠应用在上屏时删掉选区）；
     选区长过应用报的那段前后文（约 4000 字节）时，看快捷键是否原样交给应用
-  - 按 `text_input_rectangle` 判断候选窗翻没翻到光标上方、调排布；~~设置程序支持表区分 fcitx 版与 Wayland 版~~（已做）；
-    ~~CI 跑黑盒测试~~（2026-10-28：Linux job 装上 libxkbcommon 与 libwayland-client，设 `QINGJIAN_BLACKBOX_REQUIRED=1`，缺库时失败而不是跳过）
-  - 预编译 tarball（`package.sh`）两版都能打了，Wayland 版还没进发版（release.yml 只跑缺省版，`releases_json.py` 的附件名规则会把它认成 linux/x86_64、与 Fcitx5 版撞同一个平台键）；deb / rpm 的 `qingjian-wayland` 包还没在容器里真打过、没跑 smoke
-  - sway / niri / labwc 上逐个真机验（第一轮只验了 Hyprland）
-  - 连发按键时每个键都画一帧：重主题（樱花）release 版 1.5 倍下每帧十几毫秒，跟得上；真不够时改成一批事件处理完只画最后一帧
+  - 键位提示的摆放与横排矩阵的排布待真会话验（Hyprland、sway）：合成器翻到光标上方时键盘换到候选窗上方、碰到屏幕右边或底边时的退让，
+    矩阵在真窗口里排成什么样（只验过纯逻辑与黑盒）
+  - Wayland 预编译 tarball 进发版：`package.sh --frontend wayland` 能打，但 release.yml 只跑缺省版，`releases_json.py` 的附件名规则会把它认成 linux/x86_64、
+    与 Fcitx5 版撞同一个平台键；deb / rpm 的 `qingjian-wayland` 包还没在容器里真打过、没跑 smoke
+  - sway / niri / labwc 上逐个真机验（只在嵌套 sway 1.12 + foot + wtype 上跑过一轮）
 - [ ] 渲染器的译词编号把读音也算一号：`from_candidate` 把读音（emoji 跟着的词、问字的拼音）拼在注记最前面，渲染器按分隔符编号，真正的第 0 条义项成了第 1 号。
   Windows 点带读音候选的译词可能点错义项（没验）；Wayland 前端在 `view::renumber_senses` 里先换回 Core 的编号（不然回执整份被 Server 拒掉），上游修了就删
 - [ ] 候选 → 渲染帧的换算收口：共享的 `qingjian_platform::display` 已有（Linux Wayland 前端在用），Windows Server（`ui/candidates/{row,render_data}.rs`）与 macOS（`candidates/row.rs` + `bitmap/convert.rs`）各自单独提 PR 改用它，改完删掉自己那份

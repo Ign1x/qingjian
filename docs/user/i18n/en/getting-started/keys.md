@@ -16,7 +16,7 @@ For keys you can change, see [Changing keys](../personalize/keys-settings.md); A
 | Type one capital letter while typing pinyin | `⇧ + letter` | `Shift + letter` | `Shift + letter` |
 | Switch full-width / half-width punctuation | `⌃ + .` can be enabled (off by default) | Click the ，。 cell on the floating status bar; `Ctrl + .` can be enabled (off by default) | `Ctrl + .` can be enabled (off by default) |
 | Switch Simplified / Traditional output | — | `Ctrl + Shift + F` can be enabled (off by default) | `Ctrl + Shift + F` can be enabled (off by default) |
-| Switch to another input method | `⌃ + Space` (system) | `Win + Space` (system) | Fcitx's switch hotkey |
+| Switch to another input method | `⌃ + Space` (system) | `Win + Space` (system) | Fcitx's switch hotkey; the Wayland native edition takes over the keyboard itself and has no such key |
 
 On macOS, if you turn on the system option that uses Caps Lock to switch to "ABC", the system takes Caps Lock for switching input methods and Qingjian's own English mode is no longer reachable; see [Chinese and English](../input/english-mode.md).
 
@@ -28,7 +28,7 @@ On Windows and Linux, the Chinese / English switch can also be a tap of `Ctrl` o
 |---|---|---|---|
 | Commit the highlighted candidate | `Space` | `Space` | `Space` |
 | Commit candidate N on this page | `1` to `9` | `1` to `9` | `1` to `9` |
-| Commit with the mouse | Click a candidate; click the gloss to its right to commit that gloss | Same | Click a candidate |
+| Commit with the mouse | Click a candidate; click the gloss to its right to commit that gloss | Same | Click a candidate; clicking the gloss to its right commits the candidate itself |
 | Commit the letters as typed | `Enter` | `Enter` | `Enter` |
 | Delete the letter before the cursor (when picking in steps, undo the last pick first) | `Backspace` | `Backspace` | `Backspace` |
 | Delete the letter after the cursor | `Delete` | — | `Delete` |
@@ -41,9 +41,9 @@ On Windows and Linux, the Chinese / English switch can also be a tap of `Ctrl` o
 | Move the pinyin cursor | `←` / `→` | `←` / `→` | `←` / `→` |
 | Move the cursor by syllable | `⌥ + ←` / `⌥ + →` | — | — |
 | Move the cursor to the start / end | `⌘ + ←` / `⌘ + →`, or `Home` / `End` | `Home` / `End` | `Home` / `End` |
-| Open the symbol panel | `↑` while the first candidate is highlighted (in horizontal layout with highlight keys set to `←` / `→`, press `↑` once to move into the pinyin, then again) | Same | — |
+| Open the symbol panel | `↑` while the first candidate is highlighted (in horizontal layout with highlight keys set to `←` / `→`, press `↑` once to move into the pinyin, then again) | Same | — (neither the fcitx edition nor the Wayland native edition supports the symbol panel) |
 | Enter auxiliary code | `;` | `;` | `;` |
-| Expand to several rows in horizontal layout (enable in Settings) | `↑` / `↓` | `↑` / `↓` | `↑` / `↓` (Wayland native edition) |
+| Expand to several rows in horizontal layout (enable in Settings) | `↑` / `↓` | `↑` / `↓` | `↑` / `↓` (Wayland native edition only; the fcitx edition has no such option) |
 
 On Windows and Linux, numpad digits also pick candidates by default. Set 小键盘数字 (Numpad digits) under 设置 → 候选 (Settings → Candidates) to 直接输入数字 (Type digits) and numpad digits typed while composing are appended to the letters and committed with them (`wenti`, then numpad `5` and `Space`, gives `wenti5`); the main keyboard digits still pick candidates. Num Lock must be on.
 
@@ -51,6 +51,8 @@ When the cursor is in the middle of the pinyin, candidates are based only on the
 Linux also supports Wubi automatic commit for a unique full code, commit-on-next-code and clearing codes with no matches. A few keys differ with Dachen Zhuyin and Wubi; see [Pinyin schemes and fuzzy pinyin](../input/fuzzy-and-shuangpin.md#Dachen-Zhuyin) and [Wubi and mixed input](../input/wubi.md).
 
 Linux also supports additional paging keys and using `←` / `→` to move the highlight; see [Key settings](../personalize/keys-settings.md). In English candidates, pressing `=` on the last page commits the typed letters and `=` when it is configured as a paging key. Selection translation takes precedence over conflicting punctuation or simplified/traditional toggle shortcuts.
+
+In the Linux Wayland native edition you can turn on 横排时 ↑ / ↓ 展开成多行 (Expand to rows with ↑ / ↓ in horizontal layout): once on, in horizontal layout `↑` / `↓` expand the row and move by row (`↑` on the first row returns to the first candidate) and `←` / `→` move between candidates; with it off, `↑` / `↓` move the highlight one at a time as in the table. The fcitx edition's candidates are drawn by Fcitx / IBus, which has no such option; see [Appearance and themes](../personalize/appearance.md#Expanding-horizontal-layout-into-several-rows).
 
 ## In the symbol panel
 

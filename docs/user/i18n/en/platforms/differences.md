@@ -26,7 +26,7 @@ The macOS and Windows versions are in beta with nearly the same features; keys f
 | Start in English mode | — | ✓ | ✓ | — |
 | Remember mode per app | — | ✓ | ✓ | — |
 | Automatic spacing between Chinese and Latin text | ✓ | ✓ | ✓ | — |
-| Symbol panel | ✓ | ✓ | — | ✓ (symbol keyboard) |
+| Symbol panel | ✓ | ✓ | — (neither Linux edition) | ✓ (symbol keyboard) |
 | Dates, calculations, characters by code point | ✓ | ✓ | ✓ | ✓ |
 | Traditional Chinese output | ✓ | ✓ | ✓ | ✓ |
 | Custom phrases | ✓ | ✓ | ✓ | ✓ (saved phrases) |
@@ -93,4 +93,5 @@ The Linux column in the tables above is the fcitx edition. The Wayland native ed
 | Tray | Provided by Fcitx / IBus | Qingjian's 中 / 英 icon; left-click to switch, right-click for mode, punctuation, traditional output or settings (requires status bar support) |
 | Candidates in English mode | Per the app list | Per the app list; if the desktop can't identify apps, untick 只在写字的应用里给 (Only in writing apps) |
 | Candidate right-click menu (pin, demote, delete) | — | ✓ |
+| Switching windows while typing | The pinyin not yet committed is committed as typed (IBus on GNOME Wayland loses it) | The pinyin not yet committed is lost |
 | X11 apps | ✓ | — |

@@ -146,22 +146,23 @@ impl Router {
                     .flatten()
                     .map(Into::into);
                 let keys = self.config.switch_keys();
+                let english = self.english_of(session);
                 let info = self.sessions.get_mut(&session)?;
                 if release {
                     if info.switch_tap == Some(event.virtual_key) {
                         info.switch_tap = None;
                         commit = self.toggle_english(session);
-                        switched = Some(self.sessions[&session].english);
+                        switched = Some(self.english_of(session));
                         outcome = KeyOutcome::Consumed;
                     }
                 } else if keys.ctrl_alt_space && codes::is_ctrl_alt_space(&event) {
                     info.switch_tap = None;
                     commit = self.toggle_english(session);
-                    switched = Some(self.sessions[&session].english);
+                    switched = Some(self.english_of(session));
                     outcome = KeyOutcome::Consumed;
                 } else {
                     info.switch_tap = codes::switch_tap(keys, &event);
-                    event.modifiers.english_mode = info.english;
+                    event.modifiers.english_mode = english;
                     // 应用里光标前的文字：还没上屏过时自动加空格拿它判上文，本地整句模型拿它当前文（同 Windows、macOS 壳）；
                     // 应用不报（或私密输入框）时为空，按本会话上屏的字算。Core 在组句清空时丢掉它，所以每键都给
                     self.engine.set_rescoring_context(
@@ -258,7 +259,7 @@ impl Router {
                         if self.config.english_mode {
                             self.sessions.get_mut(&session)?.switch_tap = None;
                             commit = self.toggle_english(session);
-                            switched = Some(self.sessions[&session].english);
+                            switched = Some(self.english_of(session));
                             outcome = KeyOutcome::Consumed;
                         }
                     }
@@ -302,10 +303,9 @@ impl Router {
             && info.display_identity.as_ref() == Some(identity)
     }
 
-    /// 切换中英：组句中的拼音原样上屏。
+    /// 切换中英（记到哪一份见 `dispatch/english`）：组句中的拼音原样上屏。
     fn toggle_english(&mut self, session: SessionId) -> Option<String> {
-        let info = self.sessions.get_mut(&session).expect("known session");
-        info.english = !info.english;
+        self.set_english(session, !self.english_of(session));
         let commit = (!self.engine.composition().is_empty()).then(|| self.engine.take_raw());
         self.reset_composition();
         commit

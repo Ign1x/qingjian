@@ -11,7 +11,10 @@ use super::Router;
 impl Router {
     /// 这个会话现在的输入模式，附在发给它的每个 `KeyResult` / `Update` 上。
     pub(super) fn input_mode(&self, session: SessionId) -> Option<InputMode> {
-        let english = self.sessions.get(&session)?.english;
+        if !self.sessions.contains_key(&session) {
+            return None;
+        }
+        let english = self.english_of(session);
         Some(InputMode {
             english,
             traditional: self.engine.traditional() != TraditionalVariant::Off,
@@ -23,7 +26,7 @@ impl Router {
 
     /// 翻转这个会话当前模式那一份全角标点（中英各记一份）。
     pub(super) fn toggle_punctuation(&mut self, session: SessionId) {
-        let english = self.sessions.get(&session).is_some_and(|info| info.english);
+        let english = self.english_of(session);
         let full_width = !self.full_width_for(english);
         let key = if english {
             self.config.english_full_width = full_width;

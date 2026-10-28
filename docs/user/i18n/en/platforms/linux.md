@@ -110,7 +110,7 @@ Closing the terminal you started Qingjian from stops Qingjian; after your next l
 ## Differences from the desktop versions
 
 - **Candidate panel**: Fcitx's candidate panel is used and its look comes from the Fcitx theme, so Qingjian's themes, fonts, expanded horizontal layout and key hints don't apply. The panel shows only the first gloss, with part of speech and Japanese readings.
-- **Chinese/English mode**: each window keeps its own; new windows start in Chinese, or can be set to start in English, see [Chinese and English](../input/english-mode.md#Default-mode-and-per-app-memory). Fcitx5's left `Shift` hotkey needs to be turned off; see the same page.
+- **Chinese/English mode**: as on Windows, one mode is shared by all windows by default (each window used to keep its own), and it can be remembered per app instead, see [Chinese and English](../input/english-mode.md#Default-mode-and-per-app-memory). Fcitx5's left `Shift` hotkey needs to be turned off; see the same page.
 - **Tab**: goes to the app when you're not typing; while typing pinyin it accepts the sentence completion, or goes to the next page if there's none; among English candidates it picks the highlighted one.
 - **Digits**: when the current page has no matching candidate, the digit is appended to the pinyin, and `hao6` followed by Enter is output as typed.
 - **Direct English input**: once in it, digits and punctuation keep being appended, and ending with a space keeps the space (`gpt-6` then Space gives `gpt-6 `).
@@ -192,7 +192,7 @@ On other desktops, run the same command from their autostart configuration. The 
 ### Differences from the fcitx edition
 
 - Change the candidate window's theme, fonts and font sizes under 设置 → 外观 (Settings → Appearance), see [Appearance and themes](../personalize/appearance.md); with 外观 (Appearance) set to follow the system, it's shown in light mode for now.
-- One Chinese/English mode is shared by all windows; switching shows no indicator, and there's no tray icon.
+- Switching between Chinese and English shows no indicator, and there's no tray icon.
 - English mode can't tell which app you're in yet: English candidates only appear after you untick 只在写字的应用里给 (Only in writing apps) under 设置 → 中英文 (Settings → Chinese/English).
 - If you switch to another window while typing, the pinyin not yet committed is lost (the fcitx edition commits it as typed).
 - Selecting text with the mouse while holding `Shift` switches between Chinese and English when you release `Shift`.

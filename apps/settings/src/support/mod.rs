@@ -105,7 +105,7 @@ impl Feature {
             Self::SwitchKeyCombos => [No, Yes, Yes],
             Self::SystemCtrlSpace => [No, Yes, No],
             Self::DefaultEnglish => [Todo, Yes, Yes],
-            Self::RememberModePerApp => [Todo, Yes, Todo],
+            Self::RememberModePerApp => [Todo, Yes, Yes],
             // macOS 英文模式一律半角
             Self::EnglishPunctuation => [No, Yes, Yes],
             Self::AutoSpace => [Yes, Yes, Yes],

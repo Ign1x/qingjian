@@ -19,7 +19,7 @@ pub(crate) struct SessionInfo {
     /// 上次发给插件的帧；插件定时 Poll 时内容没变就沿用展示身份，不算新的展示。
     pub(crate) last_frame: Option<qingjian_platform::protocol::Frame>,
 
-    /// Server 持有的中英模式。
+    /// 按应用记中英、而这个会话没报应用名时它自己那一份；其余情况用 Router 上全局或按应用的那一份（`dispatch/english`）。
     pub(crate) english: bool,
 
     /// 按下、还没松开的单击切换键（Shift / Ctrl 的虚拟键码）；中间按了别的键就作废。

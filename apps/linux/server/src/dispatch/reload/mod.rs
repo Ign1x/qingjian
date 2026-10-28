@@ -125,14 +125,11 @@ impl Router {
         {
             tracing::warn!(%error, "自定义短语有误，保持原来的");
         }
-        self.config = RouterConfig::from(config);
+        let next = RouterConfig::from(config);
+        self.reload_mode(&next);
+        self.config = next;
         self.config.page_size = self.config.page_size.clamp(1, 9);
         self.collapse_disabled_grids();
-        if !self.config.english_mode {
-            for info in self.sessions.values_mut() {
-                info.english = false;
-            }
-        }
 
         let Some(mut reload) = self.reload.take() else {
             return;

@@ -93,6 +93,9 @@ pub struct RouterConfig {
 
     /// 简繁切换组合键（`[shortcut] toggle_traditional`）；与选区翻译相同时不登记，保留翻译行为。
     pub toggle_traditional: Option<KeyCombo>,
+
+    /// 按应用记住中英模式（`[general] remember_mode_per_app`），缺省所有会话共用一份。
+    pub remember_mode_per_app: bool,
 }
 
 impl RouterConfig {
@@ -110,7 +113,7 @@ impl RouterConfig {
         }
     }
 
-    /// 新会话的初始模式。
+    /// 起始的中英模式：Server 启动时全局那一份，按应用记时没有记录的应用与会话也从它开始。
     pub fn starts_english(&self) -> bool {
         self.english_mode && self.default_english
     }
@@ -167,6 +170,7 @@ impl From<&Config> for RouterConfig {
                 .shortcut
                 .toggle_traditional
                 .filter(|key| *key != config.shortcut.translate_selection),
+            remember_mode_per_app: config.general.remember_mode_per_app,
         }
     }
 }

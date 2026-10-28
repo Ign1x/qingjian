@@ -274,19 +274,23 @@ fn shared_client_drives_the_candidate_menu_against_the_real_server() {
     let _ = std::fs::remove_dir_all(&directory);
 }
 
-/// 同一条连接上两个应用各一个会话（Wayland 前端按应用分会话就是这样）：在 A 里切到英文，B 仍是中文，
-/// 切回 A 时它还记得英文——中 / 英按会话记，`OpenSession.app` 原样带到 Server。
-#[test]
-fn modes_are_kept_per_app_session_on_one_connection() {
-    let (server, directory, _path, mut connection, first) =
-        start("per-app", "[shortcut]\nswitch_mode = \"shift\"\n");
+/// 同一条连接上两个应用各一个会话（Wayland 前端按应用分会话就是这样），在 A 里单击 Shift 切到英文；返回这两个会话。
+/// `start` 开的那个会话没报应用名，先让出焦点。
+fn two_apps_after_switching_the_first(
+    connection: &mut Connection,
+    opened: SessionId,
+) -> (SessionId, SessionId) {
+    connection.focus(opened, false).unwrap();
+    let first = connection.open_session("per-app-a", Some("foot")).unwrap();
     let second = connection
         .open_session("per-app-b", Some("org.gnome.TextEditor"))
         .unwrap();
-    connection
-        .capabilities(second, Capabilities::default())
-        .unwrap();
-
+    for session in [first, second] {
+        connection
+            .capabilities(session, Capabilities::default())
+            .unwrap();
+    }
+    connection.focus(first, true).unwrap();
     connection
         .key(first, to_key_event(keysym::SHIFT_L, 0), false, None, false)
         .unwrap();
@@ -294,8 +298,35 @@ fn modes_are_kept_per_app_session_on_one_connection() {
         .key(first, to_key_event(keysym::SHIFT_L, 1), true, None, false)
         .unwrap();
     assert_eq!(toggled.english, Some(true));
-
     connection.focus(first, false).unwrap();
+    (first, second)
+}
+
+/// 缺省所有应用共用一份中英模式：A 里切到英文，B 也是英文。
+#[test]
+fn modes_are_shared_by_all_apps_by_default() {
+    let (server, directory, _path, mut connection, opened) =
+        start("shared-mode", "[shortcut]\nswitch_mode = \"shift\"\n");
+    let (_, second) = two_apps_after_switching_the_first(&mut connection, opened);
+    let focused = connection.focus(second, true).unwrap();
+    assert!(
+        focused.mode.as_ref().is_some_and(|mode| mode.english),
+        "B 跟着是英文"
+    );
+    drop(connection);
+    drop(server);
+    let _ = std::fs::remove_dir_all(&directory);
+}
+
+/// 打开「按应用记住中英模式」：A 里切到英文，B 仍是中文，切回 A 时它还记得英文——`OpenSession.app` 原样带到 Server，
+/// Server 按它记；关掉 A 的会话再开（Wayland 前端换掉最久没用的会话就是这样），按应用名记着的不丢。
+#[test]
+fn modes_are_kept_per_app_on_one_connection() {
+    let (server, directory, _path, mut connection, opened) = start(
+        "per-app",
+        "[general]\nremember_mode_per_app = true\n[shortcut]\nswitch_mode = \"shift\"\n",
+    );
+    let (first, second) = two_apps_after_switching_the_first(&mut connection, opened);
     connection.focus(second, true).unwrap();
     let typed = type_text(&mut connection, second, "ni");
     assert_eq!(typed.outcome, KeyOutcome::Consumed, "B 没被 A 的切换带走");
@@ -307,6 +338,17 @@ fn modes_are_kept_per_app_session_on_one_connection() {
     assert!(
         back.mode.as_ref().is_some_and(|mode| mode.english),
         "A 还记得英文"
+    );
+    connection.focus(first, false).unwrap();
+    connection.close_session(first).unwrap();
+    let reopened = connection.open_session("per-app-c", Some("foot")).unwrap();
+    connection
+        .capabilities(reopened, Capabilities::default())
+        .unwrap();
+    let again = connection.focus(reopened, true).unwrap();
+    assert!(
+        again.mode.as_ref().is_some_and(|mode| mode.english),
+        "同一个应用重开会话还是英文"
     );
     drop(connection);
     drop(server);

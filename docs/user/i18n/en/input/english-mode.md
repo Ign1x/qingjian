@@ -19,8 +19,8 @@ description: "Entering English mode, changing or turning off the Chinese/English
 - **Linux**: tap `Shift` to switch between Chinese and English; Fcitx5 briefly shows 中 or 英 when you switch (it disappears after about a second). Holding `Shift` while typing letters doesn't switch. While `Caps Lock` is on, capital letters are typed directly.
   The hint shares Fcitx5's "Show Input Method Information when switch input method" setting with the input method switching popup; turn that off and it no longer appears.
 
-On Windows, the Chinese/English mode is **shared by all apps** by default: switch to English in one app and other apps, including newly opened ones, are in English too. On Linux, **each window keeps its own**, and new windows start in Chinese.
-The Linux Wayland native edition is the exception: all windows share one mode, switching shows no indicator, and 默认英文模式 (Start in English mode) only decides the mode Qingjian starts in.
+On Windows and Linux, the Chinese/English mode is **shared by all apps** by default: switch to English in one app and other apps, including newly opened ones, are in English too. To let each app keep its own, turn on 按应用记住中英模式 (Remember mode per app) below.
+On Linux each window used to keep its own mode; it now works as on Windows. The Linux Wayland native edition shows no indicator when switching.
 
 ## Changing or turning off the Chinese / English switch
 
@@ -47,8 +47,9 @@ When you need English, switch to another input method with `Win + Space` on Wind
 
 The 英文 (English) group in 设置 → 中英文 (Settings → Chinese/English) has two options:
 
-- **默认英文模式 (Start in English mode)** (Windows, Linux): on Windows, Qingjian starts in English; on Linux, newly opened apps and windows start in English. When off, they start in Chinese.
-- **按应用记住中英模式 (Remember mode per app)** (Windows): switching back to an app restores the mode it had last time. Apps with no record use the default mode above, and all windows of one app share a mode.
+- **默认英文模式 (Start in English mode)** (Windows, Linux): Qingjian starts in English; when off, it starts in Chinese.
+- **按应用记住中英模式 (Remember mode per app)** (Windows, Linux): switching back to an app restores the mode it had last time. Apps with no record use the default mode above, and all windows of one app share a mode.
+  On Linux, when the app can't be identified (under IBus), each input field keeps its own.
 
 For example, with both on, new apps start in English, and switching Notepad to Chinese doesn't change the browser's English mode.
 Remembered modes last for as long as Qingjian is running, so closing and reopening an app still restores them; after Qingjian restarts, the default mode applies again.

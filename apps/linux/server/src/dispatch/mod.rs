@@ -4,6 +4,7 @@ mod answer;
 mod composed;
 mod config;
 mod display;
+mod english;
 mod key;
 mod linux;
 mod menu;
@@ -92,11 +93,18 @@ pub struct Router {
 
     /// 横排展开成矩阵时的视口；`None` 是单行。只有握手报了 `features.grid` 的会话会展开。
     grid: Option<Grid>,
+
+    /// 所有会话共用的中英模式（`true` 英文）；按应用记时不用它，见 `dispatch/english`。
+    english: bool,
+
+    /// 按应用记中英时，应用名（小写）到中英模式；会话关了仍留着，Server 重启才清。
+    app_modes: HashMap<String, bool>,
 }
 
 impl Router {
     pub fn new(engine: Engine, mut config: RouterConfig) -> Self {
         config.page_size = config.page_size.clamp(1, 9);
+        let english = config.starts_english();
         if !engine.prediction_enabled() {
             config.cloud_slots = 0;
         }
@@ -121,6 +129,8 @@ impl Router {
             reload: None,
             focus: Focus::default(),
             grid: None,
+            english,
+            app_modes: HashMap::new(),
         }
     }
     /// 一条客户端消息；无需答复的通知返回 None。

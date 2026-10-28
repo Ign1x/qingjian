@@ -80,7 +80,7 @@ fn turning_english_mode_off_returns_sessions_to_chinese() {
         app: None,
         protocol: PROTOCOL_VERSION,
     });
-    assert!(router.sessions[&SessionId(1)].english);
+    assert!(router.english_of(SessionId(1)));
 
     write_config(
         &dir.join("config.toml"),
@@ -88,8 +88,18 @@ fn turning_english_mode_off_returns_sessions_to_chinese() {
         200,
     );
     poll(&mut router);
-    assert!(!router.sessions[&SessionId(1)].english);
+    assert!(!router.english_of(SessionId(1)));
     assert_eq!(router.config.switch_keys(), SwitchKeys::NONE);
+
+    // 再打开、并改成按应用记：从默认英文起
+    write_config(
+        &dir.join("config.toml"),
+        "[general]\ndefault_english = true\nremember_mode_per_app = true\n",
+        300,
+    );
+    poll(&mut router);
+    assert!(router.config.remember_mode_per_app);
+    assert!(router.english_of(SessionId(1)));
     std::fs::remove_dir_all(&dir).unwrap();
 }
 

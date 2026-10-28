@@ -21,6 +21,8 @@ Ubuntu 22.04 使用 `fcitx-libs-dev`（Fcitx4 4.2.9.8）、`nlohmann-json3-dev`�
 - 选区翻译由 Server 按 `[shortcut] translate_selection` 判断按键，返回 `RequestSelection` 后插件读取最多 500 字选区并回复 `LinuxEvent::Selection`。评审时默认面板显示「翻译中…」或译文，轮询直到有结果；提交前再次核对选区文字和位置。
 - Chrome 等没有 `CAPACITY_SURROUNDING_TEXT` 的 X11 应用改读 PRIMARY；XRes 只接受与当前焦点窗口同属一个 X11 客户端的选区，等待最多 100 ms，UTF-8 格式和长度不合规时拒绝。提交前会重新读取并比对选中文字，应用能提供光标位置时还会比对位置。
 - `OnClose(CET_LostFocus)` 表示框架已处理客户端预编辑；插件把这个事实告诉 Server，防止重复上屏。
+- 面板拼音行（`FcitxInputStateGetPreedit` 与 `SetCursorPos`）画帧上的 `window_preedit`（拼音行显示声调），客户端预编辑（`GetClientPreedit` 与 `SetClientCursorPos`）仍按 `preedit`，取法与 Fcitx5 插件共用 `apps/linux/preedit.h`。
+  nixpkgs 现在没有 Fcitx4，本机编译检查用 nixos-22.11 二进制缓存里的 `fcitx` 4.2.9.6（`nix-build -I nixpkgs=channel:nixos-22.11 '<nixpkgs>' -A fcitx`，把它的 `lib/pkgconfig` 加进 `PKG_CONFIG_PATH_FOR_TARGET`）。
 
 ## 本机验证
 

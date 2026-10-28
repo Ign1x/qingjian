@@ -4,13 +4,16 @@
 //! 候选折成带序号与注记片段的行、拼音行按 `[general] preedit` 决定画不画、页码写成 `1/6`。
 //! 这一步各个自绘的壳本来各写一份（见 `docs/design/core-internals.md`「还是各写一份的地方」），
 //! 这里是 Linux Wayland 前端用的那份，照 Windows Server 的 `ui/candidates/{row,render_data}.rs` 写；Windows 与 macOS 以后改用它。
+//! 键位提示（双拼键位、五笔字根图）换成渲染器的键盘也在这里（[`key_hint_keyboard`]）。
 
+mod keyboard;
 mod preedit;
 mod row;
 
 #[cfg(test)]
 mod tests;
 
+pub use keyboard::{key_hint_keyboard, root_keyboard, shuangpin_keyboard};
 pub use preedit::window_preedit;
 pub use row::from_candidate;
 

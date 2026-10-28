@@ -12,7 +12,7 @@ TSV 解析、查询与生成工具把 `lue` / `nue` 统一成 `lve` / `nve`。
 TSV 的音节可带数字声调（`ni3`，轻声 5 或 0），键一律去调，声调只给显示（`Match::tones`，`tones.rs`）：五个音节以内压进 `Slot` 原来的 16 位填充（每音节 3 位，0 是不知道），
 多音字的读音占比：加载时走一遍单音节的键，记下有不止一个读音的字全部读音的词频之和（`dictionary/readings.rs`，不落盘），命中带上 `Match::reading_total`，`Match::reading_share` 是这个读音的词频占比（`区 ou` 约 0.05）；多音节的词不查表。
 更长的在那 16 位放溢出标记、声调进 `TSPL`（按词目下标升序，二分找）+ `TONE`（每音节一个 `0`–`5`）两节；没有长词带声调的词库与之前的旧文件没有这两节，旧文件填充是 0，读出来全是不知道。
-显示：`[general] show_tones` 开着时候选窗口顶部的拼音行按高亮候选标声调（`Engine::toned_syllables` 出逐音节带调拼音，`engine/reading.rs`；`Query::window_segments` 拼行，读音对不上敲的不换），应用里的 marked text 不变，帧里另给 `Frame::window_preedit`（DLL 不读）。整句从左往右取词库里最长的词，词库没标的字按单字声调表 `zhuyin::tone::usual` 补（首读音，或这个音只有一种声调），拿不准的不标；注音、九宫格不标。Linux 的 Fcitx 面板与行内拼音共用一串，还没接。
+显示：`[general] show_tones` 开着时候选窗口顶部的拼音行按高亮候选标声调（`Engine::toned_syllables` 出逐音节带调拼音，`engine/reading.rs`；`Query::window_segments` 拼行，读音对不上敲的不换），应用里的 marked text 不变，帧里另给 `Frame::window_preedit`（DLL 不读）。整句从左往右取词库里最长的词，词库没标的字按单字声调表 `zhuyin::tone::usual` 补（首读音，或这个音只有一种声调），拿不准的不标；注音、九宫格不标。Linux 的接法见 apps/linux 一节。
 `Dictionary::set_secondary` 标补充词库（不落盘，装配方标；随包的通用大词库 `dicts/general.qj`，文件名主干是 `GENERAL_DICTIONARY`），命中带 `Match::secondary`。
 辅码码表（`aux_code_table/`，`AuxCodeTable` = `Kind::AuxCodeTable` 的 `.qj`）是另一套存储：`TEXT` 词 arena + `CODE` 码 arena +
 `ENTR` 条目（12 字节，词字节序升序、同词相邻）+ `HASH` 词 → 条目区间起点（`qingjian_format::hash`）。查询只有
@@ -310,13 +310,13 @@ id 不能撞拼音侧的写法与日志里的 `wubi`（`is_valid_id`），因为
 协议版本见 `PROTOCOL_VERSION`，`PreeditKind::AuxCode` 对应 Core 的 `MarkedKind::AuxCode`，`Frame.aux_code_show` 随帧下发显示码开关，
 `Frame.translation_pos` 随帧下发「译词是否带词性标注」（`[general] translation_pos`，缺省开；与 `aux_code_show` 同款普通 `#[serde(default)]`——帧只由 Server 自己的候选窗消费、DLL 不读该字段，加这种纯字段不 bump 协议版本，枚举变体才必须 bump）；
 `Frame.columns` / `column_ems` 随帧下发横排矩阵视口，带 `serde(default)` 新老互通，DLL 不画候选读不到也照旧）。
-`protocol::linux` 是 Linux Server ↔ 各前端的扩展（`LinuxEvent` / `DisplayIdentity` / `InputMode` / `ModeCommand` / `MenuItem` / `MenuReply` / `LINUX_UI_PROTOCOL` 与 socket 路径）。
+`protocol::linux` 是 Linux Server ↔ 各前端的扩展（`LinuxEvent` / `DisplayIdentity` / `InputMode` / `ModeCommand` / `MenuItem` / `MenuReply` / `KeyHintView` / `LINUX_UI_PROTOCOL` 与 socket 路径）。
 **版本**：`LINUX_UI_PROTOCOL` 是 4（v4 多了候选右键菜单 `Menu` / `MenuPick` 与托盘切换 `Indicator`），Server 收 `LINUX_UI_PROTOCOL_MIN`（3）到 4 的 `LinuxHello`、回包回显前端报的那一版，
 Fcitx5 / Fcitx4 插件写死 3、不用跟着改；一个会话只能发它握手那一版里有的事件（`LinuxEvent::since`），多发的断开；`OpenSession` 回包的 `linux_ui.version` 固定报 3（那时还没握手，插件要它等于 3）；
-回包上只增不改的字段（`identity`、`mode`、`translation_pending`、`annotation`）不升版。规则写在常量旁边，`apps/linux/server/tests/protocol.rs` 读两个插件的源码核对它们报的版本 Server 还认。
+回包上只增不改的字段（`identity`、`mode`、`key_hint`、`translation_pending`、`annotation`）不升版。规则写在常量旁边，`apps/linux/server/tests/protocol.rs` 读两个插件的源码核对它们报的版本 Server 还认。
 两个 Rust 前端（IBus、Wayland）共用的部分也在这里：`client`（一条 Unix socket 一问一答，`Connection` / `Reply` / `ClientError`；
 **哪些消息有回包是协议的一部分**——`OpenSession` 与 `LinuxEvent` 有，`CloseSession` 与展示回执没有，读多了卡住、读少了下一次答复串位；超时 200 ms，与 Fcitx5 插件一致；
-`key_flushing` 是组句中快捷键先上原文再放行的那一套；`Reply` 里的展示身份、`english`、`mode`（`InputMode`，主题要非空的方案名时用 `scheme_name`）、帧上的 `translation_pending` 是 Linux Server 另附在原始 JSON 上的，按原始 JSON 取；
+`key_flushing` 是组句中快捷键先上原文再放行的那一套；`Reply` 里的展示身份、`english`、`mode`（`InputMode`，主题要非空的方案名时用 `scheme_name`）、`key_hint`、帧上的 `translation_pending` 是 Linux Server 另附在原始 JSON 上的，按原始 JSON 取；
 `key` 报了 `selection_supported` 才会收到选区翻译的 `RequestSelection`（读成 `Reply::selection_request`，读出选区用 `selection` 回，那一键吃不吃以那次的回包为准；IBus 报 false）；
 `candidate` / `page` / `menu` / `menu_pick` 原样带画那一页的展示身份，帧换过了 Server 回 `Ignored`（读成什么都不做的缺省答复），`menu` 的回包是 `{"Menu": MenuReply}`、读成 `Reply::menu`；
 `indicator` 是托盘切中 / 英、全角标点与简繁（`ModeCommand`）；`acknowledge` 回报画出来的义项（没有回包，一次最多 128 对）；`AppSurrounding::around` 按 UTF-8 字节偏移截光标两侧各 80 字，规则同 `apps/linux/surrounding.h`；
@@ -327,6 +327,8 @@ Ctrl 键本身 `0x11`、Super 与 Hyper（Mod3）都算 `win`；`mapping.rs` 的
 `display`（`render` 特性）是自绘候选窗的壳共用的「协议帧 → `qingjian_render::Frame`」：候选折成行（读音、全部义项、词性开关、假名注音、生词 `Tone::Fresh`、云标、辅码）、
 拼音行按 `preedit_mode` 决定画不画（带调拼音另给的 `window_preedit` 优先）、`usize::MAX` 不高亮、多页才画 `1/6`、矩阵只标高亮那一行的序号；
 照 Windows Server 的 `ui/candidates/{row,render_data}.rs` 写，Linux Wayland 前端在用，Windows 与 macOS 待改用。TSF DLL 不开这个特性，依赖树不变。
+键位提示的线上类型是 `protocol::linux::KeyHintView`（`content` 是 Core 的双拼 `KeyHint` 原样，或字根图标识 `RootChartId`——字形编在 Core 里不上线，前端按标识取；不透明度与大小是百分比），
+`display::key_hint_keyboard` 把它换成 `qingjian_render::Keyboard`（`shuangpin_keyboard` / `root_keyboard` 照 Windows 的 `ui/candidates/key_hint/keyboard.rs` 移植，Windows 与 macOS 待改用）。
 
 ## crates/qingjian-render
 
@@ -603,6 +605,11 @@ Windows 可选的 `[shortcut] toggle_punctuation` 经 `InputSettings` 下发，�
 Unix socket 用共享长度前缀与 Frame（当前公共版本 9，与 `PROTOCOL_VERSION` 同步，Fcitx5 插件里写死在 `qingjian.cpp` 的 OpenSession）；插件复用一条连接，每个上下文独立会话。Linux 扩展逐会话握手（收 v3 与 v4，版本规则见 crates/qingjian-platform 一节）、确认 Sensitive/Password/Disable 后接受按下/释放、焦点和点击事实。
 候选回报绑定连接代次、上下文和服务端帧序号，仅当前聚焦页的有效释义进入 `note_displayed`，不把生成帧算作已展示。
 Linux 回包由 `dispatch/display/annotation` 给释义添加可选 `annotation`（词性与汉字段假名，`[general] translation_pos` 关掉时不带词性），Fcitx5 面板优先显示它；原始译文和快捷键提交不变，旧 Server 缺该字段时插件回退到 `text`。
+拼音行显示声调（`[general] show_tones`，启动与热加载都设）同 Windows：`dispatch/composed` 的 `window_parts` 按高亮候选的带调读音另给 `Frame::window_preedit`，与行内拼音相同时不给；Wayland 前端经 `display::window_preedit` 画在候选窗里，行内拼音仍是 `preedit`。
+Fcitx5 / Fcitx4 插件经 `apps/linux/preedit.h` 取面板拼音行那一串（`window_preedit` 是 `[分段, 光标]`，没有、为 null 或形状不对时退回 `preedit`），两处光标各按各的字节算；
+IBus 的 preedit 在失焦时可能被框架原样提交，始终保留 `preedit`；`window_preedit` 另放面板辅助行，避免显示用读音被上屏，也不依赖内嵌编辑的开关。
+键位提示（`[general] key_hint` / `key_hint_opacity` / `key_hint_size`）照 Windows Server 的 `dispatch/key_hint` 算：挂着 86 五笔给字根图标识，否则给双拼键位；`auto` 敲完 700 毫秒没再敲（`KeyHintState`，`tick` 推进）或敲出配不成音节的键才给，这一段组句里给过就一直给。
+只对握手报了 `features.key_hint` 的会话由 `dispatch/display` 附在回包的 `key_hint` 上，换了焦点会话、原文提交或隐私边界清空输入后重新计时，失焦回包不附键盘；轮询时帧与键位提示都没变才沿用展示身份，停顿到点弹出的那一次换新，前端才会重画。
 每个 `KeyResult` / `Update` 另附这个会话的 `mode`（`dispatch/mode.rs`：`english` / `traditional` / `full_width` 取当前中英那一份 / `scheme`），方案名按 `scheme_label(config.scheme, None, None)` 算：
 Linux 还不装用户双拼与形码方案（没有 `SchemeSlot`），引擎按全拼跑的那些方案名也按全拼（空串）。插件不读它。
 v4 的两样给 Rust 前端：候选右键菜单（`dispatch/menu.rs`，与 Windows 的 `dispatch/key/menu.rs` 同用 `qingjian_platform::candidate_menu`）问菜单不推进展示身份，
@@ -642,6 +649,8 @@ IBus 的组件 XML 与 systemd 单元里都写死了安装后的绝对路径，�
   每一帧都是某次事件的回包——走进程内引擎那一版的 `active.rs` 与节拍循环因此整块不需要了。
 - `UpdatePreeditText` 的参数是 `(vubu)`，**最后那个 `mode` 不能省**：ibus-daemon 解不出来会整条丢掉，
   只在它自己的日志里留一条 CRITICAL，症状是拼音行不显示而这边一点错都看不到。
+- preedit 只有一串，放应用里还是面板上由 ibus-daemon 定（应用报了 `IBUS_CAP_PREEDIT_TEXT` 且开着「内嵌编辑」才放应用里）。
+  因为失焦时框架可能直接提交这串文字，不能把带调读音放进去。`window_preedit` 放辅助行，与整句补全、页码拼在一起；删候选提示仍优先。
 - `--check nihao`：连 Server、开会话、报能力与焦点、逐键发上去、打印回来的候选；Server 没起着时直接报连不上。
 - 端到端测试要等引擎激活再敲键：切引擎之后 daemon 还要走一遍 FocusOut → Enable → FocusIn，
   不等的话第一个字母会被 FocusOut 当「缓冲原样上屏」交出去（真人用的时候引擎早激活好了，撞不上）。

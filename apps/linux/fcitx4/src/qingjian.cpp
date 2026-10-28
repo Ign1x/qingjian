@@ -3,6 +3,7 @@
 #include "candidate/data.h"
 #include "key.h"
 #include "primary_selection.h"
+#include "../../preedit.h"
 #include "../../surrounding.h"
 #include <fcitx/candidate.h>
 #include <fcitx/fcitx.h>
@@ -248,22 +249,21 @@ void Engine::render(Session *session, const nlohmann::json &frame) {
     FcitxMessagesSetMessageCount(client, 0);
     FcitxMessagesSetMessageCount(aux, 0);
     FcitxCandidateWordReset(list);
-    std::string raw;
-    for (const auto &segment : frame.at("preedit")) raw += segment.at("text").get<std::string>();
+    const auto typed = qingjian::inlinePreedit(frame);
+    // 候选面板上的拼音行另有一串（拼音行显示声调）时用它，应用里的行内拼音不变
+    const auto shown = qingjian::windowPreedit(frame);
+    const auto raw = joined(typed.segments);
+    const auto window = joined(shown.segments);
     const bool inlinePreedit = (session->context->contextCaps & CAPACITY_PREEDIT)
         && FcitxInstanceICSupportPreedit(instance_, session->context) && session->preeditMode != "window";
     if (!raw.empty()) {
         if (inlinePreedit) FcitxMessagesAddMessageAtLast(client, MSG_INPUT, "%s", raw.c_str());
         if (!inlinePreedit || session->preeditMode != "inline")
-            FcitxMessagesAddMessageAtLast(preedit, MSG_INPUT, "%s", raw.c_str());
+            FcitxMessagesAddMessageAtLast(preedit, MSG_INPUT, "%s", window.c_str());
     }
     session->clientPreedit = inlinePreedit && !raw.empty();
-    size_t byteCursor = 0;
-    for (size_t chars = 0; byteCursor < raw.size() && chars < frame.at("cursor").get<size_t>(); ++byteCursor)
-        if ((static_cast<unsigned char>(raw[byteCursor]) & 0xc0) != 0x80) ++chars;
-    while (byteCursor < raw.size() && (static_cast<unsigned char>(raw[byteCursor]) & 0xc0) == 0x80) ++byteCursor;
-    FcitxInputStateSetCursorPos(input, static_cast<int>(byteCursor));
-    FcitxInputStateSetClientCursorPos(input, static_cast<int>(byteCursor));
+    FcitxInputStateSetCursorPos(input, static_cast<int>(byteOffset(window, shown.cursor)));
+    FcitxInputStateSetClientCursorPos(input, static_cast<int>(byteOffset(raw, typed.cursor)));
     const auto &items = frame.at("candidates").at("items");
     if (!items.is_array() || items.size() > 9) throw std::runtime_error("candidate count");
     FcitxCandidateWordSetPageSize(list, 9);

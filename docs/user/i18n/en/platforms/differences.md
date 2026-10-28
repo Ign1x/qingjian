@@ -50,7 +50,7 @@ The macOS and Windows versions are in beta with nearly the same features; keys f
 | Seven built-in themes, light and dark | ✓ | ✓ | — (Fcitx panel) | ✓ |
 | Custom themes | ✓ | ✓ | — | — |
 | Expanding horizontal layout into rows | ✓ | ✓ | — | — |
-| Tones on the pinyin line | ✓ | ✓ | — | — |
+| Tones on the pinyin line | ✓ | ✓ | ✓ | — |
 | Floating status bar | — | ✓ | — | — |
 
 ## Keys and shortcuts

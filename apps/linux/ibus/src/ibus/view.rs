@@ -22,12 +22,12 @@ pub struct View {
     /// 高亮在当前页里的下标。
     pub cursor_index: u32,
 
-    /// 辅助行：页码、整句补全、删候选提示挤在这里。没有就是 `None`。
+    /// 辅助行：带调读音、页码、整句补全、删候选提示。没有就是 `None`。
     pub auxiliary: Option<String>,
 }
 
 impl View {
-    /// 按一帧折出来。
+    /// preedit 会被 IBus 在失焦时原样提交，不能换成仅供面板显示的带调读音。
     pub fn from_frame(frame: &Frame) -> Self {
         Self {
             preedit: frame
@@ -88,12 +88,21 @@ fn candidate_labels(frame: &Frame) -> Vec<String> {
         .collect()
 }
 
-/// 辅助行：删候选提示优先（它是对刚才那次操作的回答），其次整句补全，最后页码。
+/// 辅助行：删候选提示优先，其余依次显示带调读音、整句补全与页码。
 fn auxiliary(frame: &Frame) -> Option<String> {
     if let Some(notice) = &frame.notice {
         return Some(notice.clone());
     }
     let mut parts = Vec::new();
+    if let Some((segments, _)) = frame.window_preedit.as_deref() {
+        let toned: String = segments
+            .iter()
+            .map(|segment| segment.text.as_str())
+            .collect();
+        if !toned.is_empty() {
+            parts.push(toned);
+        }
+    }
     if let Some(sentence) = &frame.sentence {
         parts.push(format!("⇥ {sentence}"));
     }
@@ -220,5 +229,49 @@ mod tests {
         };
         let view = View::from_frame(&frame);
         assert!(matches!(view.preedit[0].style, Style::Corrected));
+    }
+
+    fn toned() -> Frame {
+        Frame {
+            window_preedit: Some(Box::new((
+                vec![PreeditSegment {
+                    text: "nǐ'hǎo".to_owned(),
+                    kind: PreeditKind::Typed,
+                }],
+                6,
+            ))),
+            ..frame_with(vec![candidate("你好")])
+        }
+    }
+
+    fn text(view: &View) -> String {
+        view.preedit
+            .iter()
+            .map(|segment| segment.text.as_str())
+            .collect()
+    }
+
+    /// 带调读音走辅助行，无论 IBus 是否开启内嵌编辑都能显示，失焦提交仍是原 preedit。
+    #[test]
+    fn panel_row_shows_the_toned_pinyin() {
+        let view = View::from_frame(&toned());
+        assert_eq!(view.auxiliary.as_deref(), Some("nǐ'hǎo"));
+        assert_eq!(text(&view), "nihao");
+        assert_eq!(view.cursor, 5);
+    }
+
+    /// 应用自己画行内 preedit：仍是敲的拼音，不带调。
+    #[test]
+    fn inline_preedit_keeps_the_typed_pinyin() {
+        let view = View::from_frame(&toned());
+        assert_eq!(text(&view), "nihao");
+        assert_eq!(view.cursor, 5);
+    }
+
+    /// 没开声调（帧上没有另一串）时面板照旧。
+    #[test]
+    fn panel_row_without_tones_is_the_typed_pinyin() {
+        let view = View::from_frame(&frame_with(vec![candidate("你好")]));
+        assert_eq!(text(&view), "nihao");
     }
 }

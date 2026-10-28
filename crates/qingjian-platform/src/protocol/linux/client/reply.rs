@@ -3,7 +3,7 @@
 use serde_json::Value;
 
 use super::ClientError;
-use crate::protocol::linux::{DisplayIdentity, InputMode};
+use crate::protocol::linux::{DisplayIdentity, InputMode, KeyHintView};
 use crate::protocol::{Frame, KeyOutcome, ServerMessage};
 
 /// 一次事件之后 Server 让前端做的事。
@@ -35,6 +35,9 @@ pub struct Reply {
     /// 这个会话现在的输入模式：Linux Server 附在 `KeyResult` / `Update` 上，老 Server 与 `Ignored` 没有。
     pub mode: Option<InputMode>,
 
+    /// 这一帧旁边要画的键位提示：Linux Server 只给握手报了 `features.key_hint` 的会话附上，没有就收起键盘。
+    pub key_hint: Option<KeyHintView>,
+
     /// Server 要前端读应用里选中的文字（选区翻译快捷键，只在按键报了 `selection_supported` 时才会有）：
     /// 带请求编号，读出来用 [`Connection::selection`](super::Connection::selection) 回，
     /// 那一键吃不吃以那次的回包为准。
@@ -52,6 +55,7 @@ impl Default for Reply {
             english: None,
             translation_pending: false,
             mode: None,
+            key_hint: None,
             selection_request: None,
         }
     }
@@ -66,7 +70,7 @@ impl Reply {
         if value.get("Ignored").is_some() {
             return Ok(Self::default());
         }
-        // 展示身份、模式与 translation_pending 不在共用的消息类型里，是 Linux Server 在回包上另附的，按原始 JSON 取
+        // 展示身份、模式、键位提示与 translation_pending 不在共用的消息类型里，是 Linux Server 在回包上另附的，按原始 JSON 取
         let body = value
             .as_object()
             .and_then(|message| message.values().next());
@@ -76,6 +80,9 @@ impl Reply {
         let mode = body
             .and_then(|body| body.get("mode"))
             .and_then(|mode| serde_json::from_value(mode.clone()).ok());
+        let key_hint = body
+            .and_then(|body| body.get("key_hint"))
+            .and_then(|key_hint| serde_json::from_value(key_hint.clone()).ok());
         let translation_pending = body
             .and_then(|body| body.get("frame"))
             .and_then(|frame| frame.get("translation_pending"))
@@ -96,6 +103,7 @@ impl Reply {
                 english,
                 translation_pending,
                 mode,
+                key_hint,
                 ..Self::default()
             }),
             Ok(ServerMessage::Update { frame, commit, .. }) => Ok(Self {
@@ -104,6 +112,7 @@ impl Reply {
                 identity,
                 translation_pending,
                 mode,
+                key_hint,
                 ..Self::default()
             }),
             Ok(ServerMessage::RequestSelection { request, .. }) => Ok(Self {

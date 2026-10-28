@@ -3,6 +3,7 @@
 #include "candidate/list.h"
 #include "candidate/word.h"
 #include "key/mapping.h"
+#include "../../preedit.h"
 #include "../../surrounding.h"
 #include <fcitx/addonmanager.h>
 #include <fcitx/inputcontext.h>
@@ -28,6 +29,13 @@ std::string contextIdentity(const InputContext *context) {
     out << std::hex << std::setfill('0');
     for (auto byte : context->uuid()) out << std::setw(2) << static_cast<unsigned>(byte);
     return out.str();
+}
+/// 帧里的一串拼音逐段加下划线，光标从字符数换成字节。
+Text preeditText(const qingjian::PreeditSource &source) {
+    Text text;
+    for (const auto &segment : source.segments) text.append(segment.at("text").get<std::string>(), TextFormatFlag::Underline);
+    text.setCursor(static_cast<int>(qingjian::byteOffset(text.toString(), source.cursor)));
+    return text;
 }
 }
 QingjianEngine::QingjianEngine(AddonManager *manager)
@@ -350,14 +358,9 @@ void QingjianEngine::render(InputContext *context, const nlohmann::json &frame) 
     auto *session = context->propertyFor(&sessions_);
     const auto identity = session->displayIdentity;
     const auto revision = ++session->revision;
-    Text preedit;
-    for (const auto &segment : frame.at("preedit")) preedit.append(segment.at("text").get<std::string>(), TextFormatFlag::Underline);
-    auto raw = preedit.toString();
-    size_t cursor = frame.at("cursor").get<size_t>();
-    size_t bytes = 0;
-    for (size_t chars = 0; bytes < raw.size() && chars < cursor; ++bytes) if ((static_cast<unsigned char>(raw[bytes]) & 0xc0) != 0x80) ++chars;
-    while (bytes < raw.size() && (static_cast<unsigned char>(raw[bytes]) & 0xc0) == 0x80) ++bytes;
-    preedit.setCursor(static_cast<int>(bytes));
+    const Text preedit = preeditText(qingjian::inlinePreedit(frame));
+    // 候选面板上的拼音行另有一串（拼音行显示声调）时用它，应用里的行内拼音不变
+    const Text window = preeditText(qingjian::windowPreedit(frame));
     const auto &items = frame.at("candidates").at("items");
     if (!items.is_array() || items.size() > 9) throw std::runtime_error("candidate count");
     auto watched = context->watch();
@@ -399,7 +402,7 @@ void QingjianEngine::render(InputContext *context, const nlohmann::json &frame) 
     panel.reset();
     const bool inlinePreedit = context->capabilityFlags().test(CapabilityFlag::Preedit) && session->preeditMode != "window";
     if (inlinePreedit) panel.setClientPreedit(preedit);
-    if (session->preeditMode != "inline" || !inlinePreedit) panel.setPreedit(preedit);
+    if (session->preeditMode != "inline" || !inlinePreedit) panel.setPreedit(window);
     session->clientPreedit = inlinePreedit && !preedit.empty();
     if (!items.empty()) panel.setCandidateList(std::move(list));
     std::string aux;

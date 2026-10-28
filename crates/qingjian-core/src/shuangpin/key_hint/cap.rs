@@ -1,8 +1,10 @@
 //! 键盘上的一个键。
 
+use serde::{Deserialize, Serialize};
+
 use super::KeyState;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct KeyCap {
     pub key: char,
 

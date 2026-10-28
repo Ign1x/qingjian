@@ -2,7 +2,8 @@
 use qingjian_core::TraditionalVariant;
 use qingjian_platform::protocol::KeyModifiers;
 use qingjian_platform::{
-    Appearance, AppsConfig, Config, KeyCombo, LayoutMode, PreeditMode, Scheme, SwitchKeys,
+    Appearance, AppsConfig, Config, KeyCombo, KeyHintMode, LayoutMode, PreeditMode, Scheme,
+    SwitchKeys,
 };
 
 /// Router 要用的配置项，与 macOS 壳的 `Host` 字段对齐。
@@ -74,6 +75,12 @@ pub struct RouterConfig {
 
     /// 译词旁显示词性（`[general] translation_pos`）。
     pub translation_pos: bool,
+
+    /// 键位提示（`[general] key_hint`），只对握手报了 `features.key_hint` 的会话（自己画候选窗的前端）起作用。
+    pub key_hint: KeyHintMode,
+
+    /// 键位提示窗口的不透明度与键盘大小，百分比（`[general] key_hint_opacity` / `key_hint_size`，已夹到范围内）。
+    pub key_hint_look: (u8, u8),
 }
 
 impl RouterConfig {
@@ -129,6 +136,11 @@ impl From<&Config> for RouterConfig {
             },
             translate_selection: config.shortcut.translate_selection,
             translation_pos: config.general.translation_pos,
+            key_hint: config.general.key_hint,
+            key_hint_look: (
+                config.general.key_hint_opacity.clamp(30, 100),
+                config.general.key_hint_size.clamp(60, 150),
+            ),
         }
     }
 }

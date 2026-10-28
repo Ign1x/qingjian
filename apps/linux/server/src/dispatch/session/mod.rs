@@ -2,6 +2,7 @@
 mod info;
 pub(super) use self::info::SessionInfo;
 use super::Router;
+use crate::dispatch::key_hint::KeyHintState;
 use qingjian_platform::protocol::SessionId;
 
 impl Router {
@@ -20,6 +21,8 @@ impl Router {
         if self.focused == Some(session) {
             return;
         }
+        // 换了会话，键位提示的停顿重新计时（上一个会话弹出过不算这一个的）
+        self.key_hint = KeyHintState::default();
         self.end_translation();
         self.stop_rescoring();
         if let Some(previous) = self.focused.and_then(|id| self.sessions.get_mut(&id)) {
@@ -73,6 +76,7 @@ impl Router {
         // 因此普通与私密会话来回切换不会丢掉各自尚未上屏的组句。
         if self.focused == Some(session) {
             self.stop_rescoring();
+            self.key_hint = KeyHintState::default();
             self.engine.discard_input();
             self.engine.set_private(private);
             self.composed = None;
@@ -85,6 +89,7 @@ impl Router {
         }
     }
     pub(super) fn reset_composition(&mut self) {
+        self.key_hint = KeyHintState::default();
         self.end_translation();
         self.stop_rescoring();
         self.engine.cancel_prediction();

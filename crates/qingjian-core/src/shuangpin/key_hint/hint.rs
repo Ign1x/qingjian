@@ -1,12 +1,15 @@
 //! 一张键位提示键盘：三排字母键，按方案标出声母、韵母与下一键的去向。
 
+use serde::{Deserialize, Serialize};
+
 use super::{KeyCap, KeyState};
 use crate::shuangpin::Layout;
 
 /// 主键区三排，`;` 只在用到它的方案里出现。
 const ROWS: [&str; 3] = ["qwertyuiop", "asdfghjkl;", "zxcvbnm"];
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+/// 也是线上格式：Linux Server 原样随回包发给自绘候选窗的前端，这里与 [`KeyCap`] / [`KeyState`] 的字段、变体改名就是改协议。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct KeyHint {
     /// 方案的写法（[`Layout::key`]）。
     pub scheme: String,

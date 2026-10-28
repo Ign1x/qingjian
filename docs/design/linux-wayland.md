@@ -71,6 +71,7 @@ qingjian-linux-wayland ──Unix socket，protocol::linux（与 Fcitx5 插件�
 | 前端的操作 | 发给 Server 的 | Server 回 |
 |---|---|---|
 | 每次回包 | — | `KeyResult` / `Update` 上附 `mode`（`english` / `traditional` / `full_width` / `scheme`），托盘、中 / 英提示与主题的 `mode.*` 都照它画；切换的那一下另有 `english` |
+| 每次回包（握手报了 `features.key_hint` 的会话） | — | 该显示键位提示时附 `key_hint`：`{"content": …, "opacity": 30–100, "size": 60–150}`（百分比），`content` 是双拼键位（Core 的 `KeyHint` 原样，`{"Shuangpin": …}`）或字根图标识（`{"Roots": "wubi86"}`，字形前端从 Core 取）；不该显示时没有这个字段。「卡住时显示」的 700 毫秒停顿靠组句时的 `Poll` 推进，弹出的那次回包换新展示身份 |
 | popup 上点候选 / 翻页 | `Candidate{identity, index}` / `Page{identity, next}`，带画这一页的那次回包的身份 | `KeyResult`；帧换过了回 `Ignored` |
 | popup 上右键候选 | `Menu{identity, index}` | `{"Menu": {"items": [{"id", "label"}]}}`，空的就不弹；只是问，帧与身份都不变；过期回 `Ignored` |
 | 点菜单里的一项 | `MenuPick{identity, index, action}`，`action` 原样用 `id` | `KeyResult`，候选按做完的结果重排，帧的 `notice` 是那句提示（下一次按键清） |
@@ -82,6 +83,7 @@ qingjian-linux-wayland ──Unix socket，protocol::linux（与 Fcitx5 插件�
 框架面板画不了、只有自绘候选窗能画的两样——横排时 ↑ / ↓ 展开的多行矩阵、键位提示——由前端在握手时报：`LinuxHello` 的 `features`
 （`{"grid": bool, "key_hint": bool}`，客户端 `Connection::with_features`），只增不改、不升版，没报的（Fcitx5 / Fcitx4 插件、IBus 前端）按画不了算，
 Server 对这样的会话照旧：↑ / ↓ 只移高亮、帧上不带键盘。报了却解不出当协议错误断开。
+回包上的 `key_hint` 客户端读成 `Reply::key_hint`，`qingjian_platform::display::key_hint_keyboard` 把它换成渲染器的键盘；Wayland 前端画键盘、打开这两项能力在之后（见「分期」）。
 
 ## 按键
 

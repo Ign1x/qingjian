@@ -67,6 +67,13 @@ impl Router {
             .translation
             .as_ref()
             .is_some_and(|job| job.result.is_none());
+        // 只给握手报了画得了键位提示的会话；没报的（Fcitx5 / Fcitx4 插件、IBus 前端）回包上什么都不附
+        let key_hint = match &response {
+            ServerMessage::KeyResult { session, .. } | ServerMessage::Update { session, .. } => {
+                self.key_hint_for(*session)
+            }
+            _ => None,
+        };
         if let ServerMessage::KeyResult { session, frame, .. }
         | ServerMessage::Update { session, frame, .. } = &response
         {
@@ -76,6 +83,9 @@ impl Router {
             if let Some(mode) = self.input_mode(*session) {
                 body["mode"] = json!(mode);
             }
+            if let Some(key_hint) = &key_hint {
+                body["key_hint"] = json!(key_hint);
+            }
         }
         match &response {
             ServerMessage::KeyResult { session, frame, .. }
@@ -83,8 +93,11 @@ impl Router {
                 let polled = matches!(response, ServerMessage::Update { .. });
                 let info = self.sessions.get_mut(session)?;
                 if let Some(identity) = &mut info.display_identity {
-                    // 插件组句期间定时 Poll：帧没变就不是新的展示，身份沿用，已回报的曝光照算
-                    if polled && info.last_frame.as_ref() == Some(frame) {
+                    // 插件组句期间定时 Poll：帧与键位提示都没变就不是新的展示，身份沿用，已回报的曝光照算
+                    if polled
+                        && info.last_frame.as_ref() == Some(frame)
+                        && info.last_key_hint == key_hint
+                    {
                         value.as_object_mut()?.values_mut().next()?["identity"] = json!(identity);
                         return Some(value);
                     }
@@ -95,6 +108,7 @@ impl Router {
                     identity.revision = self.display_revision;
                     info.display_frame = (!info.private && info.active).then(|| frame.clone());
                     info.last_frame = Some(frame.clone());
+                    info.last_key_hint = key_hint;
                     value.as_object_mut()?.values_mut().next()?["identity"] = json!(identity);
                 }
             }

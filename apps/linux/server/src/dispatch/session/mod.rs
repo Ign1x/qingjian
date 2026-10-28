@@ -2,6 +2,7 @@
 mod info;
 pub(super) use self::info::SessionInfo;
 use super::Router;
+use crate::dispatch::key_hint::KeyHintState;
 use qingjian_platform::protocol::SessionId;
 
 impl Router {
@@ -20,6 +21,8 @@ impl Router {
         if self.focused == Some(session) {
             return;
         }
+        // 换了会话，键位提示的停顿重新计时（上一个会话弹出过不算这一个的）
+        self.key_hint = KeyHintState::default();
         self.end_translation();
         self.stop_rescoring();
         if let Some(previous) = self.focused.and_then(|id| self.sessions.get_mut(&id)) {

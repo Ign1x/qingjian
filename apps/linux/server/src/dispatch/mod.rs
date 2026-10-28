@@ -5,6 +5,7 @@ mod composed;
 mod config;
 mod display;
 mod key;
+mod key_hint;
 mod linux;
 mod menu;
 mod message;
@@ -17,6 +18,7 @@ mod translate;
 use self::answer::Answer;
 use self::composed::Composed;
 pub use self::config::RouterConfig;
+use self::key_hint::KeyHintState;
 use self::reload::ConfigReload;
 pub use self::rescore::find_model;
 use self::rescore::{ModelLoader, RescoreState};
@@ -85,6 +87,9 @@ pub struct Router {
 
     /// 配置热加载；没开（测试）为 `None`。
     reload: Option<ConfigReload>,
+
+    /// 键位提示「卡住时显示」的停顿状态，跟着焦点会话的这一段组句。
+    key_hint: KeyHintState,
 }
 
 impl Router {
@@ -112,6 +117,7 @@ impl Router {
             model_loader: None,
             rescore: RescoreState::default(),
             reload: None,
+            key_hint: KeyHintState::default(),
         }
     }
     /// 一条客户端消息；无需答复的通知返回 None。
@@ -126,12 +132,13 @@ impl Router {
         self.engine.flush_learning();
         self.last_flush = Instant::now();
     }
-    /// 到点了：看配置改没改、接上加载好的模型、推进重排、收释义兜底、到点落盘学习（输入停止后也不能一直不落盘）。
+    /// 到点了：看配置改没改、接上加载好的模型、推进重排、收释义兜底、键位提示停顿到点就记下、到点落盘学习（输入停止后也不能一直不落盘）。
     /// 主循环超时与插件的 `Poll` 都会调。
     pub fn tick(&mut self) {
         self.poll_config_reload();
         self.attach_loaded_model();
         self.advance_rescoring();
+        self.advance_key_hint();
         self.poll_prediction();
         let learned = self.engine.poll_glosses();
         if learned > 0 {

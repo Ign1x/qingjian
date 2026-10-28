@@ -608,6 +608,8 @@ Linux 回包由 `dispatch/display/annotation` 给释义添加可选 `annotation`
 拼音行显示声调（`[general] show_tones`，启动与热加载都设）同 Windows：`dispatch/composed` 的 `window_parts` 按高亮候选的带调读音另给 `Frame::window_preedit`，与行内拼音相同时不给；Wayland 前端经 `display::window_preedit` 画在候选窗里，行内拼音仍是 `preedit`。
 Fcitx5 / Fcitx4 插件经 `apps/linux/preedit.h` 取面板拼音行那一串（`window_preedit` 是 `[分段, 光标]`，没有、为 null 或形状不对时退回 `preedit`），两处光标各按各的字节算；
 IBus 只有一串 preedit、由 ibus-daemon 决定放应用里还是面板上，前端记下 `SetCapabilities` 报没报 `IBUS_CAP_PREEDIT_TEXT`：没报（面板画 preedit）才换成带调那一串。
+键位提示（`[general] key_hint` / `key_hint_opacity` / `key_hint_size`）照 Windows Server 的 `dispatch/key_hint` 算：挂着 86 五笔给字根图标识，否则给双拼键位；`auto` 敲完 700 毫秒没再敲（`KeyHintState`，`tick` 推进）或敲出配不成音节的键才给，这一段组句里给过就一直给。
+只对握手报了 `features.key_hint` 的会话由 `dispatch/display` 附在回包的 `key_hint` 上，换了焦点会话重新计时；轮询时帧与键位提示都没变才沿用展示身份，停顿到点弹出的那一次换新，前端才会重画。
 每个 `KeyResult` / `Update` 另附这个会话的 `mode`（`dispatch/mode.rs`：`english` / `traditional` / `full_width` 取当前中英那一份 / `scheme`），方案名按 `scheme_label(config.scheme, None, None)` 算：
 Linux 还不装用户双拼与形码方案（没有 `SchemeSlot`），引擎按全拼跑的那些方案名也按全拼（空串）。插件不读它。
 v4 的两样给 Rust 前端：候选右键菜单（`dispatch/menu.rs`，与 Windows 的 `dispatch/key/menu.rs` 同用 `qingjian_platform::candidate_menu`）问菜单不推进展示身份，

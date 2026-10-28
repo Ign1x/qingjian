@@ -18,6 +18,9 @@ pub(crate) struct SessionInfo {
     /// 上次发给插件的帧；插件定时 Poll 时内容没变就沿用展示身份，不算新的展示。
     pub(crate) last_frame: Option<qingjian_platform::protocol::Frame>,
 
+    /// 上次随帧附上的键位提示；Poll 时它也没变才沿用展示身份（停顿到点弹出键盘要让前端重画）。
+    pub(crate) last_key_hint: Option<qingjian_platform::protocol::linux::KeyHintView>,
+
     /// Server 持有的中英模式。
     pub(crate) english: bool,
 
@@ -60,6 +63,7 @@ impl SessionInfo {
             features: Default::default(),
             display_frame: None,
             last_frame: None,
+            last_key_hint: None,
             private: true,
             engine: EngineSession::default(),
             composed: None,

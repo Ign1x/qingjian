@@ -1,4 +1,5 @@
-//! 位图怎么放进 popup 的 shm 缓冲：裁掉左上多余的阴影边，按缩放定逻辑尺寸与缓冲尺寸，再换成 Wayland 的像素格式。
+//! 位图怎么放进 popup 的 shm 缓冲：裁掉左上多余的阴影边，按缩放定逻辑尺寸与缓冲尺寸，再换成 Wayland 的像素格式；
+//! 右键菜单弹着时先把它叠到候选窗的位图上（[`paste`]）。
 //! 只做算术，不碰 Wayland 对象；规则见 `docs/design/linux-wayland.md`「显示」的缩放与像素格式两条。
 
 /// 左上的阴影边留几点：合成器把 popup 左上角贴在光标上，阴影边整个留着候选框就离光标太远。
@@ -85,5 +86,36 @@ pub fn blit(pixels: &[u8], src_width: u32, placement: &Placement, dst: &mut [u8]
             to.copy_from_slice(&[from[2], from[1], from[0], from[3]]);
         }
         out[copied..].fill(0);
+    }
+}
+
+/// 把一张预乘 RGBA 位图（每行 `src_width * 4` 字节）按 source-over 叠到另一张上（每行 `dst_width * 4` 字节），
+/// 左上角摆在 `at`（像素，可以是负的）；出了 `dst` 的部分不画。
+pub fn paste(src: &[u8], src_width: u32, at: (i32, i32), dst: &mut [u8], dst_width: u32) {
+    let (src_stride, dst_stride) = (src_width as usize * 4, dst_width as usize * 4);
+    if src_stride == 0 || dst_stride == 0 {
+        return;
+    }
+    let src_height = (src.len() / src_stride) as i64;
+    let dst_height = (dst.len() / dst_stride) as i64;
+    let (at_x, at_y) = (i64::from(at.0), i64::from(at.1));
+    // 两张在 x 方向上重叠的那一段，按源位图的列算
+    let first = (-at_x).max(0);
+    let last = i64::from(src_width).min(i64::from(dst_width) - at_x);
+    if first >= last {
+        return;
+    }
+    let columns = (last - first) as usize * 4;
+    for row in (-at_y).max(0)..src_height.min(dst_height - at_y) {
+        let from = row as usize * src_stride + first as usize * 4;
+        let to = (row + at_y) as usize * dst_stride + (first + at_x) as usize * 4;
+        let pixels = src[from..from + columns].chunks_exact(4);
+        for (under, over) in dst[to..to + columns].chunks_exact_mut(4).zip(pixels) {
+            let keep = 255 - u32::from(over[3]);
+            for (channel, top) in under.iter_mut().zip(over) {
+                let blended = u32::from(*top) + (u32::from(*channel) * keep + 127) / 255;
+                *channel = blended.min(255) as u8;
+            }
+        }
     }
 }

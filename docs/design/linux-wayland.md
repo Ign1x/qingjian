@@ -47,14 +47,14 @@ qingjian-linux-wayland ──Unix socket，protocol::linux（与 Fcitx5 插件�
 | 新的 activate | 选活动窗口那个应用的 Server 会话（见「会话与隐私」），报能力（变了才报），然后 `Focus{true}`，成功就 grab 键盘（密码框、Server 连不上时不 grab）；已经激活着又来一次（同一个应用里换了输入框）先按失活处理 |
 | deactivate | 挂空缓冲藏起 popup；`Focus{false}` + `Deactivate{focus_out: true, client_preedit: true, capability_changed: false}`：失焦后已经不能往原来的输入框上屏，组句丢弃 |
 | content_type | purpose password / pin 或 hint hidden_text → `Capabilities{password}`；hint sensitive_data → `sensitive`。每次 `done` 都重算（密码框点「显示密码」会改它） |
-| surrounding_text | 每键随 `Key` 带上光标两侧各 80 字（跳过选区，规则同 Fcitx5 的 `apps/linux/surrounding.h`，单位换成字节） |
+| surrounding_text | 每键随 `Key` 带上光标两侧各 80 字（跳过选区，规则同 Fcitx5 的 `apps/linux/surrounding.h`，单位换成字节）；cursor 与 anchor 不等（有选区）时按下另报 `selection_supported: true`，见下面选区翻译那一行；敏感框两样都不带 |
 | text_change_cause = other | 组句中光标被挪走、文字被应用改了：报 `Reset`，清 preedit |
 | grab 的 key | 见下节「按键」 |
 | foreign-toplevel 的 app_id / state（各自 `done` 之后生效） | 激活着的那个顶层窗口的 app_id 就是活动窗口的应用，变了才告诉会话，见「会话与隐私」 |
 | unavailable | 别的输入法占着 seat：日志写明，非零码退出 |
 
 回包落地的顺序：`commit_string` → `set_preedit_string` → `commit(serial)`，serial 是收到过的 `done` 个数。
-合成器按「去掉旧 preedit → 删前后文 → 插上屏文字 → 插新 preedit」应用，所以先上屏再换 preedit 的顺序是协议保证的。另有三条：
+合成器按「去掉旧 preedit → 删前后文 → 插上屏文字 → 插新 preedit」应用，所以先上屏再换 preedit 的顺序是协议保证的。另有四条：
 
 - **每次 commit 都带完整 preedit**（清空时显式给空串）：text-input-v3 的应用每个 `done` 都会重设 preedit，漏带就闪掉。只在上屏文字或 preedit 变了时才发。
 - **等应用落定再发下一次。** foot 收到 serial 对不上的 `done` 会把整次更新（连同上屏文字）丢掉，而它应用完一次更新、重画后才 commit，
@@ -72,13 +72,21 @@ qingjian-linux-wayland ──Unix socket，protocol::linux（与 Fcitx5 插件�
 |---|---|---|
 | 每次回包 | — | `KeyResult` / `Update` 上附 `mode`（`english` / `traditional` / `full_width` / `scheme`），托盘、中 / 英提示与主题的 `mode.*` 都照它画；切换的那一下另有 `english` |
 | 每次回包（握手报了 `features.key_hint` 的会话） | — | 该显示键位提示时附 `key_hint`：`{"content": …, "opacity": 30–100, "size": 60–150}`（百分比），`content` 是双拼键位（Core 的 `KeyHint` 原样，`{"Shuangpin": …}`）或字根图标识（`{"Roots": "wubi86"}`，字形前端从 Core 取）；不该显示时没有这个字段。「卡住时显示」的 700 毫秒停顿靠组句时的 `Poll` 推进，弹出的那次回包换新展示身份 |
-| popup 上点候选 / 翻页 | `Candidate{identity, index}` / `Page{identity, next}`，带画这一页的那次回包的身份 | `KeyResult`；帧换过了回 `Ignored` |
+| popup 上点候选 / 翻页 | `Candidate{identity, index}` / `Page{identity, next}`，带这一页最近一次回包的身份（抬键的回包帧没变也换身份） | `KeyResult`；帧换过了回 `Ignored` |
 | popup 上右键候选 | `Menu{identity, index}` | `{"Menu": {"items": [{"id", "label"}]}}`，空的就不弹；只是问，帧与身份都不变；过期回 `Ignored` |
 | 点菜单里的一项 | `MenuPick{identity, index, action}`，`action` 原样用 `id` | `KeyResult`，候选按做完的结果重排，帧的 `notice` 是那句提示（下一次按键清） |
 | 托盘切中 / 英、全角标点、简繁 | `Indicator(ToggleEnglish / TogglePunctuation / ToggleTraditional)` | `KeyResult`：切中 / 英时组句原样上屏、带 `english`；后两样写回配置 |
-| 选区翻译快捷键（`surrounding_text` 里有选区） | `Key{selection_supported: true}` | `RequestSelection{request}` → 前端发 `Selection{request, text}` → `KeyResult`（「翻译中…」，`translation_pending` 时接着轮询） |
+| 按下时 `surrounding_text` 里有选区（敏感框、密码框除外） | `Key{selection_supported: true}`；Server 要选区时从最近一次 `surrounding_text` 按字节偏移取出选中的文字（`selected_text`：越界、落在字符中间或超过 500 字回空串），回 `Selection{request, text}` | 翻译快捷键先回 `RequestSelection{request}`，回了选区之后的 `KeyResult` 才是这一键的结果：开始翻译时吃掉、帧是「翻译中…」（`translation_pending`，每 80 ms 轮询，译文到了换帧）；空串、超长、请求过期时放行，键交给应用 |
 
 客户端（`qingjian_platform::protocol::linux::client::Connection`）对应 `candidate` / `page` / `menu` / `menu_pick` / `indicator` / `selection`，`key` / `key_flushing` 多一个 `selection_supported`。
+
+选区翻译前端这边的几条（`session/selection.rs`）：
+
+- 译文上屏只发 `commit_string`，靠应用收到上屏文字时把选区换掉（GTK、Qt 的输入框平时打字就是这样，Fcitx5 在 Wayland 上也只能靠它；还没在真会话里验）。「翻译中…」那一帧没有拼音，不发文字更新，应用里的选区一直留着。
+- 翻译中应用自己改了选区或文字（鼠标点到别处，`text_change_cause` 是 other）按「组句中被应用改了」处理：报 `Reset`，Server 丢掉这次翻译，译文不会替换到别处。
+- 翻译快捷键按住不自己重复：重复的那一下 Server 会当成别的键、放弃这次翻译。重复的键与抬键都不报 `selection_supported`。
+- 选中的文字与前后文一样不进日志。
+- 读取选区前先同步合成器事件，核对输入目标代次及最新选区、隐私能力；等待 Server 时发生变化就回空串。目标代次除了焦点变化，也在隐私能力变化、应用主动改动文字位置时递增，拒绝尚在往返的旧回包。处理这些变化时先丢弃 SETTLE 中的旧上屏，再清组句；即使旧回包没显示，也向 Server 重置，防止抬键或轮询重新显示旧译文。
 
 框架面板画不了、只有自绘候选窗能画的两样——横排时 ↑ / ↓ 展开的多行矩阵、键位提示——由前端在握手时报：`LinuxHello` 的 `features`
 （`{"grid": bool, "key_hint": bool}`，客户端 `Connection::with_features`），只增不改、不升版，没报的（Fcitx5 / Fcitx4 插件、IBus 前端）按画不了算，
@@ -105,7 +113,7 @@ Server 对这样的会话不展开矩阵，回包不带键位提示。报了却�
 ## 显示
 
 - **一个 popup 用到进程退出。** wl_surface + `zwp_input_popup_surface_v2`，挂缓冲即显示、挂空缓冲即隐藏（同时 `Renderer::forget()`，下次出现不接着上次的动画）。
-  第一轮输入区域设成空，鼠标穿透。
+  收鼠标的区域只有候选窗（与弹着的右键菜单）的卡片，阴影与透明补边让鼠标穿到下面的应用，见「鼠标」。
 - **位置由合成器定。** Hyprland（`InputMethodPopup.cpp`）把 popup 左上角贴在光标下沿，碰到屏幕底就翻到光标上方，碰到右沿往左推；
   `text_input_rectangle` 是光标相对 popup 的矩形，从它能看出翻没翻。渲染器的位图四周带二三十点的阴影边，原样贴上去候选框会离光标很远，
   所以左边与上边的阴影裁到只剩 4 点（右下的阴影保留）；翻到光标上方时底边阴影仍在，候选框与光标之间会空出一截，按 `text_input_rectangle` 调排布留到 P2。
@@ -118,6 +126,25 @@ Server 对这样的会话不展开矩阵，回包不带键位提示。报了却�
 - **字体。** 与 Windows 同一流程：`[general] font` 空用 `FontLibrary::system("zh-CN")`，否则按字族名找文件；Linux 的「按字族名找文件」与清单路径缺失时的兜底走 fontconfig（见 crate-notes 的 bamboo-slip 一节）。
 - **主题。** `ThemeLibrary::load($XDG_DATA_HOME/qingjian/themes).resolve(id, 深浅)`，再套用户字号与动画开关；配置文件与主题目录每秒查一次戳，变了就重读。
   Hyprland 的 `decoration:blur:input_methods = true` 会给 popup 加背景模糊，配半透明背景的主题就是毛玻璃效果。
+- **主题里的模式。** 回包上的 `mode` 用 `qingjian_platform::display::render_mode` 换成渲染器的 `Mode`（方案名单开全拼时也写「全拼」，与 Windows 一样），
+  主题里的 `mode.*`（中 / 英、简 / 繁、标点、方案）照它画。输入框激活时焦点的回包就带着那个应用的会话的模式，换应用跟着换；
+  模式变了而帧没变（托盘切了全角标点）时重画一次。与 Server 断了当不知道，候选窗沿用上一次的。
+- **中 / 英提示。** 回包带着 `english`（切中 / 英的那一下：单击 Shift、切换键、托盘）时，在同一个 popup 里用 `Renderer::render_status` 画一格「中」/「英」
+  （开着双拼、注音或形码时跟方案名，同 Windows 状态条的模式格；按主题的 `status` 分节画，不跟设置里的候选字号），0.9 秒后挂空缓冲收起（与 macOS 右上角的提示一样，没有动画）。
+  位置由合成器定，就是候选窗出现的地方。候选窗开着时不盖住它（切中 / 英时组句原样上屏、候选本来就收了）；提示亮着时来了非空帧就换成候选，
+  空帧不收它（切换键是 Ctrl + Alt + Space 时抬起另几个键的回包也是空帧，收了就只闪一下）；失焦、与 Server 断开时跟候选窗一起收。
+  popup 只有输入框激活时合成器才显示，所以只在激活着、回包没过期时亮；没有输入框时从托盘切换只换托盘图标。
+  提示与候选、右键菜单共用 `window` / `Canvas` / `paint` 和三块缓冲；换成提示时丢弃旧菜单、点击与候选动画，整个提示 surface 不收鼠标。
+  缓冲暂不可写时保留提示待归还后补贴；缩放或主题变了重画当前提示，非空候选接替时取消提示定时器。
+- **托盘。** 前端在会话总线上提供 StatusNotifierItem 与 DBusMenu，由 waybar 等托盘宿主画图标与原生菜单。
+  图标按回包的 `mode.english` 显示中 / 英；还没拿到模式、或与 Server 往返失败时显示青简标志。左键切中 / 英；右键菜单提供中文、英文、全角标点、繁体输出、设置与版本号。
+  菜单的勾只照 Server 回包更新，不先在本地翻转；点选排进主循环，先 `Poll` 查询目标会话的当前模式，不是目标才发 `Indicator`，避免菜单显示滞后时切反。
+  输入框激活时用它当前的会话；未激活时用活动窗口的应用，没有活动窗口则沿用最近会话（还没用过任何会话时才用匿名会话）。未激活时只更新模式，不上屏、不弹提示。
+  查询前先收起候选右键菜单，避免展示身份更新后继续使用旧菜单；查询期间输入目标变化就取消切换，没有输入框时也先同步合成器事件，切换回包仍按原输入目标代次校验。
+  设置程序优先找前端同目录，其次 PATH；从托盘打开的设置未退出前不重复启动。
+  后台线程独立跑 zbus，通过 watch 传模式、队列传点击、非阻塞 socket 唤醒 Wayland 主循环；线程退出后移除唤醒 fd，避免挂断导致空转。
+  没有会话总线或托盘宿主不影响输入；注册禁用 D-Bus 按需启动，先订宿主上下线再注册，宿主后来上线或重启时重新注册。没有总线时托盘线程退出，本次进程不重连总线。
+  不支持 DBusMenu 的宿主仍可左键切换，但不能弹右键菜单；不提供「退出」，避免误点后整个 seat 没有输入法。
 - **外观跟随系统。** 帧里的外观是 `System` 时深浅看桌面：后台线程在会话总线上读 xdg-desktop-portal Settings 的 `org.freedesktop.appearance` `color-scheme`，
   1（偏好深色）为深色，0（无偏好）、2（偏好浅色）与不认识的值为浅色。先订 `SettingChanged` 再读初值（读的途中改了也漏不掉），之后跟着信号变；
   读用 `ReadOne`，第 1 版的 portal 没有它，退回 `Read`（值多包一层 variant）。
@@ -127,6 +154,31 @@ Server 对这样的会话不展开矩阵，回包不带键位提示。报了却�
   减少动态效果（`Renderer::set_reduce_motion`）看同一命名空间的 `reduced-motion`（1 为减少）与 GNOME 系后端转出的 `org.gnome.desktop.interface` `enable-animations`，
   任一要求减少就不播过渡与循环动画，开关变了也重画当前帧（循环动画要停下或接着播）。
   没有会话总线、没有 portal 或它给不出 `color-scheme` 时按浅色，日志记一条 info；这些都在后台线程里，不耽误启动。
+
+## 鼠标
+
+- **指针。** 绑 wl_seat 第 8 版（滚轮按 120 分之一格报 `axis_value120`），seat 的能力里有指针时拿 wl_pointer，没了就放掉。
+  输入法只有候选窗这一个 surface，只认落在它上面的 enter / leave / motion / button / axis。
+  进来时合成器有 `wp_cursor_shape_manager_v1` 就把光标设成 `default`；没有就不设（不为它另带光标主题画光标 surface），光标的样子随合成器，可能还是应用里的文字光标。
+- **落点。** surface 坐标（逻辑像素）乘「缓冲像素 ÷ 逻辑尺寸」、加回裁掉的左上阴影，就是位图像素，再减内容区原点查渲染结果的点击区域（`Rendered::hits`）。
+  收鼠标的区域（`set_input_region`）只有候选窗与菜单的卡片，阴影与透明补边让鼠标穿到下面的应用；某一帧没贴上去（缓冲都在合成器手里、渲染失败）时先不收点击，免得旧布局的序号落到新帧上。
+  候选右侧的译词算它那个候选：Linux 协议只有点候选、没有点哪条译词，点译词上屏的是候选本身（macOS / Windows 点哪条上屏哪条）。
+  渲染器的点击区域里没有翻页箭头（主题只画「1/6」页码），翻页靠滚轮。
+- **点选与翻页。** 左键按下在候选上 → `Candidate`；滚轮 → `Page`，只有一页时不发。一格一页：第 8 版按 `axis_value120` 累计到 120，第 5–7 版按 `axis_discrete`，
+  同一帧里 `axis` 报的距离说的是同一下，不另算；触摸板只报 `axis`，按距离累计 50 逻辑像素一页，`axis_stop`（抬手）清零；一帧最多翻一页，多出来的不留，免得一下滚出好几页。
+  请求都带候选窗上那一帧最近一次回包的展示身份（抬键的回包帧没变也换身份，Server 只认最新的）；帧已经换了 Server 回 `Ignored`，客户端读成不带身份的缺省答复，
+  前端据此什么都不做（不然空帧会把候选窗收起）。回包与按键的回包同一条落地路径：等应用落定再发，焦点、隐私或应用主动改动的文字位置变了就丢。
+- **右键菜单。** 右键按下在候选上 → `Menu`，有项才弹：菜单用 `Renderer::render_menu` 画（单独一个渲染器，与候选窗共用会打断候选窗的过渡；系统字体，深浅随候选窗那一帧），
+  卡片左上角摆在右键按下的地方。只有一个 popup、位置由合成器定，所以菜单与候选窗合成进同一张位图、popup 跟着变大；裁边仍按候选窗的阴影，候选窗在 popup 里不挪，
+  菜单伸出右下时合成器可能把整个 popup 挪开或翻到光标上方（Hyprland 碰到屏幕边就这样）。鼠标在菜单上移动换悬停项重画；左键或右键点一项 → `MenuPick`，
+  回包按 `KeyResult` 落地，帧的 `notice` 是做完的那句提示。
+- **收菜单。** Esc 只收菜单（不报 Server，抬键也吃掉），别的键收了菜单照常处理，与 macOS 一样；在候选窗上点菜单以外的地方只收菜单、不选词，右键另一个候选换成它的菜单；
+  换了帧、候选窗收起、失焦都收。候选窗以外的点击输入法看不到，这时菜单留到下一次按键或失焦。菜单开着时滚轮不翻页。
+- **菜单开着时不轮询。** 80 毫秒的 `Poll` 换了帧，展示身份跟着变，再点菜单项就被 Server 当过期的丢掉；收了菜单再接上。抬键的回包帧没变、只换了身份时菜单留着，点菜单项带最新的身份。
+- **排队事件与失败恢复。** 换候选帧、隐藏、开关或替换菜单时作废按旧布局排队的点击；每次点击的位置随事件保存，菜单不能取队尾点击的位置。
+  鼠标请求发送前核对输入目标代次，`Menu` 回包也同步并复核焦点、隐私及应用文字位置。缓冲耗尽先停收点击，归还后补贴最新画面；渲染失败清掉旧画面与动画，避免它们恢复旧命中区域。
+  触摸板的 `axis_stop` 可与最后一段位移同帧，结算这一帧后才清累计量。
+- 合成器肯不肯把指针事件交给输入法的 popup、点 popup 会不会把键盘焦点从应用挪走，要在真会话里验（Hyprland、sway）。
 
 ## 会话与隐私
 
@@ -149,7 +201,7 @@ Server 对这样的会话不展开矩阵，回包不带键位提示。报了却�
 
 - XWayland 应用、KWin、GNOME 不支持（见上表）。
 - 失焦后不能再往原来的输入框上屏：`preedit = "window"`（应用里不放拼音）时，切走窗口会丢掉正在组的句子；fcitx 版此时会上原文。
-- 输入法看不到鼠标：Shift+点击做选区时，松开 Shift 仍会切换中 / 英。
+- 输入法看不到应用里的鼠标操作：Shift+点击做选区时，松开 Shift 仍会切换中 / 英。右键菜单开着时点回应用里，菜单留到下一次按键或输入框失焦。
 - 应用按顶层窗口认：layer-shell 上的输入框（fuzzel、wofi 这类启动器）不是顶层窗口，合成器把活动窗口报成空时按不知道哪个应用，仍报着原来那个窗口时算在它头上。
   合成器后报活动窗口、而用户在那 200 毫秒里就开始打字时，这次组句还用上一个应用的会话，上屏之后才换过去。
 - 候选窗位置完全由合成器定；Hyprland 0.56 在分数缩放下有 popup 偏移的报告（omarchy #16374），遇到时先抓 `WAYLAND_DEBUG=1` 分清是合成器还是应用报错光标。
@@ -162,21 +214,34 @@ Server 对这样的会话不展开矩阵，回包不带键位提示。报了却�
   `install.sh --frontend wayland`、systemd 用户服务（退出码 2 不重启）、deb / rpm 另出 `qingjian-wayland` 包、用户文档；对着假合成器与假 Server 的黑盒测试。
 - **第二轮 Server 输入功能（已做）**：自动加空格、额外翻页键与高亮移动键、全半角与简繁快捷键、小键盘数字、缺省共用或按应用记中英、拼音行声调，
   以及辅码及 v3 插件帧降级、形码与自定义双拼、实验模型（知意 CPU 两线程、含章·知微），fcitx 版与 Wayland 原生版共用；方案名随 `mode.scheme` 返回，用户方案与形码词库支持热加载。
-  横排矩阵与键位提示的数据也已接上，只对握手报了对应能力的会话提供，Wayland 前端的展示留在下一批。Linux 知意需要另装 ONNX Runtime 1.24+，缺失时回退含章。
-- **第二轮第二批**：前端接上 v4——鼠标点选与滚轮翻页（`Rendered::hit_at` → `Candidate` / `Page`，先验合成器肯不肯把指针事件给 popup）、
-  候选右键菜单（`Renderer::render_menu` 画在同一个 popup 里，与 macOS / Windows 一样自绘）、中 / 英提示（`Renderer::render_status` 在 popup 里亮一秒）与主题里的模式、
-  托盘（StatusNotifierItem + DBusMenu，原生菜单）、选区翻译、矩阵与键位提示。
-- **之后**：按 `text_input_rectangle` 判断翻没翻、调排布；设置程序支持表区分两个版本；CI 跑黑盒测试（要 libxkbcommon 与 libwayland-client）。
+  横排矩阵与键位提示的数据也已接上，只对握手报了对应能力的会话提供，各前端（含 Wayland）的展示留在下一轮。Linux 知意需要另装 ONNX Runtime 1.24+，缺失时回退含章。
+- **第二轮第二批（已做）**：前端接上 v4——鼠标点选与滚轮翻页（`Canvas::spot` → `Candidate` / `Page`，先验合成器肯不肯把指针事件给 popup）、
+  候选右键菜单（`Renderer::render_menu` 与候选合成到同一个 popup，与 macOS / Windows 一样自绘）、中 / 英提示（`Renderer::render_status` 在 popup 里亮不到一秒）与主题里的模式、
+  托盘（StatusNotifierItem + DBusMenu，原生菜单）、选区翻译；鼠标、选区替换、中 / 英提示与托盘仍待独立会话验证，见「验证」。
+  黑盒测试补齐：content_type（密码框、敏感框）、前后文与 text_change_cause、选区翻译，假 Server 对没想到的消息报错，测完查正常退出；
+  CI 跑黑盒测试（Linux job 装 libxkbcommon 与 libwayland-client，`QINGJIAN_BLACKBOX_REQUIRED=1` 缺库即失败）。
+- **之后**：按 `text_input_rectangle` 判断翻没翻、调排布；设置程序支持表区分两个版本；Wayland 前端画横排矩阵与键位提示。
 
 ## 验证
 
-能自动跑的都是纯逻辑（按键表、抬键与重复、`content_type` 映射、偏移换算与前后文截取、4 KB 切块、像素换算与补边、回包身份判断、活动窗口的跟踪、按应用分会话、外观偏好的取值与要不要重画），
+能自动跑的都是纯逻辑（按键表、抬键与重复、`content_type` 映射、偏移换算与前后文截取、选区取字与选区翻译的往返、4 KB 切块、像素换算与补边、回包身份判断、
+活动窗口的跟踪、按应用分会话、外观偏好的取值与要不要重画、鼠标落点与收鼠标的区域、滚轮折成翻页、点选与右键菜单的规则），
 不要合成器，CI 照跑；按应用分会话另有一组对着走真 socket 的假 Server 测连接上的消息。
+黑盒测试（`tests/blackbox`）让真二进制对着假合成器与假 Server 走一遍真的两套协议：起不来的两种退出、SIGTERM、打字上屏、转发、失活时还按着的键、候选窗贴图与缩放，
+密码框（不开会话、不接管键盘、里面敲的键不到 Server、「显示密码」后接回来）、敏感框（不带前后文、不报能读选区）、前后文、组句中应用改了文字、选区翻译的一整轮，
+以及鼠标点候选上屏、滚轮翻页、右键菜单弹出与点项、Esc 收菜单、旧落点竞态与缓冲背压；另测点选译文上屏，以及点选回包期间选区或隐私变化时丢弃旧译文。
+点哪儿按前端调试日志里记的可点位置（surface 坐标）找。
+断言按 SETTLE 的节奏走（要连着发的更新先让假合成器转一次应用的 done），同步点按这次 grab 发过的修饰键个数等待；
+假 Server 只接受测试逐种允许的鼠标请求，其他未预期消息仍报违规并断开。每个测试结束时查被测进程正常退出、没有残留。
+CI 的 Linux job 装好 libxkbcommon 与 libwayland-client 并设 `QINGJIAN_BLACKBOX_REQUIRED=1`，黑盒测试缺库时失败而不是打印「跳过」照样绿。
 portal 的 D-Bus 往来另有对着私有 dbus-daemon 上假 portal 的测试（`ReadOne`、第 1 版的 `Read`、`SettingChanged`、不按需拉起、portal 后上线），
 要 dbus-daemon，缺省不跑：`cargo test -p qingjian-linux-wayland -- --ignored portal`。
+托盘另有同样隔离的 D-Bus 测试：`cargo test -p qingjian-linux-wayland -- --ignored tray`，检查注册、图标与菜单属性、点击、模式更新、宿主后上线与重启，以及不按需拉起宿主。
+中 / 英提示、主题模式与托盘尚未在真会话验过：需在有托盘的嵌套合成器或真会话中检查左右键、勾选态、组句中切换、失焦后切换、宿主重启、设置窗口，以及深浅色和高分屏图标。
 只能真会话验的，在 Hyprland 上逐个应用过：foot / kitty、GTK4、Firefox、Chromium（`--enable-wayland-ime`）、Qt6——
 打字上屏、数字选词、翻页、Shift 切换后 Shift 不卡、组句中按住退格、Ctrl+C 先上原文、NumLock、密码框、组句中切窗口、整句重排换帧、1.5 倍缩放不糊、热加载换主题、桌面切深浅、Server 中途重启、
-两个应用里各自切中 / 英后来回切换各自记住、`[apps]` 英文候选名单里的应用出英文候选（按应用分会话与跟随深浅还没在真会话里验过）。
+两个应用里各自切中 / 英后来回切换各自记住、`[apps]` 英文候选名单里的应用出英文候选、GTK4 / Qt6 / Firefox 里选中一段按 `Alt+Shift+T` 后回车用译文替换选区（按应用分会话、跟随深浅与选区翻译还没在真会话里验过）。
+鼠标点选、滚轮翻页（滚轮与触摸板）、右键菜单的悬停与点项还没在真会话里验过：先看合成器给不给 popup 指针事件、点 popup 会不会让应用失焦（`RUST_LOG=debug` 看「鼠标按在候选窗上」与「候选窗上能点的地方」）。
 嵌套 sway 1.12（headless 后端，不开窗口、不碰宿主会话）+ foot 1.28 + wtype 已经过了一遍（2026-10-28）：
 连发与按人速打字的行内拼音、空格 / 数字 / 翻页选词、Esc、回车上原文、退格、单击 Shift 切中英、组句中 Ctrl+A 先上原文、空闲时 Ctrl+C 原样交给应用、
 1.5 倍缩放、Server 中途停掉键照常直通与重启后自动接上、按住退格的重复与删空后交还应用、组句中切换窗口、改配置换主题（樱花主题）、第二个输入法收到 `unavailable`。

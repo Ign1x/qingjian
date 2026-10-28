@@ -2,6 +2,7 @@
 
 use std::time::Duration;
 
+use qingjian_platform::protocol::linux::InputMode;
 use qingjian_platform::protocol::linux::key::keysym;
 use qingjian_platform::protocol::{Frame, KeyOutcome};
 
@@ -32,10 +33,19 @@ fn shift_tap_switches_and_the_release_still_reaches_the_app() {
         ..answer(KeyOutcome::Consumed, Some("ni"), Frame::default())
     });
     session.handle(Input::Key(key(42, keysym::SHIFT_L, false)), &mut out, now);
+    let english = InputMode {
+        english: true,
+        ..InputMode::default()
+    };
     assert_eq!(
         out.log,
-        [Out::Forward(42, true), Out::Hide, Out::Forward(42, false)],
-        "上一次更新应用还没落定：原文先攒着，抬起照转"
+        [
+            Out::Forward(42, true),
+            Out::Hide,
+            Out::Hint(english),
+            Out::Forward(42, false)
+        ],
+        "上一次更新应用还没落定：原文先攒着，抬起照转；候选窗收起，在它的位置亮「英」"
     );
     settled(&mut session, &mut out, now);
     assert_eq!(

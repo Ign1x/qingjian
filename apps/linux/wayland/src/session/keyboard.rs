@@ -3,7 +3,7 @@
 use std::time::Instant;
 
 use qingjian_platform::protocol::KeyOutcome;
-use qingjian_platform::protocol::linux::key::to_key_event;
+use qingjian_platform::protocol::linux::key::{keysym, to_key_event};
 
 use super::keys::Held;
 use super::{Key, Modifiers, Output, Server, Session};
@@ -42,6 +42,20 @@ impl<S: Server> Session<S> {
             // 交还键盘之后才排到的按下：转出去的话它的抬起不再经过这里，虚拟键盘上就卡住了
             return;
         }
+        // 右键菜单开着：Esc 只收起菜单（抬起也吃掉），别的键收起菜单后照常处理，与 macOS 一样
+        if self.menu.is_some() {
+            self.close_menu(out, now);
+            if key.keysym == keysym::ESCAPE {
+                self.keys.press(
+                    key.code,
+                    Held {
+                        forwarded: false,
+                        reported: false,
+                    },
+                );
+                return;
+            }
+        }
         if !self.serving() {
             self.flush(out, now);
             out.forward(key.code, true, key.time);
@@ -55,7 +69,18 @@ impl<S: Server> Session<S> {
             return;
         }
         let event = to_key_event(key.keysym, key.mask);
-        match self.server.key(event, false, self.surrounding()) {
+        let mut result = self
+            .server
+            .key(event, false, self.surrounding(), self.selectable());
+        // 选区翻译快捷键：Server 先要选区，回了选区之后的回包才是这一键的结果
+        let selection = result
+            .as_ref()
+            .ok()
+            .and_then(|reply| reply.selection_request);
+        if let Some(request) = selection {
+            result = self.answer_selection(request, key.epoch, out);
+        }
+        match result {
             Ok(reply) => {
                 let forwarded = reply.outcome == KeyOutcome::Passthrough;
                 // 快捷键冲洗时回包带着原文：先上屏，再把键交给应用
@@ -64,7 +89,8 @@ impl<S: Server> Session<S> {
                     // 快捷键冲洗上屏的原文必须先到应用，攒着的这时也要发
                     self.flush(out, now);
                     out.forward(key.code, true, key.time);
-                } else {
+                } else if selection.is_none() {
+                    // 翻译快捷键不是打字的键，按住也不重复：重复的那一下 Server 会当成别的键、放弃这次翻译
                     self.repeat.start(key, now);
                 }
                 self.keys.press(
@@ -97,7 +123,7 @@ impl<S: Server> Session<S> {
         let held = self.keys.release(key.code);
         if held.is_some_and(|held| held.reported) && self.serving() {
             let event = to_key_event(key.keysym, key.mask);
-            match self.server.key(event, true, None) {
+            match self.server.key(event, true, None, false) {
                 // 单击 Shift 切中英时回包可能带着原文：先上屏，再转抬键
                 Ok(reply) => self.apply(reply, key.epoch, out, now),
                 Err(error) => self.lost(&error, out),
@@ -117,7 +143,8 @@ impl<S: Server> Session<S> {
             return;
         }
         let event = to_key_event(key.keysym, key.mask);
-        match self.server.key(event, false, self.surrounding()) {
+        // 重复的不报能读选区：要选区的翻译快捷键本来就不重复
+        match self.server.key(event, false, self.surrounding(), false) {
             Ok(reply) => {
                 let forwarded = reply.outcome == KeyOutcome::Passthrough;
                 self.apply(reply, key.epoch, out, now);

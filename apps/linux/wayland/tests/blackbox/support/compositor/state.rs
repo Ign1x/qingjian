@@ -6,9 +6,10 @@ use std::os::fd::AsFd;
 use wayland_protocols_misc::zwp_input_method_v2::server::zwp_input_method_keyboard_grab_v2::ZwpInputMethodKeyboardGrabV2;
 use wayland_protocols_misc::zwp_input_method_v2::server::zwp_input_method_v2::ZwpInputMethodV2;
 use wayland_server::protocol::wl_keyboard::{KeyState, KeymapFormat};
+use wayland_server::protocol::wl_pointer::WlPointer;
 use wayland_server::protocol::wl_surface::WlSurface;
 
-use super::{Request, Setup};
+use super::{Field, Request, Setup};
 use crate::support::Log;
 
 /// 按住多久开始重复（毫秒）、每秒几次：grab 建好时与真合成器一样发一次。
@@ -29,17 +30,26 @@ pub struct State {
     /// 当了候选窗的那个 surface。
     pub popup: Option<WlSurface>,
 
+    /// 应用那边输入框现在的状态，每次 done 之前转给输入法。
+    pub field: Field,
+
     /// 发过几次 done：输入法 commit 的 serial 该等于它。
     pub dones: u32,
 
-    /// 按键与修饰键事件的 serial。
-    serial: u32,
+    /// 客户端从 seat 拿的指针；还没拿或放掉了是 `None`。
+    pub pointer: Option<WlPointer>,
 
-    /// 合成器的时间轴（毫秒），按键事件的时间戳从这里取。
-    time: u32,
+    /// 按键、修饰键与指针事件的 serial。
+    pub(super) serial: u32,
+
+    /// 合成器的时间轴（毫秒），按键与指针事件的时间戳从这里取。
+    pub(super) time: u32,
 
     /// 最近一次发的修饰键：depressed、latched、locked、group。
     modifiers: [u32; 4],
+
+    /// 这次 grab 上发过几次修饰键：被测进程拿着键位表时一次不落地转给虚拟键盘，[`super::Compositor::sync`] 按它数。
+    pub sent: usize,
 
     /// grab 发的键位表：测试夹具连同结尾的 0。
     keymap: File,
@@ -55,21 +65,31 @@ impl State {
             input_method: None,
             grab: None,
             popup: None,
+            field: Field::default(),
             dones: 0,
+            pointer: None,
             serial: 0,
             time: 1000,
             modifiers: [0; 4],
+            sent: 0,
             keymap,
             keymap_size,
         }
     }
 
-    /// 输入框要输入法了：activate + done。客户端还没拿输入法对象时返回 `false`。
-    pub fn activate(&mut self) -> bool {
+    /// 输入框要输入法了：activate，连同这个输入框的状态 + done。客户端还没拿输入法对象时返回 `false`。
+    pub fn activate(&mut self, field: Field) -> bool {
         let Some(method) = &self.input_method else {
             return false;
         };
         method.activate();
+        self.field = field;
+        self.done()
+    }
+
+    /// 激活着的输入框报了新状态（应用 commit 了自己的 text-input 状态）：转给输入法 + done。
+    pub fn update(&mut self, field: Field) -> bool {
+        self.field = field;
         self.done()
     }
 
@@ -82,11 +102,14 @@ impl State {
         self.done()
     }
 
-    /// 这一批状态生效。应用 commit 了自己的 text-input 状态之后，合成器也转来一次。
+    /// 这一批状态生效：先转一遍输入框的状态，再 done。应用 commit 了自己的 text-input 状态之后，合成器也转来一次。
     pub fn done(&mut self) -> bool {
         let Some(method) = &self.input_method else {
             return false;
         };
+        self.field.send(method);
+        // 变化原因只管它所在的那一次 commit，之后回到 input_method（text-input-v3 的约定）
+        self.field.changed_by_app = false;
         method.done();
         self.dones += 1;
         true
@@ -106,6 +129,19 @@ impl State {
         Some(self.time)
     }
 
+    /// 经 grab 按下或抬起一个修饰键：先发键，再发按着的修饰键（`mask` 是它在 xkb 里的修饰键位，与 wlroots 的先后一样）。
+    /// 没有 grab 是 `None`。
+    pub fn modifier(&mut self, code: u32, mask: u32, pressed: bool) -> Option<u32> {
+        let time = self.key(code, pressed)?;
+        if pressed {
+            self.modifiers[0] |= mask;
+        } else {
+            self.modifiers[0] &= !mask;
+        }
+        self.resend_modifiers();
+        Some(time)
+    }
+
     /// 经 grab 把上一次的修饰键原样再发一次；没有 grab 是 `false`。
     pub fn resend_modifiers(&mut self) -> bool {
         let Some(grab) = &self.grab else {
@@ -114,6 +150,7 @@ impl State {
         self.serial += 1;
         let [depressed, latched, locked, group] = self.modifiers;
         grab.modifiers(self.serial, depressed, latched, locked, group);
+        self.sent += 1;
         true
     }
 
@@ -122,6 +159,7 @@ impl State {
         grab.keymap(KeymapFormat::XkbV1, self.keymap.as_fd(), self.keymap_size);
         grab.repeat_info(REPEAT_RATE, REPEAT_DELAY);
         self.grab = Some(grab);
+        self.sent = 0;
         self.resend_modifiers();
     }
 }

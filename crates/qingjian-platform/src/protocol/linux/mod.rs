@@ -18,6 +18,7 @@ mod key_hint;
 mod menu;
 mod mode;
 mod request;
+mod selection;
 #[cfg(target_os = "linux")]
 mod socket;
 mod surrounding;
@@ -31,6 +32,7 @@ pub use key_hint::{KeyHintContent, KeyHintView, RootChartId};
 pub use menu::{MenuItem, MenuReply};
 pub use mode::{InputMode, ModeCommand};
 pub use request::LinuxRequest;
+pub use selection::{MAX_SELECTION_CHARS, selected_text};
 #[cfg(target_os = "linux")]
 pub use socket::socket_path;
 pub use surrounding::AppSurrounding;

@@ -43,6 +43,9 @@ pub enum Request {
         scale: i32,
     },
 
+    /// 经 cursor-shape 设的光标形状（`wp_cursor_shape_device_v1` 的 shape 值，1 是 default），带指针进来时的 serial。
+    CursorShape { serial: u32, shape: u32 },
+
     /// 违反协议的用法：真合成器会发协议错误、断开连接。测试结束时一条都不能有。
     Violation(String),
 

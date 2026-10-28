@@ -1,14 +1,20 @@
 //! 候选窗的绘制：协议帧按配置里的外观（「跟随系统」时按桌面的偏好）画成预乘 RGBA 位图，
-//! 再按 popup 的缩放裁边、换成 Wayland 的像素格式（[`blit`]）。
-//! 贴到 surface 上是 `crate::wayland` 的事；设计见 `docs/design/linux-wayland.md`「显示」。
+//! 再按 popup 的缩放裁边、换成 Wayland 的像素格式（[`blit`]）。右键菜单另画一张、叠在候选窗上合成一张（[`Canvas`]），
+//! 鼠标落点也按它认。贴到 surface 上是 `crate::wayland` 的事；设计见 `docs/design/linux-wayland.md`「显示」。
 
 mod bitmap;
+mod canvas;
 mod look;
+mod menu;
+mod mode;
+mod status;
 
 #[cfg(test)]
 mod tests;
 
-pub use bitmap::{Placement, blit};
+pub use bitmap::{Placement, blit, paste};
+pub use canvas::Canvas;
+pub use menu::Menu;
 
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -64,6 +70,12 @@ pub struct Painter {
 
     /// 上一帧的外观设置：只有「跟随系统」的帧要跟着桌面换深浅。
     appearance: Appearance,
+
+    /// 画右键菜单的渲染器（`menu/paint.rs`）：第一次弹菜单时才建，建不成为 `Some(None)`。
+    menu_renderer: Option<Option<Renderer>>,
+
+    /// 输入模式（Server 回包上的），主题里的 `mode.*` 照它画；还没收到时是缺省（中文）。
+    mode: Mode,
 }
 
 impl Painter {
@@ -97,6 +109,8 @@ impl Painter {
             seen: desktop.preference(),
             desktop,
             appearance: Appearance::default(),
+            menu_renderer: None,
+            mode: Mode::default(),
         };
         painter
             .renderer
@@ -121,7 +135,7 @@ impl Painter {
         let mut rendered = self
             .renderer
             .render(
-                &display::render_frame(frame, Mode::default()),
+                &display::render_frame(frame, self.mode.clone()),
                 display::layout(frame.layout),
                 &self.theme.with_dark(dark),
                 scale,

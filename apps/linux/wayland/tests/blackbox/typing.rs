@@ -1,6 +1,6 @@
 //! 打字：输入框激活后接管键盘，Server 吃掉的字母变成行内拼音，空格上屏。
 
-use super::support::{Answer, KEY_N, KEY_SPACE, Request, Rig, Setup, kind};
+use super::support::{Answer, KEY_N, KEY_SPACE, Request, Rig, Setup, kind, text_updates};
 
 /// activate + done：先跟 Server 握手、报能力与焦点，成功了才接管键盘。
 #[test]
@@ -41,7 +41,7 @@ fn consumed_letter_sets_preedit_then_commits() {
     assert_eq!(dones, 1, "只发过激活那一次 done");
     let requests = rig.compositor.requests.since(mark);
     assert_eq!(
-        text(&requests),
+        text_updates(&requests),
         [
             Request::Preedit {
                 text: "n".to_owned(),
@@ -96,7 +96,7 @@ fn space_commits_the_candidate() {
     rig.compositor.sync();
     assert_eq!(rig.compositor.dones(), 2);
     assert_eq!(
-        text(&rig.compositor.requests.since(mark)),
+        text_updates(&rig.compositor.requests.since(mark)),
         [
             Request::CommitString("你".to_owned()),
             Request::Preedit {
@@ -107,13 +107,4 @@ fn space_commits_the_candidate() {
             Request::Commit(2),
         ]
     );
-}
-
-/// 只留 input-method-v2 的文字更新。
-fn text(requests: &[Request]) -> Vec<Request> {
-    requests
-        .iter()
-        .filter(|request| request.is_text())
-        .cloned()
-        .collect()
 }

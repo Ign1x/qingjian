@@ -83,6 +83,25 @@ impl<T: Clone + Debug> Log<T> {
             ),
         }
     }
+
+    /// 等记录整体满足 `done`（比如连上与断开的次数对上），等满 [`PATIENCE`] 还不满足就带着记录 panic。
+    pub fn settle(&self, what: &str, done: impl Fn(&[T]) -> bool) {
+        let deadline = Instant::now() + PATIENCE;
+        let (entries, changed) = &*self.shared;
+        let mut guard = lock(entries);
+        while !done(&guard) {
+            let left = deadline.saturating_duration_since(Instant::now());
+            if left.is_zero() {
+                let entries = guard.clone();
+                drop(guard);
+                panic!("等了 {PATIENCE:?} 还没有{what}，记录：{entries:#?}");
+            }
+            guard = changed
+                .wait_timeout(guard, left)
+                .unwrap_or_else(PoisonError::into_inner)
+                .0;
+        }
+    }
 }
 
 /// 记录的线程 panic 了也照样读：测试要的正是出错前记下的那些。

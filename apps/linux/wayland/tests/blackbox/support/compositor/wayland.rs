@@ -1,5 +1,5 @@
 //! 核心协议里客户端要用的那几样：wl_compositor 与 wl_surface（候选窗那个 surface 每次 commit 记一笔）、
-//! wl_region、wl_callback、wl_seat、wl_shm 与它的池和缓冲。
+//! wl_region、wl_callback、wl_seat（有键盘与指针，客户端只拿指针）、wl_shm 与它的池和缓冲。
 
 use std::sync::{Arc, Mutex, PoisonError};
 
@@ -115,21 +115,24 @@ impl GlobalDispatch<WlSeat, ()> for State {
     ) {
         data_init
             .init(resource, ())
-            .capabilities(Capability::Keyboard);
+            .capabilities(Capability::Keyboard | Capability::Pointer);
     }
 }
 
-/// 输入法不从 seat 拿键盘、指针，客户端不会发请求过来。
+/// 输入法不从 seat 拿键盘（按键走 grab），只拿指针：鼠标点候选窗。
 impl Dispatch<WlSeat, ()> for State {
     fn request(
-        _: &mut Self,
+        state: &mut Self,
         _: &Client,
         _: &WlSeat,
-        _: wl_seat::Request,
+        request: wl_seat::Request,
         _: &(),
         _: &DisplayHandle,
-        _: &mut DataInit<'_, Self>,
+        data_init: &mut DataInit<'_, Self>,
     ) {
+        if let wl_seat::Request::GetPointer { id } = request {
+            state.pointer = Some(data_init.init(id, ()));
+        }
     }
 }
 

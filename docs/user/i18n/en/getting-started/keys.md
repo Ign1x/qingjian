@@ -80,7 +80,7 @@ Typing a letter closes the panel and continues typing. Details in [Punctuation, 
 |---|---|---|---|
 | Commit the first gloss of candidate N | `⌥ + number` | `Ctrl + number` | `Alt + number` |
 | Commit the second gloss (when the entry has one) | `⇧⌥ + number` | `Ctrl + Shift + number` | `Alt + Shift + number` |
-| Pin / demote / delete a candidate | Right-click it, or Control-click | Right-click it | Not yet |
+| Pin / demote / delete a candidate | Right-click it, or Control-click | Right-click it | Right-click it in the Wayland native edition; not yet in the fcitx edition |
 
 These only work while typing pinyin. See [Glosses beside candidates](../learning/translation.md#Committing-the-gloss-directly) and [Typing habits](../personalize/habits.md#Candidate-right-click-menu).
 
@@ -95,6 +95,8 @@ All of these require AI services to be turned on first; see [AI services](../clo
 | Translation result: keep the original | `Esc` | `Esc` | `Esc` |
 | Ask for AI candidates manually while typing pinyin | `⌃⌥J` | `Ctrl + Alt + J` | `Ctrl + Alt + J` |
 | Ask about a character | `u`, then type pinyin | Same | Same |
+
+The Wayland native edition also uses `Alt + Shift + T` to translate a selection provided by the app (up to 500 characters). Password and sensitive fields are excluded; moving the selection cancels the translation. See [Translating selected text](../cloud/question-and-translate.md#Translating-selected-text).
 
 ## Prefixes
 

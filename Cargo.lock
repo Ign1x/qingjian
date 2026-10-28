@@ -3867,6 +3867,7 @@ dependencies = [
 name = "qingjian-linux-wayland"
 version = "0.1.0-dev"
 dependencies = [
+ "bamboo-slip",
  "futures-util",
  "libc",
  "memmap2",

@@ -1,16 +1,21 @@
 //! [`super::Session`] 对合成器那一侧要做的事。真实现在 `crate::wayland`，测试里换成记录器。
 
 use qingjian_platform::protocol::Frame;
+use qingjian_platform::protocol::linux::InputMode;
 
-use super::{Modifiers, Preedit};
+use super::{Field, Modifiers, Preedit};
 
 pub trait Output {
-    /// 焦点代次：输入框每激活、失活一次加一。
+    /// 输入目标代次：焦点、隐私能力或应用主动修改的文字位置变化时递增。
     fn epoch(&self) -> u64;
 
     /// 不阻塞地读一遍合成器新到的事件（新的排进队尾、代次随之更新）。
-    /// 等 Server 回包的那段时间里焦点可能已经换了，回包落地前先调它再比代次。
+    /// 等 Server 回包期间输入目标可能已变化，回包落地前先调它再比代次。
     fn sync(&mut self);
+
+    /// 最近一次 done 生效的选区与隐私能力仍与请求发起时相同。
+    /// sync 只把事件排队，Session 尚未处理这些事件，读取选区前须查合成器侧的最新状态。
+    fn selection_current(&self, field: &Field) -> bool;
 
     /// 接管或交还键盘。
     fn grab(&mut self, on: bool);
@@ -32,4 +37,17 @@ pub trait Output {
 
     /// 收起候选窗。
     fn hide(&mut self);
+
+    /// 在候选窗上弹出右键菜单，`items` 是各项的字，摆在最近一次按下鼠标的地方；画不出来返回 `false`。
+    /// 换上新的一帧（[`Self::show`]）或收起候选窗时菜单一并收起。
+    fn open_menu(&mut self, items: &[String]) -> bool;
+
+    /// 收起右键菜单，候选窗照旧。
+    fn close_menu(&mut self);
+
+    /// 输入模式变了（`None` 是不知道了：与 Server 断开）。之后画的候选窗按它显示主题里的 `mode.*`。
+    fn mode(&mut self, mode: Option<&InputMode>);
+
+    /// 在候选窗的位置画出中 / 英提示（换掉候选窗上的东西，[`Self::hide`] 收起）；画不出来（没有字体）时返回 `false`。
+    fn hint(&mut self, mode: &InputMode) -> bool;
 }

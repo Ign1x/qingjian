@@ -1,4 +1,4 @@
-//! 候选窗：input-method-v2 的 popup surface。位置由合成器定（贴在光标旁），这里只管贴位图与缩放。
+//! 候选窗：input-method-v2 的 popup surface。位置由合成器定（贴在光标旁），这里只管贴位图、缩放与收鼠标的区域。
 
 use wayland_client::protocol::wl_buffer::WlBuffer;
 use wayland_client::protocol::wl_compositor::WlCompositor;
@@ -21,6 +21,9 @@ use crate::view::Placement;
 pub struct Popup {
     surface: WlSurface,
 
+    /// 建收鼠标的区域（wl_region）用。
+    compositor: WlCompositor,
+
     _role: ZwpInputPopupSurfaceV2,
 
     /// 有分数缩放时用它定逻辑尺寸；没有时退回整数的 buffer scale。
@@ -36,6 +39,9 @@ pub struct Popup {
 
     /// 挂着缓冲（显示着）。
     mapped: bool,
+
+    /// 收鼠标的区域（surface 逻辑像素的矩形）；没变就不重设。
+    region: Vec<(i32, i32, i32, i32)>,
 }
 
 impl Popup {
@@ -47,7 +53,7 @@ impl Popup {
         qh: &QueueHandle<Wayland>,
     ) -> Self {
         let surface = compositor.create_surface(qh, ());
-        // 输入区域设成空，鼠标穿过候选窗：第一轮还不接鼠标点选
+        // 输入区域先设成空：贴上位图时换成卡片的范围（[`Self::attach`]），阴影让鼠标穿过去
         let region = compositor.create_region(qh, ());
         surface.set_input_region(Some(&region));
         region.destroy();
@@ -61,12 +67,14 @@ impl Popup {
         };
         Self {
             surface,
+            compositor: compositor.clone(),
             _role: role,
             viewport,
             _fractional: fractional,
             scale: 1.0,
             rescaled: false,
             mapped: false,
+            region: Vec::new(),
         }
     }
 
@@ -75,9 +83,29 @@ impl Popup {
         self.scale
     }
 
-    /// 贴上一块画好的缓冲。有 viewport 时 buffer scale 保持 1、按逻辑尺寸设目标大小
-    /// （Hyprland 拿「viewport 尺寸 ÷ buffer scale」当 popup 尺寸摆位置，两样一起设会算错）。
-    pub fn attach(&mut self, buffer: &WlBuffer, placement: &Placement) {
+    /// 这是不是候选窗的 surface（指针进来的是哪一个）。
+    pub fn is(&self, surface: &WlSurface) -> bool {
+        self.surface == *surface
+    }
+
+    /// 贴上一块画好的缓冲，收鼠标的区域换成 `region`（surface 逻辑像素的矩形）。有 viewport 时 buffer scale 保持 1、
+    /// 按逻辑尺寸设目标大小（Hyprland 拿「viewport 尺寸 ÷ buffer scale」当 popup 尺寸摆位置，两样一起设会算错）。
+    pub fn attach(
+        &mut self,
+        buffer: &WlBuffer,
+        placement: &Placement,
+        region: &[(i32, i32, i32, i32)],
+        qh: &QueueHandle<Wayland>,
+    ) {
+        if self.region != region {
+            let input = self.compositor.create_region(qh, ());
+            for &(x, y, width, height) in region {
+                input.add(x, y, width, height);
+            }
+            self.surface.set_input_region(Some(&input));
+            input.destroy();
+            self.region = region.to_vec();
+        }
         self.surface.attach(Some(buffer), 0, 0);
         self.surface
             .damage_buffer(0, 0, placement.width as i32, placement.height as i32);

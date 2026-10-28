@@ -13,6 +13,10 @@ mod paths;
 mod portal;
 #[cfg(target_os = "linux")]
 mod session;
+#[cfg(all(test, target_os = "linux"))]
+mod testing;
+#[cfg(target_os = "linux")]
+mod tray;
 #[cfg(target_os = "linux")]
 mod view;
 #[cfg(target_os = "linux")]

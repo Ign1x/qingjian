@@ -21,6 +21,12 @@ pub struct Field {
 }
 
 impl Field {
+    /// 旧位置上的组句或排队上屏已不适用；输入法自己上屏引起的变化不算。
+    pub fn invalidates(&self, previous: &Self) -> bool {
+        self.capabilities() != previous.capabilities()
+            || (self.external_change && self.surrounding != previous.surrounding)
+    }
+
     /// 报给 Server 的能力。
     pub fn capabilities(&self) -> Capabilities {
         Capabilities {

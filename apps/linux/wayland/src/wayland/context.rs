@@ -1,10 +1,11 @@
 //! [`Output`] 的真实现：会话的决定变成 input-method-v2、虚拟键盘与候选窗上的请求。
 
+use qingjian_platform::protocol::linux::InputMode;
 use wayland_client::EventQueue;
 use wayland_client::backend::WaylandError;
 
-use super::Wayland;
-use crate::session::{Modifiers, Output, Preedit};
+use crate::session::{Field, Modifiers, Output, Preedit};
+use crate::wayland::state::Wayland;
 
 /// 处理一件事期间借来的 Wayland 一侧：状态与事件队列（`sync` 要读新事件）。
 pub struct Context<'a> {
@@ -16,6 +17,10 @@ pub struct Context<'a> {
 impl Output for Context<'_> {
     fn epoch(&self) -> u64 {
         self.wayland.method.epoch
+    }
+
+    fn selection_current(&self, field: &Field) -> bool {
+        self.wayland.method.selection_current(field)
     }
 
     fn sync(&mut self) {
@@ -74,5 +79,21 @@ impl Output for Context<'_> {
 
     fn hide(&mut self) {
         self.wayland.hide();
+    }
+
+    fn open_menu(&mut self, items: &[String]) -> bool {
+        self.wayland.open_menu(items)
+    }
+
+    fn close_menu(&mut self) {
+        self.wayland.close_menu();
+    }
+
+    fn mode(&mut self, mode: Option<&InputMode>) {
+        self.wayland.set_mode(mode);
+    }
+
+    fn hint(&mut self, mode: &InputMode) -> bool {
+        self.wayland.hint(mode)
     }
 }

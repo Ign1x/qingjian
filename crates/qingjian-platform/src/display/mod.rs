@@ -7,6 +7,7 @@
 //! 键位提示（双拼键位、五笔字根图）换成渲染器的键盘也在这里（[`key_hint_keyboard`]）。
 
 mod keyboard;
+mod mode;
 mod preedit;
 mod row;
 
@@ -14,6 +15,7 @@ mod row;
 mod tests;
 
 pub use keyboard::{key_hint_keyboard, root_keyboard, shuangpin_keyboard};
+pub use mode::render_mode;
 pub use preedit::window_preedit;
 pub use row::from_candidate;
 
@@ -22,7 +24,8 @@ use qingjian_render::{Layout, Mode};
 use crate::LayoutMode;
 use crate::protocol::Frame;
 
-/// 一帧要画的全部内容。`mode` 是输入状态（中 / 英、简 / 繁、方案），主题拿它显示状态；协议帧里没有，由壳给。
+/// 一帧要画的全部内容。`mode` 是输入状态（中 / 英、简 / 繁、方案），主题拿它显示状态；协议帧里没有，由壳给
+/// （Linux Server 在回包上另附 `mode`，用 [`render_mode`] 换）。
 pub fn render_frame(frame: &Frame, mode: Mode) -> qingjian_render::Frame {
     let grid = frame.columns > 0;
     // 矩阵里序号只标在高亮所在那一行（数字键选的就是它），空位什么都不画；单行照旧全标

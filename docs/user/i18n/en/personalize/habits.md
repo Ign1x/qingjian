@@ -33,7 +33,7 @@ While typing pinyin, right-click a candidate (on macOS you can also Control-clic
 - **删除 (Delete)**: words you've created and AI candidates you've picked are deleted entirely; dictionary words aren't deleted, but all records about them are cleared and their original ranking is restored.
 
 The result is shown briefly beside the pinyin line (such as 已删除用户词「…」 "user word deleted") and disappears with the next key. While the menu is open, `Esc` only closes the menu.
-Available on Windows and macOS; not yet on Linux.
+Available on Windows, macOS and the Wayland native edition on Linux; not yet in the Linux fcitx edition.
 
 ## Turning learning off and starting over
 

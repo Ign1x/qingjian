@@ -6,7 +6,7 @@ use std::process::{Child, ChildStderr, Command, Stdio};
 use std::thread::{self, JoinHandle};
 use std::time::{Duration, Instant};
 
-use super::{Exit, Log, PATIENCE, Sandbox};
+use super::{Exit, Log, PATIENCE, Sandbox, Targets};
 
 /// 就绪的那行日志：装好 SIGTERM / SIGINT 的处理、进主循环之前打（`src/wayland/mod.rs` 的 `run`）。
 const READY: &str = "输入法就绪";
@@ -35,6 +35,9 @@ pub struct Frontend {
 
     /// 读 stderr 的线程；进程退出、管道关上它就结束。
     reader: Option<JoinHandle<()>>,
+
+    /// 测试已经收过它的退出状态（[`Self::exit`]，或起不来时 [`Self::ready`]），收尾时不再查。
+    checked: bool,
 }
 
 impl Frontend {
@@ -56,6 +59,11 @@ impl Frontend {
             // 有 WAYLAND_SOCKET 时客户端不看 WAYLAND_DISPLAY，会连到继承下来的真会话上
             .env_remove("WAYLAND_SOCKET")
             .env_remove("WAYLAND_DEBUG")
+            // 禁止回退到宿主总线读外观或登记托盘；D-Bus 往来另对私有总线测。
+            .env(
+                "DBUS_SESSION_BUS_ADDRESS",
+                "unix:path=/nonexistent/qingjian-test-bus",
+            )
             .stdin(Stdio::null())
             .stdout(Stdio::null())
             .stderr(Stdio::piped())
@@ -71,6 +79,7 @@ impl Frontend {
             child,
             lines,
             reader: Some(reader),
+            checked: false,
         }
     }
 
@@ -88,6 +97,7 @@ impl Frontend {
             if let Some(status) = self.child.try_wait().expect("查被测进程的状态") {
                 let stderr = self.drain();
                 if let Some(reason) = missing_library(&stderr) {
+                    self.checked = true;
                     skip(reason);
                     return false;
                 }
@@ -116,6 +126,7 @@ impl Frontend {
             thread::sleep(Duration::from_millis(10));
         };
         let stderr = self.drain();
+        self.checked = true;
         if let Some(reason) = missing_library(&stderr) {
             skip(reason);
             return None;
@@ -124,6 +135,19 @@ impl Frontend {
             code: status.code(),
             stderr,
         })
+    }
+
+    /// 收尾：测试没收过退出状态的话发 SIGTERM、等它退出，交出退出状态；收过的是 `None`。
+    /// 测试中途它自己退了（崩了、被合成器断开）是错。
+    pub fn finish(&mut self) -> Option<Exit> {
+        if self.checked {
+            return None;
+        }
+        if let Some(status) = self.child.try_wait().expect("查被测进程的状态") {
+            panic!("被测进程在测试中途退出了（{status}）：\n{}", self.drain());
+        }
+        self.terminate();
+        self.exit()
     }
 
     /// 发 SIGTERM（systemd 停服务、会话退出时就是它）。
@@ -140,6 +164,31 @@ impl Frontend {
             .entries()
             .iter()
             .any(|line| line.contains(PAINTER))
+    }
+
+    /// 等日志里出现含 `needle` 的一行：被测进程处理完某件事、又不向合成器或 Server 发任何东西时，靠它知道处理过了。
+    pub fn wait_log(&self, what: &str, needle: &str) {
+        self.lines.wait(0, what, |line| line.contains(needle));
+    }
+
+    /// 到现在为止的日志。
+    pub fn log(&self) -> Vec<String> {
+        self.lines.entries()
+    }
+
+    /// 日志到现在有几行：之后等某一行从这里数起。
+    pub fn mark(&self) -> usize {
+        self.lines.len()
+    }
+
+    /// 日志里有没有含 `text` 的一行。
+    pub fn logged(&self, text: &str) -> bool {
+        self.lines.entries().iter().any(|line| line.contains(text))
+    }
+
+    /// 等日志第 `from` 行起记下的候选窗上能点的地方（每次贴上去的那一张变了记一行）。
+    pub fn targets(&self, from: usize) -> Targets {
+        Targets::wait(&self.lines, from)
     }
 
     fn stderr(&self) -> String {
@@ -184,12 +233,22 @@ fn missing_library(stderr: &str) -> Option<&'static str> {
 }
 
 /// 跳过的说明直接写进 stderr、不经测试框架的输出捕获：通过的测试的输出平时不显示，
-/// CI 日志里要看得出这几个测试是跳过了，而不是真的跑过了。
+/// CI 日志里要看得出这几个测试是跳过了，而不是真的跑过了。设了 [`REQUIRED`] 时不许跳过，直接失败。
 pub fn skip(reason: &str) {
     let test = thread::current()
         .name()
         .unwrap_or("Wayland 前端黑盒测试")
         .to_owned();
+    if required() {
+        panic!("{test} 跑不了：{reason}。设了 {REQUIRED}，不许跳过");
+    }
     let note = format!("跳过 {test}：{reason}\n");
     let _ = std::io::stderr().write_all(note.as_bytes());
+}
+
+/// 设了（非空、不是 0）就不许跳过：CI 装好了运行库与字体，缺了是环境坏了，该红而不是打印「跳过」照样绿。本地不设，行为照旧。
+const REQUIRED: &str = "QINGJIAN_BLACKBOX_REQUIRED";
+
+fn required() -> bool {
+    std::env::var_os(REQUIRED).is_some_and(|value| !value.is_empty() && value != "0")
 }

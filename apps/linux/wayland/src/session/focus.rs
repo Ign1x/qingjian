@@ -25,22 +25,29 @@ impl<S: Server> Session<S> {
         if let Err(error) = self.server.capabilities(self.field.capabilities()) {
             tracing::warn!(%error, "报输入框能力失败");
         }
-        if !self.field.password {
+        if self.field.password {
+            tracing::debug!("密码框：不报焦点、不接管键盘，键直接归应用");
+        } else {
             self.connect(out);
         }
     }
 
     /// 告诉 Server 焦点到了，成功就把键盘接过来。连不上就先不接管，过一会儿 tick 再试。
+    /// 回包带着这个应用的会话现在的模式（换应用时中 / 英跟着变）。
     pub(super) fn connect(&mut self, out: &mut impl Output) {
         match self.server.focus(true) {
-            Ok(_) => {
+            Ok(reply) => {
+                self.adopt(reply.mode.as_ref(), out);
                 if !self.grabbed {
                     out.grab(true);
                     self.grabbed = true;
                 }
             }
             // Server 没起时每次退避到点都会走到这里，不用 warn 刷屏；断开的那一下 Link 已经记过
-            Err(error) => tracing::debug!(%error, "连不上 Server，这个输入框先不接管键盘"),
+            Err(error) => {
+                tracing::debug!(%error, "连不上 Server，这个输入框先不接管键盘");
+                self.forget_mode(out);
+            }
         }
     }
 
@@ -97,9 +104,16 @@ impl<S: Server> Session<S> {
         if !self.active {
             return;
         }
-        // 应用 commit 了：上一次发的它已经处理完，攒着的可以发了
+        let invalidated = field.invalidates(&self.field);
         self.settle_at = None;
-        self.flush(out, now);
+        if invalidated {
+            // 新位置不能接收旧位置排队的文字；隐私能力变化时也不能先上屏再清理。
+            self.unsent.clear();
+            self.repeat.stop();
+        } else {
+            // 应用处理完上一次更新，攒着的可以发了。
+            self.flush(out, now);
+        }
         if field.password != self.field.password {
             // 密码框点了「显示密码」这类：当成换了一个输入框
             self.deactivate(out);
@@ -115,13 +129,10 @@ impl<S: Server> Session<S> {
             self.clear(out);
             return;
         }
-        let moved = field.external_change
-            && field.surrounding != self.field.surrounding
-            && self.composing();
         self.field = field;
-        if moved && self.serving() {
-            // 组句中应用自己挪了光标或改了文字（点到别处、应用重置了输入法）：组句已经对不上，丢掉
-            tracing::debug!("组句中输入框被应用改了，丢掉组句");
+        if invalidated && self.serving() {
+            // 回包可能因目标已变化而未显示，本地没有组句也要取消 Server 上的翻译。
+            tracing::debug!("输入框被应用改了，重置组句与翻译");
             let epoch = out.epoch();
             match self.server.reset() {
                 Ok(reply) => self.apply(reply, epoch, out, now),

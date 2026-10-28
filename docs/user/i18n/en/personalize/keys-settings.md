@@ -26,13 +26,13 @@ By default `↑` / `↓` move the highlight and `←` / `→` move the pinyin cu
 
 When you're not typing, the arrow keys go to the app as usual. This applies in both Chinese and English mode.
 
-## Full-width/half-width punctuation shortcut (macOS, Windows)
+## Full-width/half-width punctuation shortcut
 
 With Ctrl + . 切换全半角标点 (Ctrl + . switches punctuation width) on, `Ctrl + .` (`⌃ + .` on macOS) switches punctuation between full-width and half-width for the current Chinese/English mode, without changing letters or digits and without switching Chinese/English.
 It's off by default so it doesn't take over the app's own shortcut. On macOS, English-mode punctuation is always half-width, so the shortcut doesn't switch there and the key goes to the app.
 To use a different key combination, see [Editing the configuration file](../advanced/config-file.md).
 
-## Shortcut for switching Simplified and Traditional (Windows)
+## Shortcut for switching Simplified and Traditional (Windows, Linux)
 
 With Ctrl + Shift + F 切换简繁输出 (Ctrl + Shift + F switches Simplified/Traditional) on, `Ctrl + Shift + F` switches output between Simplified and Traditional. Candidates change to the new forms right away, the pinyin you are typing stays, and text already committed doesn't change.
 Switching to Traditional uses the variant you had before you last switched away; if you have never used Traditional, it's Taiwan forms. The result is also saved under 候选 → 输出字形 (Candidates → Output characters); for the differences between the variants see [Traditional Chinese output](../input/traditional.md).

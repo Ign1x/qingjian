@@ -40,7 +40,7 @@ pub struct ShortcutConfig {
     /// 组句中按需调用 AI（缺省 Ctrl+Alt+J，macOS 是 ⌃⌥J）。
     pub predict: KeyCombo,
 
-    /// 在简体与上次用的繁体字形之间切换（Windows 用），空串禁用（缺省），例如 `ctrl+shift+f`。
+    /// 在简体与上次用的繁体字形之间切换（Windows、Linux 用），空串禁用（缺省），例如 `ctrl+shift+f`。
     /// 缺省不开：只要青简是当前输入法，这个组合在所有应用里都会被拿走，编辑器的「在文件中查找」也用它。
     #[serde(with = "super::optional_key_combo")]
     pub toggle_traditional: Option<KeyCombo>,

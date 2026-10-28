@@ -163,8 +163,7 @@
   - [ ] 按应用记住中英模式：macOS、Linux
   - [ ] 中文与英文、数字之间自动加空格：Linux
   - [ ] 横排时 ↑ / ↓ 展开成多行：Linux
-  - [ ] Ctrl + . 切换全半角标点：Linux
-  - [ ] Ctrl + Shift + F 切换简繁输出：macOS、Linux
+  - [ ] Ctrl + Shift + F 切换简繁输出：macOS
   - [ ] 双拼键位提示：Linux
   - [ ] 拼音行显示声调：Linux
   - [ ] 实验功能（知意、含章·知微）：Linux

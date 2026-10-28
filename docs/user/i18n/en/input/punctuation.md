@@ -13,7 +13,7 @@ When you're not typing pinyin, typing `, . ? ! : ; ( ) [ ] { } < > \ ^ _ $ ~` in
 - 中文标点 (Chinese punctuation) in 设置 → 中英文 (Settings → Chinese/English) can be set to half-width; letters and digits aren't affected.
 - On Windows and Linux, English mode has its own 英文标点 (English punctuation), half-width by default; on macOS, English mode is always half-width.
 - On Windows, clicking the ，。 cell on the floating status bar switches full-width / half-width for the current mode at any time.
-- On macOS and Windows you can enable `Ctrl + .` (`⌃ + .` on macOS) under 设置 → 快捷键 (Settings → Shortcuts) to switch full-width / half-width for the current mode. It's off by default so it doesn't take over the app's own shortcut.
+- You can enable `Ctrl + .` (`⌃ + .` on macOS) under 设置 → 快捷键 (Settings → Shortcuts) to switch full-width / half-width for the current mode. It's off by default so it doesn't take over the app's own shortcut.
 
 ## Typing punctuation while typing pinyin
 

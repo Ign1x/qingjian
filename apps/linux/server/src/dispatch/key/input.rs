@@ -12,6 +12,24 @@ impl Router {
     /// 功能键靠键码，其余靠字符。组句中修饰键 + 数字是快捷键；带 Ctrl / Alt / Win 而没配到快捷键的键归应用。
     /// 表达式模式里 Shift + 数字打的是 `^ * ( )`，不当快捷键。
     pub(crate) fn apply_key(&mut self, event: &KeyEvent) -> Effect {
+        // 全角标点与简繁的切换键组句与否都认；切换当场生效（简繁连组句中的候选一起换），回包的 mode 跟着变
+        if let Some(session) = self.focused
+            && self
+                .config
+                .toggle_punctuation
+                .is_some_and(|combo| codes::matches_combo(event, combo))
+        {
+            self.toggle_punctuation(session);
+            return Effect::Navigated;
+        }
+        if self
+            .config
+            .toggle_traditional
+            .is_some_and(|combo| codes::matches_combo(event, combo))
+        {
+            self.toggle_traditional();
+            return Effect::Navigated;
+        }
         if self.composing()
             && !self.engine.expression_mode()
             && let Some(digit) = codes::digit_key(event.virtual_key)

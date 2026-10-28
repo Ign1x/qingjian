@@ -115,8 +115,8 @@ impl Feature {
             Self::HorizontalGrid => [Yes, Yes, Todo],
             Self::ExtraPageKeys => [Yes, Yes, Yes],
             Self::HighlightKeys => [Yes, Yes, Yes],
-            Self::TogglePunctuation => [Yes, Yes, Todo],
-            Self::ToggleTraditional => [Todo, Yes, Todo],
+            Self::TogglePunctuation => [Yes, Yes, Yes],
+            Self::ToggleTraditional => [Todo, Yes, Yes],
             // 系统的文本替换只有 macOS 有
             Self::SystemTextReplacements => [Yes, No, No],
             Self::ApiUsage => [Yes, Yes, Yes],

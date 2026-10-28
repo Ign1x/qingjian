@@ -6,7 +6,7 @@ use std::time::{Duration, Instant, SystemTime};
 use qingjian_core::Engine;
 use qingjian_dictionary::{Dictionary, import};
 use qingjian_platform::protocol::{ClientMessage, PROTOCOL_VERSION, SessionId};
-use qingjian_platform::{Config, HighlightKeys, NumpadDigit, SwitchKeys};
+use qingjian_platform::{Config, HighlightKeys, KeyCombo, NumpadDigit, SwitchKeys};
 
 use super::CONFIG_POLL_INTERVAL;
 use crate::dispatch::{Router, RouterConfig};
@@ -102,12 +102,15 @@ fn key_settings_apply_on_next_tick() {
     assert_eq!(router.config.highlight_keys, HighlightKeys::UpDown);
     assert!(!router.config.horizontal_grid);
     assert_eq!(router.config.numpad_digit, NumpadDigit::Select);
+    assert_eq!(router.config.toggle_punctuation, None);
+    assert_eq!(router.config.toggle_traditional, None);
 
     write_config(
         &dir.join("config.toml"),
         concat!(
             "[general]\nhorizontal_grid = true\nnumpad_digit = \"direct\"\n",
             "[shortcut]\nextra_page_keys = [\",.\"]\nhighlight_keys = \"leftright\"\n",
+            "toggle_punctuation = \"ctrl+.\"\ntoggle_traditional = \"ctrl+shift+f\"\n",
         ),
         200,
     );
@@ -116,6 +119,14 @@ fn key_settings_apply_on_next_tick() {
     assert_eq!(router.config.highlight_keys, HighlightKeys::LeftRight);
     assert!(router.config.horizontal_grid);
     assert_eq!(router.config.numpad_digit, NumpadDigit::Direct);
+    assert_eq!(
+        router.config.toggle_punctuation,
+        Some("ctrl+.".parse().unwrap())
+    );
+    assert_eq!(
+        router.config.toggle_traditional,
+        Some(KeyCombo::TRADITIONAL_DEFAULT)
+    );
     std::fs::remove_dir_all(&dir).unwrap();
 }
 

@@ -7,3 +7,4 @@ mod paging;
 mod schemes;
 mod support;
 mod tab;
+mod toggles;

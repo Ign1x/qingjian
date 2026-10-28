@@ -1,6 +1,7 @@
 //! 配置热加载：空闲时看 `config.toml` 的 mtime，改了就重读并应用（与 Windows Server 的 `dispatch/reload` 对齐）。
 //! 只重设启动时会应用的那些项；便宜的无条件重设，本地模型 / 释义表 / 附加词库 / 辅码码表按配置变化重建，
-//! 用户 `dicts/`、`codes/` 与 `schemes/` 目录的文件增删也跟着重装。拼音显示位置在会话握手时交给插件，改了要重启服务。
+//! 输入方案每次按配置重新装配（码表没变不重读），用户 `dicts/`、`codes/`、`schemes/` 与 `code_dicts/` 目录的文件增删也跟着重装。
+//! 拼音显示位置在会话握手时交给插件，改了要重启服务。
 
 mod cloud;
 mod state;
@@ -50,9 +51,11 @@ impl Router {
             applied_language: assembly::learning_language(config),
             applied_aux_code: config.aux_code.clone(),
             code_files: Vec::new(),
+            code_word_files: Vec::new(),
         };
         reload.dictionary_files = reload.dict_snapshot();
         reload.code_files = reload.code_snapshot();
+        reload.code_word_files = reload.code_word_snapshot();
         self.reload = Some(reload);
     }
 
@@ -79,14 +82,24 @@ impl Router {
             reload.dictionary_files = files;
         }
         // 用户 `codes/` 或 `schemes/` 下的文件增删或更新（设置页刚导入 / 移除一张码表、改了辅码方案）：不必等配置改动
-        if reload.code_snapshot() != reload.code_files {
+        let codes_changed = reload.code_snapshot() != reload.code_files;
+        if codes_changed {
             self.reload_aux_codes();
         }
         let Some(reload) = &mut self.reload else {
             return;
         };
+        let words = reload.code_word_snapshot();
+        let words_changed = words != reload.code_word_files;
+        reload.code_word_files = words;
         let current = mtime(&reload.config_path);
         if current == reload.last_mtime {
+            // schemes/ 同时存双拼、形码与辅码方案，不能只重装辅码。
+            if (codes_changed || words_changed)
+                && let Ok(config) = Config::load(&reload.config_path)
+            {
+                self.reload_schemes(&config);
+            }
             return;
         }
         reload.last_mtime = current;
@@ -102,14 +115,14 @@ impl Router {
     /// 应用新配置，项目与 `main.rs` 启动时设的一致。
     fn apply_config(&mut self, config: &Config) {
         self.engine.set_fuzzy(config.fuzzy);
-        self.engine.set_shuangpin(config.general.shuangpin());
+        // 拼音侧与形码侧一起装配（双拼 / 用户双拼 / 注音 / 形码与混输都在里面）
+        self.reload_schemes(config);
         self.engine
             .set_shuangpin_raw_preedit(config.general.shuangpin_raw_preedit);
         self.engine
             .set_hold_selections(config.general.hold_selections);
         self.engine
             .set_context_memory(config.model.context_memory_seconds);
-        self.engine.set_zhuyin_mode(config.general.is_zhuyin());
         self.engine
             .set_shift_letter_compose(config.general.shift_letter.compose());
         self.engine.set_learning(config.general.learning);

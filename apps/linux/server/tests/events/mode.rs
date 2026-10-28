@@ -151,7 +151,7 @@ fn scheme_label_follows_the_configured_pinyin_side() {
         (Scheme::Pinyin, ""),
         (Scheme::Shuangpin(ShuangpinScheme::Xiaohe), "小鹤双拼"),
         (Scheme::Zhuyin, "大千注音"),
-        // Linux 还不装用户双拼，引擎按全拼跑，方案名也按全拼
+        // 没装上用户双拼方案（这里没配方案目录），引擎按全拼跑，方案名也按全拼
         (Scheme::Custom, ""),
     ] {
         let mut router = router_with(RouterConfig {

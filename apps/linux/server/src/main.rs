@@ -71,11 +71,10 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
         }
     };
     engine.set_fuzzy(config.fuzzy);
-    engine.set_shuangpin(config.general.shuangpin());
+    // 拼音侧与形码侧在 `configure_schemes` 里一起装配（双拼 / 用户双拼 / 注音 / 形码与混输都在那）
     engine.set_shuangpin_raw_preedit(config.general.shuangpin_raw_preedit);
     engine.set_hold_selections(config.general.hold_selections);
     engine.set_context_memory(config.model.context_memory_seconds);
-    engine.set_zhuyin_mode(config.general.is_zhuyin());
     engine.set_shift_letter_compose(config.general.shift_letter.compose());
     engine.set_learning(config.general.learning);
     engine.set_chinese_first(config.general.chinese_first);
@@ -96,8 +95,9 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
         .map_err(std::io::Error::other)?;
     let usage_path = user_dir.join(qingjian_predict::API_USAGE_FILE);
     assembly::attach_cloud(&mut engine, &config.predict, Some(usage_path));
-    engine.log_session(env!("CARGO_PKG_VERSION"), "linux");
     let mut router = Router::new(engine, RouterConfig::from(&config));
+    router.configure_schemes(&config, Some(user_dir.clone()), find_bundled_schemes(&root));
+    tracing::info!(scheme = %router.scheme_name(), "输入方案已装配");
     router.configure_local_model(find_model(Some(&user_dir), &root), &config.model);
     router.watch_config(&config, config_path, root, user_dir);
     extern "C" fn stop(_: libc::c_int) {

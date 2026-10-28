@@ -603,8 +603,11 @@ Windows 可选的 `[shortcut] toggle_punctuation` 经 `InputSettings` 下发，�
 Unix socket 用共享长度前缀与 Frame（当前公共版本 9，与 `PROTOCOL_VERSION` 同步，Fcitx5 插件里写死在 `qingjian.cpp` 的 OpenSession）；插件复用一条连接，每个上下文独立会话。Linux 扩展逐会话握手（收 v3 与 v4，版本规则见 crates/qingjian-platform 一节）、确认 Sensitive/Password/Disable 后接受按下/释放、焦点和点击事实。
 候选回报绑定连接代次、上下文和服务端帧序号，仅当前聚焦页的有效释义进入 `note_displayed`，不把生成帧算作已展示。
 Linux 回包由 `dispatch/display/annotation` 给释义添加可选 `annotation`（词性与汉字段假名，`[general] translation_pos` 关掉时不带词性），Fcitx5 面板优先显示它；原始译文和快捷键提交不变，旧 Server 缺该字段时插件回退到 `text`。
-每个 `KeyResult` / `Update` 另附这个会话的 `mode`（`dispatch/mode.rs`：`english` / `traditional` / `full_width` 取当前中英那一份 / `scheme`），方案名按 `scheme_label(config.scheme, None, None)` 算：
-Linux 还不装用户双拼与形码方案（没有 `SchemeSlot`），引擎按全拼跑的那些方案名也按全拼（空串）。插件不读它。
+每个 `KeyResult` / `Update` 另附这个会话的 `mode`（`dispatch/mode.rs`：`english` / `traditional` / `full_width` 取当前中英那一份 / `scheme`），
+方案名是 `SchemeSlot::scheme_label`：装上的用户双拼与形码方案都算在内，用户双拼找不到、引擎按全拼跑时也按全拼（空串）。插件不读它。
+输入方案照 Windows Server 的 `dispatch/schemes.rs` 接（`dispatch/schemes.rs`）：拼音侧（全拼 / 内置与用户双拼 / 注音）与形码侧（随包 `assets/schemes` 的 86 五笔、用户 `schemes/` 里的形码方案、用户 `code_dicts/` 导入的五笔词）
+由 `SchemeSlot` 一起装配，启动时 `configure_schemes` 装一次并记输入日志的会话信息（里面有方案，回放照它装配），热加载每次按配置重装（码表没变不重读），用户 `schemes/` 或 `code_dicts/` 的文件变了不等配置改动也重装，当前组句的候选随之重查；
+形码的按键规则（满码唯一自动上屏、顶字、单用形码时标点先上屏、空码清除）在 `dispatch/key/input.rs`，与 Windows 同一套。随包方案目录由 `scripts/files.py` 随资源一起装（`assets/schemes`，deb / rpm 与预编译包同一份）。
 v4 的两样给 Rust 前端：候选右键菜单（`dispatch/menu.rs`，与 Windows 的 `dispatch/key/menu.rs` 同用 `qingjian_platform::candidate_menu`）问菜单不推进展示身份，
 点中时再核一遍这一格此刻还给不给这一项，置顶写配置后当场 `set_custom_phrases`，提示随帧的 `notice` 下发、下一次按键清；
 托盘切换（`Indicator`）的中 / 英与切换键同一条路（组句原样上屏、回包带 `english`，`english_mode` 关着不切），全角标点切当前模式那一份、简繁在简体与上次用的繁体之间切（同 Windows 的简繁快捷键），

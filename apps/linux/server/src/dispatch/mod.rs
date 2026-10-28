@@ -25,6 +25,7 @@ pub use self::schemes::find_bundled_schemes;
 use self::session::SessionInfo;
 use self::translate::Translation;
 use qingjian_core::Engine;
+use qingjian_platform::SchemeSlot;
 use qingjian_platform::protocol::{ClientMessage, ServerMessage, SessionId};
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -87,6 +88,15 @@ pub struct Router {
 
     /// 配置热加载；没开（测试）为 `None`。
     reload: Option<ConfigReload>,
+
+    /// 装着的用户双拼与形码方案（名字给回包的 `mode.scheme`），配置没动它时不重读码表。
+    scheme_slot: SchemeSlot,
+
+    /// 用户数据目录，用户方案在它的 `schemes/` 下；没配（测试）为 `None`。
+    schemes_user_dir: Option<PathBuf>,
+
+    /// 随包的方案目录（见 [`find_bundled_schemes`]）；没有为 `None`。
+    bundled_schemes: Option<PathBuf>,
 }
 
 impl Router {
@@ -114,6 +124,9 @@ impl Router {
             model_loader: None,
             rescore: RescoreState::default(),
             reload: None,
+            scheme_slot: SchemeSlot::default(),
+            schemes_user_dir: None,
+            bundled_schemes: None,
         }
     }
     /// 一条客户端消息；无需答复的通知返回 None。

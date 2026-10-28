@@ -99,7 +99,7 @@ impl Feature {
         use Status::{NotApplicable as No, Planned as Todo, Supported as Yes};
         match self {
             Self::AuxCode => [Yes, Yes, Yes],
-            Self::Schemes => [Yes, Yes, Todo],
+            Self::Schemes => [Yes, Yes, Yes],
             Self::SwitchKeys => [Yes, Yes, Yes],
             // macOS 只做了单击 Shift，Caps Lock 仍是系统那一套
             Self::SwitchKeyCombos => [No, Yes, Yes],

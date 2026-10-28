@@ -6,7 +6,9 @@ use std::time::{Instant, SystemTime};
 use qingjian_core::Language;
 use qingjian_dictionary::Dictionary;
 use qingjian_platform::code_tables::AuxCodeSources;
-use qingjian_platform::{AuxCodeConfig, DictionariesConfig, LocalModelConfig, extra_dictionaries};
+use qingjian_platform::{
+    AuxCodeConfig, DictionariesConfig, LocalModelConfig, code_schemes, extra_dictionaries,
+};
 use qingjian_predict::PredictConfig;
 
 use crate::dispatch::find_bundled_schemes;
@@ -48,6 +50,9 @@ pub(crate) struct ConfigReload {
 
     /// 上次看到的用户 `codes/` 与 `schemes/` 快照：设置页刚导入一张码表、改了辅码方案，下一拍就重装辅码。
     pub(super) code_files: Vec<(PathBuf, Option<SystemTime>, u64)>,
+
+    /// 上次看到的用户 `code_dicts/`（导入的五笔词库）快照：变了按当前配置重装形码方案。
+    pub(super) code_word_files: Vec<(PathBuf, Option<SystemTime>, u64)>,
 }
 
 impl ConfigReload {
@@ -73,6 +78,11 @@ impl ConfigReload {
     /// 用户 `codes/` 与 `schemes/` 的逐文件快照。
     pub(super) fn code_snapshot(&self) -> Vec<(PathBuf, Option<SystemTime>, u64)> {
         self.aux_sources().snapshot()
+    }
+
+    /// 用户 `code_dicts/` 的逐文件快照。
+    pub(super) fn code_word_snapshot(&self) -> Vec<(PathBuf, Option<SystemTime>, u64)> {
+        code_schemes::words_snapshot(&code_schemes::user_words_dir(&self.user_dir))
     }
 
     /// 按已应用的 `[dictionaries]` 装配附加词库，目录与启动装配同款。

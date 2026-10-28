@@ -44,8 +44,9 @@ When unticked, keys in horizontal layout work as in vertical layout: `↑` / `�
 
 ## Showing tones on the pinyin line
 
-On macOS and Windows you can turn on 拼音行显示声调 (Show tones on the pinyin line) under 设置 → 候选 (Settings → Candidates): the pinyin at the top of the candidate window is marked with the tones of the highlighted candidate's reading (`ganga` with 尴尬 highlighted shows `gān'gà`), and abbreviated pinyin is replaced with the full reading.
+On macOS, Windows and Linux you can turn on 拼音行显示声调 (Show tones on the pinyin line) under 设置 → 候选 (Settings → Candidates): the pinyin at the top of the candidate window is marked with the tones of the highlighted candidate's reading (`ganga` with 尴尬 highlighted shows `gān'gà`), and abbreviated pinyin is replaced with the full reading.
 For candidates whose reading doesn't match the input (fuzzy pinyin, corrections, AI suggestions), the pinyin you typed is shown; characters whose reading is uncertain aren't marked. The pinyin in the app's input box doesn't change.
+In the Linux fcitx edition the tones appear on the pinyin line of the candidate panel. IBus's candidate panel usually has no pinyin line (the pinyin is shown only in the app's input box), so with IBus the tones are visible only in apps that can't show inline pinyin.
 
 ## Text
 

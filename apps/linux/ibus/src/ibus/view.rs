@@ -27,11 +27,15 @@ pub struct View {
 }
 
 impl View {
-    /// 按一帧折出来。
-    pub fn from_frame(frame: &Frame) -> Self {
+    /// 按一帧折出来。`in_panel` 是 preedit 由 ibus-daemon 交给面板画（应用不会画行内 preedit）：
+    /// 这时它就是候选窗口里的拼音行，Server 另给了带调的那一串（拼音行显示声调）就用它。
+    pub fn from_frame(frame: &Frame, in_panel: bool) -> Self {
+        let (segments, cursor) = match frame.window_preedit.as_deref() {
+            Some((segments, cursor)) if in_panel => (segments, *cursor),
+            _ => (&frame.preedit, frame.cursor),
+        };
         Self {
-            preedit: frame
-                .preedit
+            preedit: segments
                 .iter()
                 .map(|segment| Segment {
                     text: segment.text.clone(),
@@ -41,7 +45,7 @@ impl View {
                     },
                 })
                 .collect(),
-            cursor: frame.cursor as u32,
+            cursor: cursor as u32,
             candidates: candidate_labels(frame),
             cursor_index: if frame.highlight == usize::MAX {
                 0
@@ -138,7 +142,7 @@ mod tests {
 
     #[test]
     fn empty_frame_has_nothing_to_show() {
-        let view = View::from_frame(&Frame::default());
+        let view = View::from_frame(&Frame::default(), false);
         assert!(view.preedit.is_empty());
         assert!(!view.has_candidates());
         assert!(view.auxiliary.is_none());
@@ -146,7 +150,10 @@ mod tests {
 
     #[test]
     fn candidates_come_through_in_order() {
-        let view = View::from_frame(&frame_with(vec![candidate("你好"), candidate("你号")]));
+        let view = View::from_frame(
+            &frame_with(vec![candidate("你好"), candidate("你号")]),
+            false,
+        );
         assert_eq!(view.candidates, vec!["你好", "你号"]);
         assert!(view.has_candidates());
     }
@@ -158,7 +165,7 @@ mod tests {
             highlight: usize::MAX,
             ..frame_with(Vec::new())
         };
-        assert_eq!(View::from_frame(&frame).cursor_index, 0);
+        assert_eq!(View::from_frame(&frame, false).cursor_index, 0);
     }
 
     #[test]
@@ -168,13 +175,16 @@ mod tests {
             page_count: 3,
             ..frame_with(vec![candidate("你好")])
         };
-        assert_eq!(View::from_frame(&frame).auxiliary.as_deref(), Some("2/3"));
+        assert_eq!(
+            View::from_frame(&frame, false).auxiliary.as_deref(),
+            Some("2/3")
+        );
     }
 
     /// 只有一页时不写页码，免得辅助行一直占着。
     #[test]
     fn single_page_has_no_page_number() {
-        let view = View::from_frame(&frame_with(vec![candidate("你好")]));
+        let view = View::from_frame(&frame_with(vec![candidate("你好")]), false);
         assert!(view.auxiliary.is_none());
     }
 
@@ -189,7 +199,7 @@ mod tests {
             ..frame_with(vec![candidate("你好")])
         };
         assert_eq!(
-            View::from_frame(&frame).auxiliary.as_deref(),
+            View::from_frame(&frame, false).auxiliary.as_deref(),
             Some("已删除用户词「你号」")
         );
     }
@@ -203,7 +213,7 @@ mod tests {
             ..frame_with(vec![candidate("你好")])
         };
         assert_eq!(
-            View::from_frame(&frame).auxiliary.as_deref(),
+            View::from_frame(&frame, false).auxiliary.as_deref(),
             Some("⇥ 你好吗   1/2")
         );
     }
@@ -218,7 +228,50 @@ mod tests {
             }],
             ..Frame::default()
         };
-        let view = View::from_frame(&frame);
+        let view = View::from_frame(&frame, false);
         assert!(matches!(view.preedit[0].style, Style::Corrected));
+    }
+
+    fn toned() -> Frame {
+        Frame {
+            window_preedit: Some(Box::new((
+                vec![PreeditSegment {
+                    text: "nǐ'hǎo".to_owned(),
+                    kind: PreeditKind::Typed,
+                }],
+                6,
+            ))),
+            ..frame_with(vec![candidate("你好")])
+        }
+    }
+
+    fn text(view: &View) -> String {
+        view.preedit
+            .iter()
+            .map(|segment| segment.text.as_str())
+            .collect()
+    }
+
+    /// 应用不画行内 preedit 时 preedit 就是面板上的拼音行：带调的那一串连同它的光标换上去。
+    #[test]
+    fn panel_row_shows_the_toned_pinyin() {
+        let view = View::from_frame(&toned(), true);
+        assert_eq!(text(&view), "nǐ'hǎo");
+        assert_eq!(view.cursor, 6);
+    }
+
+    /// 应用自己画行内 preedit：仍是敲的拼音，不带调。
+    #[test]
+    fn inline_preedit_keeps_the_typed_pinyin() {
+        let view = View::from_frame(&toned(), false);
+        assert_eq!(text(&view), "nihao");
+        assert_eq!(view.cursor, 5);
+    }
+
+    /// 没开声调（帧上没有另一串）时面板照旧。
+    #[test]
+    fn panel_row_without_tones_is_the_typed_pinyin() {
+        let view = View::from_frame(&frame_with(vec![candidate("你好")]), true);
+        assert_eq!(text(&view), "nihao");
     }
 }

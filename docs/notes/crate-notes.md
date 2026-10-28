@@ -12,7 +12,7 @@ TSV 解析、查询与生成工具把 `lue` / `nue` 统一成 `lve` / `nve`。
 TSV 的音节可带数字声调（`ni3`，轻声 5 或 0），键一律去调，声调只给显示（`Match::tones`，`tones.rs`）：五个音节以内压进 `Slot` 原来的 16 位填充（每音节 3 位，0 是不知道），
 多音字的读音占比：加载时走一遍单音节的键，记下有不止一个读音的字全部读音的词频之和（`dictionary/readings.rs`，不落盘），命中带上 `Match::reading_total`，`Match::reading_share` 是这个读音的词频占比（`区 ou` 约 0.05）；多音节的词不查表。
 更长的在那 16 位放溢出标记、声调进 `TSPL`（按词目下标升序，二分找）+ `TONE`（每音节一个 `0`–`5`）两节；没有长词带声调的词库与之前的旧文件没有这两节，旧文件填充是 0，读出来全是不知道。
-显示：`[general] show_tones` 开着时候选窗口顶部的拼音行按高亮候选标声调（`Engine::toned_syllables` 出逐音节带调拼音，`engine/reading.rs`；`Query::window_segments` 拼行，读音对不上敲的不换），应用里的 marked text 不变，帧里另给 `Frame::window_preedit`（DLL 不读）。整句从左往右取词库里最长的词，词库没标的字按单字声调表 `zhuyin::tone::usual` 补（首读音，或这个音只有一种声调），拿不准的不标；注音、九宫格不标。Linux 的 Fcitx 面板与行内拼音共用一串，还没接。
+显示：`[general] show_tones` 开着时候选窗口顶部的拼音行按高亮候选标声调（`Engine::toned_syllables` 出逐音节带调拼音，`engine/reading.rs`；`Query::window_segments` 拼行，读音对不上敲的不换），应用里的 marked text 不变，帧里另给 `Frame::window_preedit`（DLL 不读）。整句从左往右取词库里最长的词，词库没标的字按单字声调表 `zhuyin::tone::usual` 补（首读音，或这个音只有一种声调），拿不准的不标；注音、九宫格不标。Linux 的接法见 apps/linux 一节。
 `Dictionary::set_secondary` 标补充词库（不落盘，装配方标；随包的通用大词库 `dicts/general.qj`，文件名主干是 `GENERAL_DICTIONARY`），命中带 `Match::secondary`。
 辅码码表（`aux_code_table/`，`AuxCodeTable` = `Kind::AuxCodeTable` 的 `.qj`）是另一套存储：`TEXT` 词 arena + `CODE` 码 arena +
 `ENTR` 条目（12 字节，词字节序升序、同词相邻）+ `HASH` 词 → 条目区间起点（`qingjian_format::hash`）。查询只有
@@ -604,6 +604,8 @@ Unix socket 用共享长度前缀与 Frame（当前公共版本 9，与 `PROTOCO
 候选回报绑定连接代次、上下文和服务端帧序号，仅当前聚焦页的有效释义进入 `note_displayed`，不把生成帧算作已展示。
 Linux 回包由 `dispatch/display/annotation` 给释义添加可选 `annotation`（词性与汉字段假名，`[general] translation_pos` 关掉时不带词性），Fcitx5 面板优先显示它；原始译文和快捷键提交不变，旧 Server 缺该字段时插件回退到 `text`。
 拼音行显示声调（`[general] show_tones`，启动与热加载都设）同 Windows：`dispatch/composed` 的 `window_parts` 按高亮候选的带调读音另给 `Frame::window_preedit`，与行内拼音相同时不给；Wayland 前端经 `display::window_preedit` 画在候选窗里，行内拼音仍是 `preedit`。
+Fcitx5 / Fcitx4 插件经 `apps/linux/preedit.h` 取面板拼音行那一串（`window_preedit` 是 `[分段, 光标]`，没有、为 null 或形状不对时退回 `preedit`），两处光标各按各的字节算；
+IBus 只有一串 preedit、由 ibus-daemon 决定放应用里还是面板上，前端记下 `SetCapabilities` 报没报 `IBUS_CAP_PREEDIT_TEXT`：没报（面板画 preedit）才换成带调那一串。
 每个 `KeyResult` / `Update` 另附这个会话的 `mode`（`dispatch/mode.rs`：`english` / `traditional` / `full_width` 取当前中英那一份 / `scheme`），方案名按 `scheme_label(config.scheme, None, None)` 算：
 Linux 还不装用户双拼与形码方案（没有 `SchemeSlot`），引擎按全拼跑的那些方案名也按全拼（空串）。插件不读它。
 v4 的两样给 Rust 前端：候选右键菜单（`dispatch/menu.rs`，与 Windows 的 `dispatch/key/menu.rs` 同用 `qingjian_platform::candidate_menu`）问菜单不推进展示身份，
@@ -643,6 +645,9 @@ IBus 的组件 XML 与 systemd 单元里都写死了安装后的绝对路径，�
   每一帧都是某次事件的回包——走进程内引擎那一版的 `active.rs` 与节拍循环因此整块不需要了。
 - `UpdatePreeditText` 的参数是 `(vubu)`，**最后那个 `mode` 不能省**：ibus-daemon 解不出来会整条丢掉，
   只在它自己的日志里留一条 CRITICAL，症状是拼音行不显示而这边一点错都看不到。
+- preedit 只有一串，放应用里还是面板上由 ibus-daemon 定（应用报了 `IBUS_CAP_PREEDIT_TEXT` 且开着「内嵌编辑」才放应用里）。
+  `SetCapabilities` 只在能力变了时来，记在 `PollState` 上（按键与轮询都在那把锁里画）；没报行内 preedit 时它就是面板上的拼音行，用帧的 `window_preedit`（拼音行显示声调）。
+  「内嵌编辑」是 ibus-daemon 的全局设置（`org.freedesktop.IBus` 的 `EmbedPreeditText` 属性），没读：用户关了它时面板上的拼音行不带调。
 - `--check nihao`：连 Server、开会话、报能力与焦点、逐键发上去、打印回来的候选；Server 没起着时直接报连不上。
 - 端到端测试要等引擎激活再敲键：切引擎之后 daemon 还要走一遍 FocusOut → Enable → FocusIn，
   不等的话第一个字母会被 FocusOut 当「缓冲原样上屏」交出去（真人用的时候引擎早激活好了，撞不上）。

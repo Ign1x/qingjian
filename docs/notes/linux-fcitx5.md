@@ -50,6 +50,7 @@ LinuxEvent 转发能力、按下 / 释放、焦点、停用原因、客户端预
 v4 另有候选右键菜单与托盘切换（插件不发）：`Menu{identity, index}` 回 `{"Menu": {"items": [{"id", "label"}]}}`，只是问、不换帧；`MenuPick{identity, index, action}` 回 `KeyResult`，做完的提示在帧的 `notice` 上；
 两者带的帧身份过期时与点击一样回 Ignored。`Indicator` 切中 / 英、全角标点或简繁，回 `KeyResult`，切了中 / 英带 `english`。
 每个 `KeyResult` / `Update` 另附当前模式 `mode`（`english` / `traditional` / `full_width` / `scheme`），与 `annotation` 一样是只增不改的字段，插件不读。
+帧上的 `window_preedit`（`[分段, 光标]`，拼音行显示声调时候选窗口里的那一串）画在面板的拼音行上，应用里的行内拼音仍按 `preedit`；老 Server 没有它、或它是 null 时两处同一串（`apps/linux/preedit.h`，Fcitx4 插件共用）。
 选区翻译使用 `[shortcut] translate_selection`（Linux 缺省 `Alt + Shift + T`）；新插件在按键事件标记 `selection_supported`，Server 只向支持的插件返回 `RequestSelection`，兼容旧插件。插件从有效的 `surroundingText()` 读取最多 500 字选区并回 `LinuxEvent::Selection`。评审候选无预编辑，返回帧的 `translation_pending` 让插件在「翻译中…」期间轮询；提交前再次核对选区文字和光标位置。焦点、隐私、Reset、停用会取消翻译。
 空能力是普通输入；Sensitive 可组句但不学习、不记输入文本；Password / Disable 优先禁用并丢弃输入。
 能力先由 Server 确认，再清理可能同步重入的预编辑；Reset / 焦点变化不会丢掉能力通知，清理中重入的新按键已受新隐私状态约束。

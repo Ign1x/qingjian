@@ -1,6 +1,8 @@
 //! 一个键在当前这一步的状态。
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+use serde::{Deserialize, Serialize};
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum KeyState {
     /// 还没敲声母：每个键照常显示。
     Idle,

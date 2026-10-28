@@ -18,14 +18,14 @@ pub struct ShortcutConfig {
     /// 中 / 英切换键（Windows、Linux 用），可多选：`["shift", "control", "ctrl+alt+space"]`。详见 [`SwitchKeys`]。
     pub switch_mode: SwitchKeys,
 
-    /// 候选高亮由 `↑` / `↓` 还是 `←` / `→` 移动（Windows 用）。详见 [`HighlightKeys`]。
+    /// 候选高亮由 `↑` / `↓` 还是 `←` / `→` 移动。详见 [`HighlightKeys`]。
     pub highlight_keys: HighlightKeys,
 
     /// 切换当前中英模式的全 / 半角标点（macOS 只切中文模式的），空串禁用，例如 `ctrl+.`。
     #[serde(with = "super::optional_key_combo")]
     pub toggle_punctuation: Option<KeyCombo>,
 
-    /// 主翻页键以外同时启用的符号键对（macOS、Windows）。
+    /// 主翻页键以外同时启用的符号键对（macOS、Windows、Linux）。
     pub extra_page_keys: PageKeys,
 
     /// 数字键配这些修饰键：上屏候选的第一个译词。
@@ -40,7 +40,7 @@ pub struct ShortcutConfig {
     /// 组句中按需调用 AI（缺省 Ctrl+Alt+J，macOS 是 ⌃⌥J）。
     pub predict: KeyCombo,
 
-    /// 在简体与上次用的繁体字形之间切换（Windows 用），空串禁用（缺省），例如 `ctrl+shift+f`。
+    /// 在简体与上次用的繁体字形之间切换（Windows、Linux 用），空串禁用（缺省），例如 `ctrl+shift+f`。
     /// 缺省不开：只要青简是当前输入法，这个组合在所有应用里都会被拿走，编辑器的「在文件中查找」也用它。
     #[serde(with = "super::optional_key_combo")]
     pub toggle_traditional: Option<KeyCombo>,

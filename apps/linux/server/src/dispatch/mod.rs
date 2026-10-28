@@ -4,6 +4,7 @@ mod answer;
 mod composed;
 mod config;
 mod display;
+mod english;
 mod key;
 mod key_hint;
 mod linux;
@@ -24,7 +25,8 @@ pub use self::rescore::find_model;
 use self::rescore::{ModelLoader, RescoreState};
 use self::session::SessionInfo;
 use self::translate::Translation;
-use qingjian_core::Engine;
+use qingjian_core::candidate::arrows::Focus;
+use qingjian_core::{Engine, Grid};
 use qingjian_platform::protocol::{ClientMessage, ServerMessage, SessionId};
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -90,11 +92,24 @@ pub struct Router {
 
     /// 键位提示「卡住时显示」的停顿状态，跟着焦点会话的这一段组句。
     key_hint: KeyHintState,
+
+    /// 方向键分两区时归拼音行还是候选（`arrows::route`）。改拼音时每敲一键都重查，所以跨查询保留，缓冲清空才回到候选。
+    focus: Focus,
+
+    /// 横排展开成矩阵时的视口；`None` 是单行。只有握手报了 `features.grid` 的会话会展开。
+    grid: Option<Grid>,
+
+    /// 所有会话共用的中英模式（`true` 英文）；按应用记时不用它，见 `dispatch/english`。
+    english: bool,
+
+    /// 按应用记中英时，应用名（小写）到中英模式；会话关了仍留着，Server 重启才清。
+    app_modes: HashMap<String, bool>,
 }
 
 impl Router {
     pub fn new(engine: Engine, mut config: RouterConfig) -> Self {
         config.page_size = config.page_size.clamp(1, 9);
+        let english = config.starts_english();
         if !engine.prediction_enabled() {
             config.cloud_slots = 0;
         }
@@ -118,6 +133,10 @@ impl Router {
             rescore: RescoreState::default(),
             reload: None,
             key_hint: KeyHintState::default(),
+            focus: Focus::default(),
+            grid: None,
+            english,
+            app_modes: HashMap::new(),
         }
     }
     /// 一条客户端消息；无需答复的通知返回 None。

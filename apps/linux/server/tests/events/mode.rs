@@ -1,9 +1,9 @@
-//! 回包上的 `mode` 与托盘切换（`Indicator`）：中 / 英按会话、全角标点按当前模式那一份、简繁全局并当场换字形。
+//! 回包上的 `mode` 与托盘切换（`Indicator`）：中 / 英缺省共用、可按应用记，全角标点按当前模式那一份、简繁全局并当场换字形。
 use crate::support::{compose, event, key, router, router_on, router_with};
 use qingjian_core::{Engine, ShuangpinScheme};
 use qingjian_dictionary::Dictionary;
 use qingjian_linux_server::{Router, RouterConfig};
-use qingjian_platform::{Config, Scheme};
+use qingjian_platform::{Config, Scheme, SwitchKey, SwitchKeys};
 use serde_json::{Value, json};
 
 const SHIFT: u32 = 0x10;
@@ -32,11 +32,21 @@ fn every_reply_carries_its_sessions_mode() {
         .unwrap();
     assert_eq!(mode(&polled["Update"]), chinese);
 
-    // 单击 Shift 只切会话 2；会话 1 的回包仍是中文
+    // 缺省所有会话共用一份：单击 Shift 切会话 2，会话 1 的回包也是英文
     key(&mut router, 2, SHIFT, None, false);
     let switched = key(&mut router, 2, SHIFT, None, true);
     assert_eq!(switched["english"], true);
     assert_eq!(mode(&switched), (true, false, false, String::new()));
+    assert!(mode(&key(&mut router, 1, 0x1b, None, false)).0);
+
+    // 按应用记：两个会话都没报应用名，各记各的，切会话 2 不动会话 1
+    let mut router = router_with(RouterConfig {
+        remember_mode_per_app: true,
+        switch_mode: SwitchKeys::NONE.with(SwitchKey::Shift, true),
+        ..Default::default()
+    });
+    key(&mut router, 2, SHIFT, None, false);
+    assert_eq!(key(&mut router, 2, SHIFT, None, true)["english"], true);
     assert!(!mode(&key(&mut router, 1, 0x1b, None, false)).0);
 }
 

@@ -162,19 +162,19 @@ const LINKS: &[(PageId, &str, &str, &str)] = &[
         PageId::Shortcuts,
         "高亮移动键",
         "personalize/keys-settings",
-        "高亮移动键（macOS、Windows）",
+        "高亮移动键",
     ),
     (
         PageId::Shortcuts,
         "Ctrl + . 切换全半角标点",
         "personalize/keys-settings",
-        "全半角标点快捷键（macOS、Windows）",
+        "全半角标点快捷键",
     ),
     (
         PageId::Shortcuts,
         "Ctrl + Shift + F 切换简繁输出",
         "personalize/keys-settings",
-        "简繁切换快捷键（Windows）",
+        "简繁切换快捷键（Windows、Linux）",
     ),
     (PageId::Shortcuts, "表达式", "input/shortcuts", "换前缀字母"),
     (

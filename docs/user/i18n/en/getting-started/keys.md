@@ -14,8 +14,8 @@ For keys you can change, see [Changing keys](../personalize/keys-settings.md); A
 | Switch Chinese / English | `Caps Lock`; after ticking 单击 Shift (Tap Shift) under 切换键 (Switch key) in 设置 → 中英文 (Settings → Chinese/English), also a tap of `Shift` (`Caps Lock` then only controls capitals). A 中 / 英 hint flashes in the top-right corner of the screen when you switch | Tap `Shift`; the system's `Ctrl + Space`; click 中 / 英 on the taskbar or the floating status bar | Tap `Shift` |
 | Type uppercase English directly | Hold `⇧` in English mode | `Caps Lock` on (in either mode) | `Caps Lock` on |
 | Type one capital letter while typing pinyin | `⇧ + letter` | `Shift + letter` | `Shift + letter` |
-| Switch full-width / half-width punctuation | `⌃ + .` can be enabled (off by default) | Click the ，。 cell on the floating status bar; `Ctrl + .` can be enabled (off by default) | — |
-| Switch Simplified / Traditional output | — | `Ctrl + Shift + F` can be enabled (off by default) | — |
+| Switch full-width / half-width punctuation | `⌃ + .` can be enabled (off by default) | Click the ，。 cell on the floating status bar; `Ctrl + .` can be enabled (off by default) | `Ctrl + .` can be enabled (off by default) |
+| Switch Simplified / Traditional output | — | `Ctrl + Shift + F` can be enabled (off by default) | `Ctrl + Shift + F` can be enabled (off by default) |
 | Switch to another input method | `⌃ + Space` (system) | `Win + Space` (system) | Fcitx's switch hotkey |
 
 On macOS, if you turn on the system option that uses Caps Lock to switch to "ABC", the system takes Caps Lock for switching input methods and Qingjian's own English mode is no longer reachable; see [Chinese and English](../input/english-mode.md).
@@ -45,10 +45,12 @@ On Windows and Linux, the Chinese / English switch can also be a tap of `Ctrl` o
 | Enter auxiliary code | `;` | `;` | — |
 | Expand to several rows in horizontal layout (enable in Settings) | `↑` / `↓` | `↑` / `↓` | — |
 
-On Windows, numpad digits also pick candidates by default. Set 小键盘数字 (Numpad digits) under 设置 → 候选 (Settings → Candidates) to 直接输入数字 (Type digits) and numpad digits typed while composing are appended to the letters and committed with them (`wenti`, then numpad `5` and `Space`, gives `wenti5`); the main keyboard digits still pick candidates. Num Lock must be on.
+On Windows and Linux, numpad digits also pick candidates by default. Set 小键盘数字 (Numpad digits) under 设置 → 候选 (Settings → Candidates) to 直接输入数字 (Type digits) and numpad digits typed while composing are appended to the letters and committed with them (`wenti`, then numpad `5` and `Space`, gives `wenti5`); the main keyboard digits still pick candidates. Num Lock must be on.
 
 When the cursor is in the middle of the pinyin, candidates are based only on the pinyin before the cursor (`ni|hao` gives 你); after committing, the rest of the pinyin stays and the cursor moves to the end.
 A few keys differ with Dachen Zhuyin and Wubi; see [Pinyin schemes and fuzzy pinyin](../input/fuzzy-and-shuangpin.md#Dachen-Zhuyin) and [Wubi and mixed input](../input/wubi.md).
+
+Linux also supports additional paging keys and using `←` / `→` to move the highlight; see [Key settings](../personalize/keys-settings.md). In English candidates, pressing `=` on the last page commits the typed letters and `=` when it is configured as a paging key. Selection translation takes precedence over conflicting punctuation or simplified/traditional toggle shortcuts.
 
 ## In the symbol panel
 

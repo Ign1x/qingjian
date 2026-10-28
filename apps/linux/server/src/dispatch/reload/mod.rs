@@ -3,6 +3,7 @@
 //! 用户 `dicts/` 目录的文件增删也跟着重装。拼音显示位置在会话握手时交给插件，改了要重启服务。
 
 mod cloud;
+mod display;
 mod state;
 
 #[cfg(test)]
@@ -119,19 +120,18 @@ impl Router {
             .set_symbol_limit(usize::from(config.general.symbols.get()));
         self.engine.set_traditional(config.general.traditional());
         self.engine.set_mode_keys(config.shortcut.mode);
+        self.engine.set_auto_space(config.general.auto_space);
         if let Err(error) = self
             .engine
             .set_custom_phrases(config.custom_phrases.clone())
         {
             tracing::warn!(%error, "自定义短语有误，保持原来的");
         }
-        self.config = RouterConfig::from(config);
+        let next = RouterConfig::from(config);
+        self.reload_mode(&next);
+        self.config = next;
         self.config.page_size = self.config.page_size.clamp(1, 9);
-        if !self.config.english_mode {
-            for info in self.sessions.values_mut() {
-                info.english = false;
-            }
-        }
+        self.reload_display();
 
         let Some(mut reload) = self.reload.take() else {
             return;

@@ -105,18 +105,17 @@ impl Feature {
             Self::SwitchKeyCombos => [No, Yes, Yes],
             Self::SystemCtrlSpace => [No, Yes, No],
             Self::DefaultEnglish => [Todo, Yes, Yes],
-            Self::RememberModePerApp => [Todo, Yes, Todo],
+            Self::RememberModePerApp => [Todo, Yes, Yes],
             // macOS 英文模式一律半角
             Self::EnglishPunctuation => [No, Yes, Yes],
-            // 要读应用里光标前的字
-            Self::AutoSpace => [Yes, Yes, Todo],
+            Self::AutoSpace => [Yes, Yes, Yes],
             // macOS 看菜单栏图标，Linux 看 Fcitx5 的托盘
             Self::StatusBar => [No, Yes, No],
             Self::HorizontalGrid => [Yes, Yes, Todo],
-            Self::ExtraPageKeys => [Yes, Yes, Todo],
-            Self::HighlightKeys => [Yes, Yes, Todo],
-            Self::TogglePunctuation => [Yes, Yes, Todo],
-            Self::ToggleTraditional => [Todo, Yes, Todo],
+            Self::ExtraPageKeys => [Yes, Yes, Yes],
+            Self::HighlightKeys => [Yes, Yes, Yes],
+            Self::TogglePunctuation => [Yes, Yes, Yes],
+            Self::ToggleTraditional => [Todo, Yes, Yes],
             // 系统的文本替换只有 macOS 有
             Self::SystemTextReplacements => [Yes, No, No],
             Self::ApiUsage => [Yes, Yes, Yes],
@@ -126,7 +125,7 @@ impl Feature {
             Self::ShowTones => [Yes, Yes, Yes],
             // Windows、Linux 的服务进程还没接知意；没有 GPU 时 CPU 上打分要发烫，先只开 macOS（Metal）
             Self::ExperimentalModels => [Yes, Yes, Todo],
-            Self::NumpadDigit => [Todo, Yes, Todo],
+            Self::NumpadDigit => [Todo, Yes, Yes],
         }
     }
 

@@ -1,6 +1,8 @@
 //! 按键怎么作用到 Engine / 高亮上。分流规则与 macOS 壳的 `handle_text` / `handle_command` 对齐。
 
+use qingjian_core::candidate::arrows::Arrow;
 use qingjian_core::{CandidateKind, QUESTION_PREFIX, punctuation};
+use qingjian_platform::NumpadDigit;
 use qingjian_platform::protocol::KeyEvent;
 
 use super::{Effect, codes, with_prefix};
@@ -10,6 +12,24 @@ impl Router {
     /// 功能键靠键码，其余靠字符。组句中修饰键 + 数字是快捷键；带 Ctrl / Alt / Win 而没配到快捷键的键归应用。
     /// 表达式模式里 Shift + 数字打的是 `^ * ( )`，不当快捷键。
     pub(crate) fn apply_key(&mut self, event: &KeyEvent) -> Effect {
+        // 全角标点与简繁的切换键组句与否都认；切换当场生效（简繁连组句中的候选一起换），回包的 mode 跟着变
+        if let Some(session) = self.focused
+            && self
+                .config
+                .toggle_punctuation
+                .is_some_and(|combo| codes::matches_combo(event, combo))
+        {
+            self.toggle_punctuation(session);
+            return Effect::Navigated;
+        }
+        if self
+            .config
+            .toggle_traditional
+            .is_some_and(|combo| codes::matches_combo(event, combo))
+        {
+            self.toggle_traditional();
+            return Effect::Navigated;
+        }
         if self.composing()
             && !self.engine.expression_mode()
             && let Some(digit) = codes::digit_key(event.virtual_key)
@@ -85,9 +105,12 @@ impl Router {
     /// 退格 / Esc / 回车 / Tab / 方向键；没在组句时都交还应用。
     fn apply_function_key(&mut self, event: &KeyEvent) -> Effect {
         if !self.composing() {
-            // 回车交给应用：文本流里是一个段落边界（macOS 壳同样记）
-            if event.virtual_key == codes::RETURN {
-                self.engine.note_passthrough('\n');
+            match event.virtual_key {
+                // 回车交给应用：文本流里是一个段落边界（macOS 壳同样记）
+                codes::RETURN => self.engine.note_passthrough('\n'),
+                // 删的是应用里刚上屏的字：自动空格据此知道光标前还是不是那个字
+                codes::BACK => self.engine.note_backspace(),
+                _ => {}
             }
             return Effect::Passthrough;
         }
@@ -109,6 +132,10 @@ impl Router {
                 Effect::Changed(None)
             }
             codes::ESCAPE => {
+                // 横排矩阵展开着时第一下 Esc 只收回单行（高亮留在原处）
+                if self.collapse_grid() {
+                    return Effect::Navigated;
+                }
                 self.engine.clear();
                 Effect::Changed(None)
             }
@@ -138,14 +165,10 @@ impl Router {
                     Effect::Navigated
                 }
             },
-            codes::DOWN => {
-                self.move_highlight(1);
-                Effect::Navigated
-            }
-            codes::UP => {
-                self.move_highlight(-1);
-                Effect::Navigated
-            }
+            codes::DOWN if self.config.two_area_arrows() => self.two_area_key(Arrow::Down),
+            codes::DOWN => self.vertical_key(1),
+            codes::UP if self.config.two_area_arrows() => self.two_area_key(Arrow::Up),
+            codes::UP => self.vertical_key(-1),
             codes::NEXT => {
                 self.page(1);
                 Effect::Navigated
@@ -154,14 +177,10 @@ impl Router {
                 self.page(-1);
                 Effect::Navigated
             }
-            codes::LEFT => {
-                self.engine.move_cursor_left();
-                Effect::Changed(None)
-            }
-            codes::RIGHT => {
-                self.engine.move_cursor_right();
-                Effect::Changed(None)
-            }
+            codes::LEFT if self.config.two_area_arrows() => self.two_area_key(Arrow::Left),
+            codes::RIGHT if self.config.two_area_arrows() => self.two_area_key(Arrow::Right),
+            codes::LEFT => self.horizontal_key(-1),
+            codes::RIGHT => self.horizontal_key(1),
             codes::HOME => {
                 self.engine.move_cursor_home();
                 Effect::Changed(None)
@@ -190,8 +209,8 @@ impl Router {
         }
         if c.is_ascii_uppercase() {
             let raw = self.composing().then(|| self.engine.take_raw());
-            self.engine.note_passthrough(c);
-            return with_prefix(raw, Effect::Passthrough, c);
+            let effect = self.pass_through(c);
+            return with_prefix(raw, effect, c);
         }
         if !self.composing() {
             return self.apply_punctuation(c, event);
@@ -202,6 +221,8 @@ impl Router {
     /// 当前模式开着全角就让 Core 转（数字后的 `.` 与小键盘的键保持半角）；转不了的原样交给应用并告知 Core。
     fn apply_punctuation(&mut self, c: char, event: &KeyEvent) -> Effect {
         let english = event.modifiers.caps || event.modifiers.english_mode;
+        // 数字与字母的自动空格要在 punctuate 之前判：它转不了时清掉上屏记录，之后就不知道上文了
+        let lead = c.is_ascii_alphanumeric() && self.engine.auto_space_before(&c.to_string());
         if !codes::is_keypad(event.virtual_key)
             && self.full_width_for(english)
             && let Some(text) = self.engine.punctuate(c)
@@ -209,7 +230,22 @@ impl Router {
             return Effect::Changed(Some(text.to_owned()));
         }
         self.engine.note_passthrough(c);
-        Effect::Passthrough
+        if lead {
+            Effect::Changed(Some(format!(" {c}")))
+        } else {
+            Effect::Passthrough
+        }
+    }
+
+    /// 字符原样交给应用；开了自动空格且与上文是中西文交界时改由我们连同空格一起上屏（同 Windows Server、macOS 壳的 `pass_through`）。
+    fn pass_through(&mut self, c: char) -> Effect {
+        let lead = self.engine.auto_space_before(&c.to_string());
+        self.engine.note_passthrough(c);
+        if lead {
+            Effect::Changed(Some(format!(" {c}")))
+        } else {
+            Effect::Passthrough
+        }
     }
 
     /// 英文模式。开着候选：字母进缓冲区，选词与中文模式一样（空格选高亮、数字选当前页第 N 个、翻页键翻页），
@@ -221,8 +257,9 @@ impl Router {
         if !candidates {
             let raw = composing.then(|| self.engine.take_raw());
             let effect = if c.is_ascii_alphabetic() {
+                let lead = self.engine.auto_space_before(&c.to_string());
                 self.engine.note_passthrough(c);
-                Effect::Changed(Some(c.to_string()))
+                Effect::Changed(Some(if lead { format!(" {c}") } else { c.to_string() }))
             } else {
                 self.apply_punctuation(c, event)
             };
@@ -234,15 +271,19 @@ impl Router {
         {
             return Effect::Changed(self.commit_index(index));
         }
+        // 翻页键要排在连字符前面，否则 `-` 永远翻不回上一页；翻不动时 `-` 照旧是单词里的连字符（`well-known`）
+        if composing
+            && let Some(step) = self.page_step(event)
+            && (!matches!(c, '-' | '=') || self.can_page(step))
+        {
+            self.page(step);
+            return Effect::Navigated;
+        }
         if c.is_ascii_alphabetic()
             || (composing && (c.is_ascii_digit() || matches!(c, '_' | '\'' | '-')))
         {
             self.engine.push(c);
             return Effect::Changed(None);
-        }
-        if composing && let Some(step) = codes::page_key(event, self.config.page_keys) {
-            self.page(step);
-            return Effect::Navigated;
         }
         let committed = composing.then(|| {
             if c == ' ' {
@@ -287,6 +328,19 @@ impl Router {
                 return Effect::Changed(None);
             }
         }
+        // 小键盘数字直接输入（`[general] numpad_digit`）：只改普通中文组句，表达式、码点、问字与注音保留各自数字键语义。
+        // 键码 0x60–0x69 是小键盘数字；Linux 上小写字母 a–i 的键码（keysym）也落在这一段，靠字符是不是数字排除
+        if self.config.numpad_digit == NumpadDigit::Direct
+            && (0x60..=0x69).contains(&event.virtual_key)
+            && c.is_ascii_digit()
+            && !expression
+            && !self.engine.question_mode()
+            && !self.engine.is_zhuyin_mode()
+        {
+            self.engine.clear_aux();
+            self.engine.push(c);
+            return Effect::Changed(None);
+        }
         if let Some(digit) = codes::digit(event)
             && (!self.engine.is_zhuyin_mode() || self.navigated)
         {
@@ -298,7 +352,10 @@ impl Router {
                 return Effect::Changed(None);
             }
         }
-        if let Some(step) = codes::page_key(event, self.config.page_keys) {
+        // `-` `=` 翻不动时落回原字符（与 macOS、Windows 一致）；`[` `]` `,` `.` 翻不动照旧吃键，落字会往文档里插标点
+        if let Some(step) = self.page_step(event)
+            && (!matches!(c, '-' | '=') || self.can_page(step))
+        {
             self.page(step);
             return Effect::Navigated;
         }

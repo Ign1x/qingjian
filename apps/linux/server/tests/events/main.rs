@@ -3,6 +3,7 @@ mod menu;
 mod mode;
 mod support;
 mod switch;
+mod toggles;
 use self::support::{caps, compose, event, key, router};
 use serde_json::json;
 

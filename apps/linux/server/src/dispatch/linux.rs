@@ -3,6 +3,8 @@ use super::{
     Answer, Router,
     key::{Effect, codes},
 };
+use qingjian_core::SurroundingText;
+use qingjian_core::candidate::arrows::Focus;
 use qingjian_platform::protocol::linux::{
     DisplayIdentity, LinuxEvent, LinuxRequest, MenuReply, ModeCommand,
 };
@@ -139,27 +141,36 @@ impl Router {
                         .into(),
                     );
                 }
-                let surrounding = (!self.sessions[&session].private)
+                let surrounding: Option<SurroundingText> = (!self.sessions[&session].private)
                     .then_some(surrounding)
                     .flatten()
                     .map(Into::into);
                 let keys = self.config.switch_keys();
+                let english = self.english_of(session);
                 let info = self.sessions.get_mut(&session)?;
                 if release {
                     if info.switch_tap == Some(event.virtual_key) {
                         info.switch_tap = None;
                         commit = self.toggle_english(session);
-                        switched = Some(self.sessions[&session].english);
+                        switched = Some(self.english_of(session));
                         outcome = KeyOutcome::Consumed;
                     }
                 } else if keys.ctrl_alt_space && codes::is_ctrl_alt_space(&event) {
                     info.switch_tap = None;
                     commit = self.toggle_english(session);
-                    switched = Some(self.sessions[&session].english);
+                    switched = Some(self.english_of(session));
                     outcome = KeyOutcome::Consumed;
                 } else {
                     info.switch_tap = codes::switch_tap(keys, &event);
-                    event.modifiers.english_mode = info.english;
+                    event.modifiers.english_mode = english;
+                    // 应用里光标前的文字：还没上屏过时自动加空格拿它判上文，本地整句模型拿它当前文（同 Windows、macOS 壳）；
+                    // 应用不报（或私密输入框）时为空，按本会话上屏的字算。Core 在组句清空时丢掉它，所以每键都给
+                    self.engine.set_rescoring_context(
+                        surrounding
+                            .as_ref()
+                            .map(|text| text.before.clone())
+                            .filter(|before| !before.is_empty()),
+                    );
                     if !codes::is_tap_modifier(event.virtual_key)
                         && !self.engine.composition().is_empty()
                         && self.config.cloud_enabled
@@ -170,6 +181,7 @@ impl Router {
                         // 显式要求刷新时回到第一页，让新的 AI 首选可以置顶。
                         if self.request_manual_prediction(surrounding) {
                             self.highlight = 0;
+                            self.grid = None;
                             self.navigated = false;
                         }
                         outcome = KeyOutcome::Consumed;
@@ -192,7 +204,9 @@ impl Router {
                 }
             }
             LinuxEvent::Candidate { identity, index } => {
-                if self.valid_panel_event(session, &identity) && index < self.config.page_size {
+                // 格号按这一帧算：横排矩阵展开着时是视口里的第几格
+                let cells = self.frame_cells();
+                if self.valid_panel_event(session, &identity) && index < cells.len() {
                     if self.translation.is_some() {
                         if index == 0 {
                             commit = self.translation.as_ref().and_then(|job| job.result.clone());
@@ -202,8 +216,7 @@ impl Router {
                         }
                         outcome = KeyOutcome::Consumed;
                     } else {
-                        let offset = self.highlight / self.config.page_size * self.config.page_size;
-                        commit = self.commit_index(offset + index);
+                        commit = self.commit_index(cells.start + index);
                         if commit.is_some() {
                             self.recompose(None);
                             outcome = KeyOutcome::Consumed;
@@ -247,7 +260,7 @@ impl Router {
                         if self.config.english_mode {
                             self.sessions.get_mut(&session)?.switch_tap = None;
                             commit = self.toggle_english(session);
-                            switched = Some(self.sessions[&session].english);
+                            switched = Some(self.english_of(session));
                             outcome = KeyOutcome::Consumed;
                         }
                     }
@@ -291,10 +304,9 @@ impl Router {
             && info.display_identity.as_ref() == Some(identity)
     }
 
-    /// 切换中英：组句中的拼音原样上屏。
+    /// 切换中英（记到哪一份见 `dispatch/english`）：组句中的拼音原样上屏。
     fn toggle_english(&mut self, session: SessionId) -> Option<String> {
-        let info = self.sessions.get_mut(&session).expect("known session");
-        info.english = !info.english;
+        self.set_english(session, !self.english_of(session));
         let commit = (!self.engine.composition().is_empty()).then(|| self.engine.take_raw());
         self.reset_composition();
         commit
@@ -308,6 +320,8 @@ impl Router {
         info.composed = None;
         info.highlight = 0;
         info.navigated = false;
+        info.focus = Focus::default();
+        info.grid = None;
         if let Some(identity) = &mut info.display_identity {
             self.display_revision += 1;
             identity.revision = self.display_revision;
@@ -320,6 +334,8 @@ impl Router {
             self.notice = None;
             self.highlight = 0;
             self.navigated = false;
+            self.focus = Focus::default();
+            self.grid = None;
         } else {
             info.engine.discard_input();
         }

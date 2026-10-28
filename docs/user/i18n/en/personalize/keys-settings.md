@@ -15,24 +15,30 @@ All changeable keys are in 设置 → 快捷键 (Settings → Shortcuts), and ch
 - `-` `=` mean those two keys themselves, not the `_` and `+` typed with Shift.
 - With `[` `]` or `,` `.`, the keys still act as paging keys when there's nowhere to page to, and no punctuation is inserted into your text.
 
-macOS and Windows also have 额外翻页键 (Extra paging keys): three sets you can combine, used together with the paging keys above. While typing pinyin these keys page first; operators in calculations, direct English input and the auxiliary code trigger key keep their usual roles.
+There are also 额外翻页键 (Extra paging keys): three sets you can combine, used together with the paging keys above. While typing pinyin these keys page first; operators in calculations, direct English input and the auxiliary code trigger key keep their usual roles.
 
-## Highlight keys (macOS, Windows)
+Linux English candidates commit the typed letters followed by `=` when `=` is pressed on the last page.
+
+## Highlight keys
 
 By default `↑` / `↓` move the highlight and `←` / `→` move the pinyin cursor. If you choose `←` / `→` instead, `←` / `→` move between candidates:
 
-- **Horizontal layout**: `↑` moves into the pinyin (the candidates show no highlight then), where `←` / `→` move the pinyin cursor; `↓` goes back to the candidates. With 横排时 ↑ / ↓ 展开成多行 (Expand to rows with ↑ / ↓ in horizontal layout) ticked, `↓` on the candidates expands them; once expanded `↑` / `↓` move between rows, and `↑` on the first row goes back into the pinyin. `↑` again in the pinyin opens the symbol panel.
+- **Horizontal layout**: `↑` moves into the pinyin (the candidates show no highlight then), where `←` / `→` move the pinyin cursor; `↓` goes back to the candidates. With 横排时 ↑ / ↓ 展开成多行 (Expand to rows with ↑ / ↓ in horizontal layout) ticked, `↓` on the candidates expands them; once expanded `↑` / `↓` move between rows, and `↑` on the first row goes back into the pinyin. `↑` again in the pinyin opens the symbol panel (Linux has no symbol panel).
 - **Vertical layout**: the highlight and the pinyin cursor form one line: only when the pinyin cursor is at the end does `→` move to the next candidate, and only when the first candidate is highlighted does `←` go back into the pinyin; `↑` / `↓` do nothing while typing pinyin.
 
 When you're not typing, the arrow keys go to the app as usual. This applies in both Chinese and English mode.
 
-## Full-width/half-width punctuation shortcut (macOS, Windows)
+On Linux, changing the number of candidates per page updates both the current input field and fields you return to, while preserving the highlighted candidate.
+
+## Full-width/half-width punctuation shortcut
 
 With Ctrl + . 切换全半角标点 (Ctrl + . switches punctuation width) on, `Ctrl + .` (`⌃ + .` on macOS) switches punctuation between full-width and half-width for the current Chinese/English mode, without changing letters or digits and without switching Chinese/English.
 It's off by default so it doesn't take over the app's own shortcut. On macOS, English-mode punctuation is always half-width, so the shortcut doesn't switch there and the key goes to the app.
 To use a different key combination, see [Editing the configuration file](../advanced/config-file.md).
 
-## Shortcut for switching Simplified and Traditional (Windows)
+On Linux, if either the punctuation or simplified/traditional toggle uses the same shortcut as selection translation, that toggle is disabled and selection translation keeps the shortcut.
+
+## Shortcut for switching Simplified and Traditional (Windows, Linux)
 
 With Ctrl + Shift + F 切换简繁输出 (Ctrl + Shift + F switches Simplified/Traditional) on, `Ctrl + Shift + F` switches output between Simplified and Traditional. Candidates change to the new forms right away, the pinyin you are typing stays, and text already committed doesn't change.
 Switching to Traditional uses the variant you had before you last switched away; if you have never used Traditional, it's Taiwan forms. The result is also saved under 候选 → 输出字形 (Candidates → Output characters); for the differences between the variants see [Traditional Chinese output](../input/traditional.md).

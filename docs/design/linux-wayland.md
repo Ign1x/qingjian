@@ -82,8 +82,9 @@ qingjian-linux-wayland ──Unix socket，protocol::linux（与 Fcitx5 插件�
 
 框架面板画不了、只有自绘候选窗能画的两样——横排时 ↑ / ↓ 展开的多行矩阵、键位提示——由前端在握手时报：`LinuxHello` 的 `features`
 （`{"grid": bool, "key_hint": bool}`，客户端 `Connection::with_features`），只增不改、不升版，没报的（Fcitx5 / Fcitx4 插件、IBus 前端）按画不了算，
-Server 对这样的会话照旧：↑ / ↓ 只移高亮、帧上不带键盘。报了却解不出当协议错误断开。
-回包上的 `key_hint` 客户端读成 `Reply::key_hint`，`qingjian_platform::display::key_hint_keyboard` 把它换成渲染器的键盘；Wayland 前端画键盘、打开这两项能力在之后（见「分期」）。
+Server 对这样的会话不展开矩阵，回包不带键位提示。报了却解不出当协议错误断开。
+报了 `grid` 的会话在 `[general] horizontal_grid` 开着、横排时由 Server 出矩阵帧（`columns` / `column_ems`，按键规则同 Windows），这时 `Candidate` / `Menu` / `MenuPick` 的 `index` 是帧里视口的第几格（行优先），不是当前页的第几个。
+回包上的 `key_hint` 客户端读成 `Reply::key_hint`，`qingjian_platform::display::key_hint_keyboard` 把它换成渲染器的键盘；Wayland 前端画矩阵与键盘、打开这两项能力在之后（见「分期」）。
 
 ## 按键
 
@@ -131,17 +132,17 @@ Server 对这样的会话照旧：↑ / ↓ 只移高亮、帧上不带键盘。
 
 - **一个应用一个会话。** input-method-v2 不说输入框在哪个应用里，所以另绑 `zwlr_foreign_toplevel_manager_v1`：记下各顶层窗口的 app_id 与激活状态（各自 `done` 时生效，
   几个同时激活着取最后激活的），激活着的那个窗口的 app_id 就是活动窗口的应用——与 Fcitx5 在 Wayland 上报的 program 名同一种，`[apps]` 的 Linux 缺省名单就按它写。
-  输入框激活时用那个应用的 Server 会话：`OpenSession.app` 报 app_id，`[apps]` 按应用的设置生效，中 / 英状态按应用记（Server 的中 / 英状态本来就跟着会话走），
+  输入框激活时用那个应用的 Server 会话：`OpenSession.app` 报 app_id，`[apps]` 按应用的设置生效，打开「按应用记住中英模式」时中 / 英状态按应用记（Server 按 `OpenSession.app` 记，缺省所有应用共用一份），
   同一个应用的几个窗口、几个输入框共用这一个会话。
 - 会话在同一条连接上用到才开，上下文是 `wayland-` 加 app_id 的 64 位 FNV-1a 哈希（Server 要求非空、不超过 64 字节、同连接内不重复，app_id 可以很长）；
-  开着的超过 16 个就关掉最久没用的，那个应用的中 / 英状态回到缺省。Server 重启后只补开当前应用的会话、补报能力与焦点，别的应用用到再开。
+  开着的超过 16 个就关掉最久没用的（中 / 英状态按应用名记在 Server 里，关掉会话不丢）。Server 重启后只补开当前应用的会话、补报能力与焦点，别的应用用到再开。
 - 输入框激活期间活动窗口换了应用（合成器先报了激活、后报活动窗口，或者应用改了 app_id）：等 200 毫秒再跟过去换会话，组句中等这次组句结束。
   切换窗口时两边事件的先后不定，中间常有一瞬间没有激活着的窗口，紧跟着的失活、激活会直接用上新应用，等这一下省掉白换的几次。
 - 合成器没有这个全局对象，或者活动窗口没报 app_id 时，按不知道哪个应用：这些输入框共用一个会话（上下文 `wayland`，`app` 报空），
   `[apps]` 不生效、中 / 英状态共用，英文候选不出（Server 对没报应用名的会话按不给处理）。没有这个全局对象时启动日志记一句。
 - 密码框（见协议对照）先报 `Capabilities{password: true}` 让 Server 丢弃输入、进隐私模式，之后不 grab，键盘直接归应用；还没用过的应用里的密码框不为它开会话。
 - Server 连不上时不 grab；连接出错就清掉 preedit、藏起 popup、release grab，2 秒内不再重试——Server 主线程卡住时连接照样能建，但每个请求都要等满 200 ms 超时，不退避的话每键都卡。
-  一次往返失败（哪怕只是一次 200 ms 超时）就扔掉整条连接，Server 关掉它上面的全部会话：所有应用的中 / 英状态都回到缺省，不只是 LRU 关掉与 Server 重启这两种。
+  一次往返失败（哪怕只是一次 200 ms 超时）就扔掉整条连接，Server 关掉它上面的全部会话；中 / 英状态记在 Server 里，只有 Server 重启才回到缺省。
 - 日志不记按键、字符、上屏文字与前后文。foreign-toplevel 也报窗口标题，不读；app_id 只在 debug 级日志里出现。
 
 ## 已知限制
@@ -159,10 +160,11 @@ Server 对这样的会话照旧：↑ / ↓ 只移高亮、帧上不带键盘。
 - **第二轮第一批（已做）**：按应用会话（见「会话与隐私」）；外观跟随系统（见「显示」）；Linux 协议 v4 的 Server 一侧——回包附当前模式（`mode`，只增不改）、
   托盘用的切换命令（`Indicator`）、候选右键菜单（`Menu` / `MenuPick`）、共用客户端的点选、翻页与选区翻译，Fcitx5 / Fcitx4 插件仍报 v3、不用改（见协议对照）；
   `install.sh --frontend wayland`、systemd 用户服务（退出码 2 不重启）、deb / rpm 另出 `qingjian-wayland` 包、用户文档；对着假合成器与假 Server 的黑盒测试。
+- **第二轮 Server 输入功能（已做）**：自动加空格、额外翻页键与高亮移动键、全半角与简繁快捷键、小键盘数字、缺省共用或按应用记中英、拼音行声调；
+  横排矩阵与键位提示的数据也已接上，只对握手报了对应能力的会话提供，Wayland 前端的展示留在下一批。
 - **第二轮第二批**：前端接上 v4——鼠标点选与滚轮翻页（`Rendered::hit_at` → `Candidate` / `Page`，先验合成器肯不肯把指针事件给 popup）、
   候选右键菜单（`Renderer::render_menu` 画在同一个 popup 里，与 macOS / Windows 一样自绘）、中 / 英提示（`Renderer::render_status` 在 popup 里亮一秒）与主题里的模式、
-  托盘（StatusNotifierItem + DBusMenu，原生菜单）、选区翻译；Server 补齐设置程序里 Linux 标「待实现」的输入功能（辅码、形码、自动加空格、翻页与高亮键、
-  全半角与简繁快捷键、小键盘数字、按应用记中英、横排矩阵、拼音行声调、键位提示、实验模型）。
+  托盘（StatusNotifierItem + DBusMenu，原生菜单）、选区翻译、矩阵与键位提示；Server 继续补辅码、形码与实验模型。
 - **之后**：按 `text_input_rectangle` 判断翻没翻、调排布；设置程序支持表区分两个版本；CI 跑黑盒测试（要 libxkbcommon 与 libwayland-client）。
 
 ## 验证

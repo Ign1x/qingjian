@@ -24,8 +24,8 @@ The macOS and Windows versions are in beta with nearly the same features; keys f
 | English mode and English completion | ✓ | ✓ | ✓ | ✓ (English keyboard) |
 | Choice of Chinese/English switch key | — (`Caps Lock`) | ✓ | ✓ | — |
 | Start in English mode | — | ✓ | ✓ | — |
-| Remember mode per app | — | ✓ | — (each window keeps its own) | — |
-| Automatic spacing between Chinese and Latin text | ✓ | ✓ | — | — |
+| Remember mode per app | — | ✓ | ✓ | — |
+| Automatic spacing between Chinese and Latin text | ✓ | ✓ | ✓ | — |
 | Symbol panel | ✓ | ✓ | — | ✓ (symbol keyboard) |
 | Dates, calculations, characters by code point | ✓ | ✓ | ✓ | ✓ |
 | Traditional Chinese output | ✓ | ✓ | ✓ | ✓ |
@@ -58,8 +58,8 @@ The macOS and Windows versions are in beta with nearly the same features; keys f
 | Feature | macOS | Windows | Linux | Android |
 |---|---|---|---|---|
 | Changing paging keys | ✓ | ✓ | ✓ | — |
-| Extra paging keys, highlight keys | ✓ | ✓ | — | — |
-| Full-width/half-width punctuation shortcut | ✓ | ✓ | — | — |
+| Extra paging keys, highlight keys | ✓ | ✓ | ✓ | — |
+| Full-width/half-width punctuation shortcut | ✓ | ✓ | ✓ | — |
 
 ## AI services
 
@@ -87,7 +87,6 @@ The Linux column in the tables above is the fcitx edition. The Wayland native ed
 | Seven built-in themes, light and dark | — | ✓ (follow system is light for now) |
 | Custom themes, candidate fonts and sizes | — | ✓ |
 | Glosses beside candidates | First gloss only | All glosses |
-| Chinese/English mode | Each window keeps its own | Shared by all windows |
 | Mode indicator (pop-up or tray) | Shown by Fcitx / IBus | — |
 | Candidates in English mode | Per the app list | Only after unticking 只在写字的应用里给 (Only in writing apps) |
 | Picking candidates with the mouse | ✓ | — |

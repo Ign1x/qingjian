@@ -36,11 +36,7 @@ pub fn language(ui: &mut Ui<Message>, page: &Page) -> Result<Vec<NodeId>, Render
             ui,
             page,
             "默认英文模式",
-            Some(if Feature::RememberModePerApp.here() {
-                "打开时先用英文"
-            } else {
-                "新打开的应用和窗口从英文开始"
-            }),
+            Some("打开时先用英文"),
             ("general", "default_english"),
             general.default_english,
             !general.english_mode,

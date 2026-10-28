@@ -1,7 +1,17 @@
 //! 按键分派用的虚拟键码与字符解析。
 
-use qingjian_platform::SwitchKeys;
-use qingjian_platform::protocol::KeyEvent;
+use qingjian_platform::protocol::{KeyEvent, KeyModifiers};
+use qingjian_platform::{KeyCombo, SwitchKeys};
+
+use crate::dispatch::Router;
+
+impl Router {
+    /// 这一键当翻页键是往哪翻：主翻页键对，或同时启用的额外翻页键（`[shortcut] extra_page_keys`）。
+    pub(super) fn page_step(&self, event: &KeyEvent) -> Option<isize> {
+        page_key(event, self.config.page_keys)
+            .or_else(|| self.config.extra_page_keys.step(event.character?))
+    }
+}
 
 pub(crate) const BACK: u32 = 0x08;
 pub(crate) const DELETE: u32 = 0x2E;
@@ -21,7 +31,7 @@ pub(crate) const RIGHT: u32 = 0x27;
 pub(crate) const DOWN: u32 = 0x28;
 
 /// 翻页键对 `(上一页, 下一页)`：返回 -1 / +1。
-pub(crate) fn page_key(event: &KeyEvent, page_keys: (char, char)) -> Option<isize> {
+fn page_key(event: &KeyEvent, page_keys: (char, char)) -> Option<isize> {
     let c = event.character?;
     if c == page_keys.0 {
         Some(-1)
@@ -77,4 +87,17 @@ pub(crate) fn is_ctrl_alt_space(event: &KeyEvent) -> bool {
         && modifiers.alt
         && !modifiers.shift
         && !modifiers.win
+}
+
+/// `[shortcut]` 里「修饰键 + 一个键」的组合。字母与句号按字符认：键码是 keysym，`.` 与 Delete 同码、字母随 Shift 变大小写；
+/// 数字按数字行的键码认，键表把 Shift + 数字折回了数字行，字符却是 `!@#` 这些符号。
+pub(crate) fn matches_combo(event: &KeyEvent, combo: KeyCombo) -> bool {
+    let key = if combo.key.is_ascii_digit() {
+        event.virtual_key == combo.key as u32
+    } else {
+        event
+            .character
+            .is_some_and(|c| c.eq_ignore_ascii_case(&combo.key))
+    };
+    key && event.modifiers.chord() == KeyModifiers::from(combo.modifiers)
 }

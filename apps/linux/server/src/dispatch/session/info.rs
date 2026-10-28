@@ -1,6 +1,7 @@
 //! 单个 Fcitx 输入上下文保存的输入状态。
 use crate::dispatch::composed::Composed;
-use qingjian_core::EngineSession;
+use qingjian_core::candidate::arrows::Focus;
+use qingjian_core::{EngineSession, Grid};
 
 pub(crate) struct SessionInfo {
     /// 应用标识。
@@ -21,7 +22,7 @@ pub(crate) struct SessionInfo {
     /// 上次随帧附上的键位提示；Poll 时它也没变才沿用展示身份（停顿到点弹出键盘要让前端重画）。
     pub(crate) last_key_hint: Option<qingjian_platform::protocol::linux::KeyHintView>,
 
-    /// Server 持有的中英模式。
+    /// 按应用记中英、而这个会话没报应用名时它自己那一份；其余情况用 Router 上全局或按应用的那一份（`dispatch/english`）。
     pub(crate) english: bool,
 
     /// 按下、还没松开的单击切换键（Shift / Ctrl 的虚拟键码）；中间按了别的键就作废。
@@ -49,6 +50,12 @@ pub(crate) struct SessionInfo {
 
     /// 本轮是否移动候选。
     pub(crate) navigated: bool,
+
+    /// 挂起时方向键归拼音行还是候选（方向键分两区时）。
+    pub(crate) focus: Focus,
+
+    /// 挂起的横排矩阵视口。
+    pub(crate) grid: Option<Grid>,
 }
 impl SessionInfo {
     pub(crate) fn new(app: Option<String>, english: bool) -> Self {
@@ -69,6 +76,8 @@ impl SessionInfo {
             composed: None,
             highlight: 0,
             navigated: false,
+            focus: Focus::default(),
+            grid: None,
         }
     }
 }

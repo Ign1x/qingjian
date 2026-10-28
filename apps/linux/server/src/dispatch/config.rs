@@ -2,8 +2,8 @@
 use qingjian_core::TraditionalVariant;
 use qingjian_platform::protocol::KeyModifiers;
 use qingjian_platform::{
-    Appearance, AppsConfig, Config, KeyCombo, KeyHintMode, LayoutMode, PreeditMode, Scheme,
-    SwitchKeys,
+    Appearance, AppsConfig, Config, HighlightKeys, KeyCombo, KeyHintMode, LayoutMode, NumpadDigit,
+    PageKeys, PreeditMode, Scheme, SwitchKeys,
 };
 
 /// Router 要用的配置项，与 macOS 壳的 `Host` 字段对齐。
@@ -81,6 +81,27 @@ pub struct RouterConfig {
 
     /// 键位提示窗口的不透明度与键盘大小，百分比（`[general] key_hint_opacity` / `key_hint_size`，已夹到范围内）。
     pub key_hint_look: (u8, u8),
+
+    /// 主翻页键之外同时启用的符号键对（`[shortcut] extra_page_keys`）。
+    pub extra_page_keys: PageKeys,
+
+    /// 候选高亮由哪对方向键移动（`[shortcut] highlight_keys`）。
+    pub highlight_keys: HighlightKeys,
+
+    /// 横排时上 / 下键把单行展开成多行矩阵（`[general] horizontal_grid`）；还要前端画得了，见 `Router::grid_keys`。
+    pub horizontal_grid: bool,
+
+    /// 中文组句中小键盘数字的用途（`[general] numpad_digit`）。
+    pub numpad_digit: NumpadDigit,
+
+    /// 切换当前中英模式那一份全角标点的组合键（`[shortcut] toggle_punctuation`）；空为不认。
+    pub toggle_punctuation: Option<KeyCombo>,
+
+    /// 简繁切换组合键（`[shortcut] toggle_traditional`）；与选区翻译相同时不登记，保留翻译行为。
+    pub toggle_traditional: Option<KeyCombo>,
+
+    /// 按应用记住中英模式（`[general] remember_mode_per_app`），缺省所有会话共用一份。
+    pub remember_mode_per_app: bool,
 }
 
 impl RouterConfig {
@@ -98,9 +119,19 @@ impl RouterConfig {
         }
     }
 
-    /// 新会话的初始模式。
+    /// 起始的中英模式：Server 启动时全局那一份，按应用记时没有记录的应用与会话也从它开始。
     pub fn starts_english(&self) -> bool {
         self.english_mode && self.default_english
+    }
+
+    /// 方向键分拼音行与候选两区（Core 的 `arrows::route`）：横排，而且高亮移动键选了 `←` / `→`。
+    pub fn two_area_arrows(&self) -> bool {
+        self.layout == LayoutMode::Horizontal && self.highlight_keys == HighlightKeys::LeftRight
+    }
+
+    /// 横排矩阵这套按键在配置上开着：开关开着（`[general] horizontal_grid`）而且排布是横排。
+    pub fn grid_keys(&self) -> bool {
+        self.horizontal_grid && self.layout == LayoutMode::Horizontal
     }
 }
 
@@ -141,6 +172,19 @@ impl From<&Config> for RouterConfig {
                 config.general.key_hint_opacity.clamp(30, 100),
                 config.general.key_hint_size.clamp(60, 150),
             ),
+            extra_page_keys: config.shortcut.extra_page_keys,
+            highlight_keys: config.shortcut.highlight_keys,
+            horizontal_grid: config.general.horizontal_grid,
+            numpad_digit: config.general.numpad_digit,
+            toggle_punctuation: config
+                .shortcut
+                .toggle_punctuation
+                .filter(|key| *key != config.shortcut.translate_selection),
+            toggle_traditional: config
+                .shortcut
+                .toggle_traditional
+                .filter(|key| *key != config.shortcut.translate_selection),
+            remember_mode_per_app: config.general.remember_mode_per_app,
         }
     }
 }

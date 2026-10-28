@@ -52,6 +52,13 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y -o Dir::Cache::Archives="$HOME/apt-archives" cmake g++ libfcitx5core-dev libfcitx5config-dev libfcitx5utils-dev nlohmann-json3-dev fcitx5
 
+      # Wayland 前端的黑盒测试（apps/linux/wayland/tests/blackbox）真的起前端二进制：它运行时 dlopen libxkbcommon，
+      # 与整个 workspace 一起编时也 dlopen libwayland-client。写明了才不靠 runner 镜像里碰巧有；
+      # 下面 Test 一步设的 QINGJIAN_BLACKBOX_REQUIRED 让它们缺库（或缺界面字体，与设置程序的 UI 测试用同一个）时失败，
+      # 不再打印「跳过」照样绿。linux-22_04 那个裸容器不装这两个库，照旧跳过
+      - name: Install Wayland frontend test dependencies
+        run: sudo apt-get install -y -o Dir::Cache::Archives="$HOME/apt-archives" libxkbcommon0 libwayland-client0
+
       - name: Format
         run: cargo fmt --all --check
 
@@ -76,6 +83,8 @@ jobs:
         run: cargo doc --no-deps --workspace --exclude qingjian-macos --locked
 
       - name: Test
+        env:
+          QINGJIAN_BLACKBOX_REQUIRED: '1'
         run: cargo test --workspace --exclude qingjian-macos --locked
 
       - name: Build Linux server

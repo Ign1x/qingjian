@@ -691,14 +691,17 @@ Wayland 原生版的前端（设计见 `docs/design/linux-wayland.md`）：自�
   `Answer::select` 演选区翻译快捷键：先回 `RequestSelection`，前端回了选区照真 Server 的规矩答（空串或超过 500 字放行，不然吃掉、换上「翻译中…」），
   `Server::translated` 之后的下一次轮询换上译文。没想到的消息不回空包：握手不合规矩、报能力之前的事件、这些测试里不该有的点选 / 翻页 / 菜单 / 托盘、
   没要过的选区回话、认不出的消息都记成违规并断开连接（与真 Server 一样不再往下答）。
-  被测进程的 `WAYLAND_DISPLAY`、`QINGJIAN_SOCKET`、`HOME` 与 XDG 各目录都指进沙箱（去掉继承来的 `WAYLAND_SOCKET`，碰不到真会话），
+  被测进程的 `WAYLAND_DISPLAY`、`QINGJIAN_SOCKET`、`HOME` 与 XDG 各目录都指进沙箱（去掉继承来的 `WAYLAND_SOCKET`，碰不到真会话；
+  也去掉 `DBUS_SESSION_BUS_ADDRESS`，不连宿主的会话总线读深浅，本地与 CI 一样按浅色画），
   `--stderr` 的日志收下来：就绪看「输入法就绪」那行（之后才装好 SIGTERM 的处理），测试失败时整份打出来。
   「某个请求没发」靠同步点判断：把修饰键原样再发一次，等它经虚拟键盘转出来，前面的事件就都处理完了；按个数等（这次 grab 上发过的修饰键全转出来才算），
   跟着修饰键按下抬起发的那些可能还在路上，等「下一条」会早退。被测进程处理完一件事、却不向合成器与 Server 发任何东西时（一上来就是密码框），等它的 debug 日志。
   每个测试结束（`Rig::stop`，drop 时自动调）发 SIGTERM：被测进程要以 0 退出、日志里没有 panic 与 ERROR，交还了键盘、虚拟键盘上没有还按着的键、候选窗收起，
   与合成器、Server 的连接都断开，再核对两边都没有违规；测试自己收过退出状态的（起不来的那几个、SIGTERM 那个）只核对违规。
   libxkbcommon（CI 里 ubuntu:22.04 的裸容器没有）或 libwayland-client（与整个 workspace 一起编时是 dlopen 的）加载不了时二进制起不来，
-  测试认出那句错误、打印「跳过 …」后通过，说明绕过测试框架的输出捕获直接写 stderr，CI 日志里看得出没真跑；没有界面字体时只跳过候选窗那一个。NixOS 上的跑法见 README。
+  测试认出那句错误、打印「跳过 …」后通过，说明绕过测试框架的输出捕获直接写 stderr，CI 日志里看得出没真跑；没有界面字体时只跳过候选窗那一个。
+  设了 `QINGJIAN_BLACKBOX_REQUIRED=1`（非空、不是 0）时这几种跳过都改成失败：CI 的 Linux job（`core`）装好 `libxkbcommon0` 与 `libwayland-client0`、在 Test 一步设它，
+  缺库（界面字体用 runner 自带的，与设置程序的 UI 测试同一个）就红；ubuntu:22.04 那个裸容器不装、不设，照旧跳过。NixOS 上的跑法见 README。
 - 构建单独 `cargo build -p qingjian-linux-wayland`：和设置程序一起编时 winit 把 wayland-backend 统一成 dlopen libwayland 的那一种，NixOS 上找不到库。
   libxkbcommon 总是运行时 dlopen，NixOS 上要 `LD_LIBRARY_PATH` 或打包时补 rpath（见 README）。
 

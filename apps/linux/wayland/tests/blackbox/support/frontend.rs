@@ -58,6 +58,8 @@ impl Frontend {
             .env("NO_COLOR", "1")
             // 有 WAYLAND_SOCKET 时客户端不看 WAYLAND_DISPLAY，会连到继承下来的真会话上
             .env_remove("WAYLAND_SOCKET")
+            // 也不连宿主的会话总线去读桌面的深浅：本地与 CI 一样按浅色画（portal 的往来另有对着私有总线的测试）
+            .env_remove("DBUS_SESSION_BUS_ADDRESS")
             .env_remove("WAYLAND_DEBUG")
             .stdin(Stdio::null())
             .stdout(Stdio::null())
@@ -213,12 +215,22 @@ fn missing_library(stderr: &str) -> Option<&'static str> {
 }
 
 /// 跳过的说明直接写进 stderr、不经测试框架的输出捕获：通过的测试的输出平时不显示，
-/// CI 日志里要看得出这几个测试是跳过了，而不是真的跑过了。
+/// CI 日志里要看得出这几个测试是跳过了，而不是真的跑过了。设了 [`REQUIRED`] 时不许跳过，直接失败。
 pub fn skip(reason: &str) {
     let test = thread::current()
         .name()
         .unwrap_or("Wayland 前端黑盒测试")
         .to_owned();
+    if required() {
+        panic!("{test} 跑不了：{reason}。设了 {REQUIRED}，不许跳过");
+    }
     let note = format!("跳过 {test}：{reason}\n");
     let _ = std::io::stderr().write_all(note.as_bytes());
+}
+
+/// 设了（非空、不是 0）就不许跳过：CI 装好了运行库与字体，缺了是环境坏了，该红而不是打印「跳过」照样绿。本地不设，行为照旧。
+const REQUIRED: &str = "QINGJIAN_BLACKBOX_REQUIRED";
+
+fn required() -> bool {
+    std::env::var_os(REQUIRED).is_some_and(|value| !value.is_empty() && value != "0")
 }

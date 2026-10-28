@@ -151,7 +151,8 @@
     切窗口时不白换会话（`RUST_LOG=debug` 看「活动窗口换了应用」）；桌面切深浅时候选窗一秒内跟着换；sway / niri / labwc 上报活动窗口与激活输入框的先后
   - 选区翻译待真会话验：GTK4 / Qt6 / Firefox 里选中一段（鼠标拖与 Shift + 方向键两种）按 `Alt + Shift + T`，回车后译文替换选区（靠应用在上屏时删掉选区）；
     选区长过应用报的那段前后文（约 4000 字节）时，看快捷键是否原样交给应用
-  - 按 `text_input_rectangle` 判断候选窗翻没翻到光标上方、调排布；设置程序支持表区分 fcitx 版与 Wayland 版；CI 跑黑盒测试
+  - 按 `text_input_rectangle` 判断候选窗翻没翻到光标上方、调排布；设置程序支持表区分 fcitx 版与 Wayland 版；
+    ~~CI 跑黑盒测试~~（2026-10-28：Linux job 装上 libxkbcommon 与 libwayland-client，设 `QINGJIAN_BLACKBOX_REQUIRED=1`，缺库时失败而不是跳过）
   - 预编译 tarball（`package.sh`）还只有 Fcitx5 版；deb / rpm 的 `qingjian-wayland` 包还没在容器里真打过、没跑 smoke
   - sway / niri / labwc 上逐个真机验（第一轮只验了 Hyprland）
   - 连发按键时每个键都画一帧：重主题（樱花）release 版 1.5 倍下每帧十几毫秒，跟得上；真不够时改成一批事件处理完只画最后一帧

@@ -76,7 +76,8 @@ cargo test -p qingjian-linux-wayland
 `tests/blackbox/` 是黑盒测试：真的二进制连测试进程里的假合成器（wayland-server）与假 Server，过一遍起不来的两种退出、SIGTERM、
 接管键盘、行内拼音与上屏、放行的键经虚拟键盘转出、失活时还按着的键、候选窗贴图与分数缩放、密码框与敏感框、前后文、组句中应用改了文字、选区翻译的一整轮；
 每个测试结束时查被测进程以 0 退出、交还了键盘、没留下按着的键，假 Server 收到没想到的消息也算失败。怎么搭的见 crate-notes。
-二进制运行时 dlopen libxkbcommon，加载不了时这些测试打印「跳过 …」后通过（CI 的裸容器就是这样）。NixOS 上：
+二进制运行时 dlopen libxkbcommon，加载不了时这些测试打印「跳过 …」后通过（CI 里 ubuntu:22.04 那个裸容器就是这样）。
+设了 `QINGJIAN_BLACKBOX_REQUIRED=1` 时改成失败，不许跳过：CI 的 Linux job 装好 libxkbcommon 与 libwayland-client 后就这样跑；本地不设，行为不变。NixOS 上：
 
 ```bash
 LD_LIBRARY_PATH=$(nix-build '<nixpkgs>' -A libxkbcommon --no-out-link)/lib cargo test -p qingjian-linux-wayland

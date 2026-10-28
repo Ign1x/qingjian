@@ -220,7 +220,7 @@ Server 对这样的会话不展开矩阵，回包不带键位提示。报了却�
   托盘（StatusNotifierItem + DBusMenu，原生菜单）、选区翻译；鼠标、选区替换、中 / 英提示与托盘仍待独立会话验证，见「验证」。
   黑盒测试补齐：content_type（密码框、敏感框）、前后文与 text_change_cause、选区翻译，假 Server 对没想到的消息报错，测完查正常退出；
   CI 跑黑盒测试（Linux job 装 libxkbcommon 与 libwayland-client，`QINGJIAN_BLACKBOX_REQUIRED=1` 缺库即失败）。
-- **之后**：按 `text_input_rectangle` 判断翻没翻、调排布；设置程序支持表区分两个版本；Wayland 前端画横排矩阵与键位提示。
+- **之后**：按 `text_input_rectangle` 判断翻没翻、调排布；~~设置程序支持表区分两个版本~~（已做）；Wayland 前端画横排矩阵与键位提示。
 
 ## 验证
 

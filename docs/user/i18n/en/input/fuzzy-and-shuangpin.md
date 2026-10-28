@@ -62,7 +62,7 @@ Choose under 键位提示 (Key hints) in 设置 → 输入 (Settings → Input):
 - **一直显示 (Always)**: shown the whole time you're typing.
 
 键位提示大小 (Key hint size) and 键位提示透明度 (Key hint opacity) set the keyboard's size and transparency. The keyboard is placed on the side of the candidate window facing away from the cursor so it doesn't cover the line you're typing; if it doesn't fit anywhere, it isn't shown that time.
-Supported on macOS and Windows; on Windows, the candidate window must be drawn by Qingjian's renderer (the default). Wubi's radical chart uses the same settings; see [Wubi and mixed input](wubi.md#Radical-chart).
+Supported on macOS, Windows and the Linux Wayland native edition; the Linux fcitx edition (the Fcitx / IBus panel) can't draw it. On Windows, the candidate window must be drawn by Qingjian's renderer (the default); the Wayland native edition always uses the Qingjian renderer. Wubi's radical chart uses the same settings; see [Wubi and mixed input](wubi.md#Radical-chart).
 
 ## Dachen Zhuyin
 

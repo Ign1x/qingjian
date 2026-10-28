@@ -33,7 +33,7 @@ To make a theme of your own, see [Custom themes](../advanced/custom-themes.md); 
 
 ### Expanding horizontal layout into several rows
 
-On macOS and Windows, in horizontal layout, you can tick 横排时 ↑ / ↓ 展开成多行 (Expand to rows with ↑ / ↓ in horizontal layout) (unticked by default). When ticked:
+On macOS, Windows and the Linux Wayland native edition, in horizontal layout, you can tick 横排时 ↑ / ↓ 展开成多行 (Expand to rows with ↑ / ↓ in horizontal layout) (unticked by default). In the Linux fcitx edition the candidate window is drawn by Fcitx / IBus, which has no such option. When ticked:
 
 - `↑` / `↓` expand the row into a grid of 6 rows (one row per page of candidates) and move to the previous or next row at the same time; pressing `↑` on the first row returns to the first candidate.
 - `←` / `→` move between candidates (also when not expanded); after `←` reaches the first candidate, pressing it again moves the pinyin cursor, and once `→` brings the cursor back to the end it moves between candidates again.

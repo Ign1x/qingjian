@@ -46,7 +46,12 @@ pub fn appearance(ui: &mut Ui<Message>, page: &Page) -> Result<Vec<NodeId>, Rend
         |value| Message::set("general", "layout", value.key()),
     )?;
     let mut layout = SettingRow::new("排布").control(layout);
+    // 矩阵的勾选就在这一行下面；fcitx 面板画不了矩阵，只有 Wayland 原生版支持
+    let info = Feature::HorizontalGrid.describe("横排时 ↑ / ↓ 展开成多行");
     if Feature::HorizontalGrid.here() {
+        if Feature::HorizontalGrid.linux_note().is_some() {
+            layout = layout.info(&info);
+        }
         let grid = Checkbox::new(general.horizontal_grid, "横排时 ↑ / ↓ 展开成多行")
             .disabled(general.layout != LayoutMode::Horizontal)
             .build(

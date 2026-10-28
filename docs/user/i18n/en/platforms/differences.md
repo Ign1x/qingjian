@@ -87,6 +87,8 @@ The Linux column in the tables above is the fcitx edition. The Wayland native ed
 | Seven built-in themes, light and dark | — | ✓ (can follow the desktop's light/dark preference) |
 | Custom themes, candidate fonts and sizes | — | ✓ |
 | Glosses beside candidates | First gloss only | All glosses |
+| Key hints and radical chart | — | ✓ |
+| Expanding horizontal layout into several rows | — | ✓ |
 | Mode-switch hint | Shown by Fcitx5 | Briefly shows 中 or 英 where the candidate window appears, with the scheme name for Shuangpin and other schemes |
 | Tray | Provided by Fcitx / IBus | Qingjian's 中 / 英 icon; left-click to switch, right-click for mode, punctuation, traditional output or settings (requires status bar support) |
 | Candidates in English mode | Per the app list | Per the app list; if the desktop can't identify apps, untick 只在写字的应用里给 (Only in writing apps) |

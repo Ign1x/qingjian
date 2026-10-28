@@ -155,7 +155,7 @@
     切窗口时不白换会话（`RUST_LOG=debug` 看「活动窗口换了应用」）；桌面切深浅时候选窗一秒内跟着换；sway / niri / labwc 上报活动窗口与激活输入框的先后
   - 选区翻译待真会话验：GTK4 / Qt6 / Firefox 里选中一段（鼠标拖与 Shift + 方向键两种）按 `Alt + Shift + T`，回车后译文替换选区（靠应用在上屏时删掉选区）；
     选区长过应用报的那段前后文（约 4000 字节）时，看快捷键是否原样交给应用
-  - 按 `text_input_rectangle` 判断候选窗翻没翻到光标上方、调排布；设置程序支持表区分 fcitx 版与 Wayland 版；
+  - 按 `text_input_rectangle` 判断候选窗翻没翻到光标上方、调排布；~~设置程序支持表区分 fcitx 版与 Wayland 版~~（已做）；
     ~~CI 跑黑盒测试~~（2026-10-28：Linux job 装上 libxkbcommon 与 libwayland-client，设 `QINGJIAN_BLACKBOX_REQUIRED=1`，缺库时失败而不是跳过）
   - 预编译 tarball（`package.sh`）两版都能打了，Wayland 版还没进发版（release.yml 只跑缺省版，`releases_json.py` 的附件名规则会把它认成 linux/x86_64、与 Fcitx5 版撞同一个平台键）；deb / rpm 的 `qingjian-wayland` 包还没在容器里真打过、没跑 smoke
   - sway / niri / labwc 上逐个真机验（第一轮只验了 Hyprland）
@@ -165,12 +165,10 @@
 - [ ] 候选 → 渲染帧的换算收口：共享的 `qingjian_platform::display` 已有（Linux Wayland 前端在用），Windows Server（`ui/candidates/{row,render_data}.rs`）与 macOS（`candidates/row.rs` + `bitmap/convert.rs`）各自单独提 PR 改用它，改完删掉自己那份
 - [ ] 键位提示的键盘换算收口：`qingjian_platform::display::{shuangpin_keyboard, root_keyboard}` 已有（照 Windows 移植，Linux 线上的键位提示经 `key_hint_keyboard` 用它），Windows Server（`ui/candidates/key_hint/keyboard.rs`）与 macOS（`host/presenting/key_hint/mod.rs` 的 `keyboard` / `root_keyboard`）改用共用的，改完删掉自己那份
 - [ ] Windows Server 的模型目录解析与后台加载改用 `qingjian_platform::models`（Linux 已接）；迁移后删掉 Windows 的同份逻辑，保持 CPU 两线程与缺模型回退规则。
-- [ ] 设置项的平台缺口（设置程序 `apps/settings/src/support/` 表里标「待实现」的项，输入法接上之前设置里不显示；测试逐条对照这里）：
+- [ ] 设置项的平台缺口（设置程序 `apps/settings/src/support/` 表里标「待实现」的项，输入法接上之前设置里不显示；Linux 按 fcitx 版与 Wayland 原生版分开登记；测试逐条对照这里）：
   - [ ] 默认英文模式：macOS
   - [ ] 按应用记住中英模式：macOS
-  - [ ] 横排时 ↑ / ↓ 展开成多行：Linux
   - [ ] Ctrl + Shift + F 切换简繁输出：macOS
-  - [ ] 双拼键位提示：Linux
   - [ ] 小键盘数字：macOS
 
 ## 四、其他输入方案

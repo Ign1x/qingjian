@@ -46,7 +46,7 @@
 
 - 依赖用 `cargo add` 加，共用包提到根 `[workspace.dependencies]`；错误用 `thiserror` 不用 `anyhow`；日志用 `tracing` 门面。
 - 快捷键一律进 `[shortcut]` 可配置，不写死键码。
-- 设置项只有部分平台的输入法读时，在设置程序的 `apps/settings/src/support/` 表里登记三个平台各是「支持 / 不适用 / 待实现」，页面按表显示，不直接写 `cfg!`；「待实现」的同步列进 `docs/plan/todo.md` 的「设置项的平台缺口」。
+- 设置项只有部分平台的输入法读时，在设置程序的 `apps/settings/src/support/` 表里登记 macOS、Windows、Linux fcitx 版与 Linux Wayland 原生版四列各是「支持 / 不适用 / 待实现」，页面按表显示，不直接写 `cfg!`；Linux 上只有一个版本支持的项，行说明里注明「仅 fcitx 版」或「仅 Wayland 原生版」；「待实现」的同步列进 `docs/plan/todo.md` 的「设置项的平台缺口」，Linux 的按 fcitx 版 / Wayland 原生版分开写。
 
 ## 版本号
 

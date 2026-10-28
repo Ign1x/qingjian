@@ -34,7 +34,7 @@ The first two can be turned off: when Pinyin is 关 (Off), 设置 → 输入 (Se
 ### Radical chart
 
 With 五笔（86） (Wubi 86) selected as the shape-based scheme, 设置 → 输入 (Settings → Input) also has 键位提示 (Key hints): the Wubi 86 radical chart appears next to the candidate window, with all the radicals of each key on it and the key name and zone number on the bottom row.
-When it appears, its size and its opacity are the same settings as the double pinyin key hints; see [Key hints](fuzzy-and-shuangpin.md#Key-hints). Shape-based schemes you add yourself have no radical chart. The radical chart is supported on macOS and Windows, not yet on Linux.
+When it appears, its size and its opacity are the same settings as the double pinyin key hints; see [Key hints](fuzzy-and-shuangpin.md#Key-hints). Shape-based schemes you add yourself have no radical chart. The radical chart is supported on macOS, Windows and the Linux Wayland native edition, but not in the fcitx edition.
 
 ## Mixed input
 

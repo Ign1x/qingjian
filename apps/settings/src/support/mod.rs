@@ -1,11 +1,19 @@
 //! 只在部分平台显示的设置项：各平台的输入法读不读它，设置程序就按这张表显示或隐藏。
-//! 新加的设置项若只做了一个平台，在这里登记另外两个平台是「不适用」还是「待实现」。
+//! 新加的设置项若只做了部分平台，在这里登记其余平台是「不适用」还是「待实现」。
+//! Linux 分 fcitx 版与 Wayland 原生版两列，实际显示哪几列由 `Installed` 探出来。
 
 mod platform;
 mod status;
 
+#[cfg(not(any(target_os = "macos", windows)))]
+mod installed;
+#[cfg(not(any(target_os = "macos", windows)))]
+mod layout;
+
 pub use platform::Platform;
 pub use status::Status;
+
+use std::borrow::Cow;
 
 #[cfg(test)]
 use crate::page_id::PageId;
@@ -80,51 +88,87 @@ impl Feature {
         Self::NumpadDigit,
     ];
 
-    /// 当前平台显示这一项。
+    /// 当前装的输入法里有一个版本显示这一项。
     pub fn here(self) -> bool {
-        self.status(Platform::CURRENT) == Status::Supported
+        host()
+            .iter()
+            .any(|platform| self.status(*platform) == Status::Supported)
     }
 
     pub fn status(self, platform: Platform) -> Status {
-        let [macos, windows, linux] = self.table();
+        let [macos, windows, fcitx, wayland] = self.table();
         match platform {
             Platform::MacOs => macos,
             Platform::Windows => windows,
-            Platform::Linux => linux,
+            Platform::LinuxFcitx => fcitx,
+            Platform::LinuxWayland => wayland,
         }
     }
 
-    /// macOS、Windows、Linux 依次。
-    fn table(self) -> [Status; 3] {
+    /// macOS、Windows、Linux fcitx 版、Linux Wayland 原生版依次。
+    fn table(self) -> [Status; 4] {
         use Status::{NotApplicable as No, Planned as Todo, Supported as Yes};
         match self {
-            Self::AuxCode => [Yes, Yes, Yes],
-            Self::Schemes => [Yes, Yes, Yes],
-            Self::SwitchKeys => [Yes, Yes, Yes],
+            Self::AuxCode => [Yes, Yes, Yes, Yes],
+            Self::Schemes => [Yes, Yes, Yes, Yes],
+            Self::SwitchKeys => [Yes, Yes, Yes, Yes],
             // macOS 只做了单击 Shift，Caps Lock 仍是系统那一套
-            Self::SwitchKeyCombos => [No, Yes, Yes],
-            Self::SystemCtrlSpace => [No, Yes, No],
-            Self::DefaultEnglish => [Todo, Yes, Yes],
-            Self::RememberModePerApp => [Todo, Yes, Yes],
+            Self::SwitchKeyCombos => [No, Yes, Yes, Yes],
+            Self::SystemCtrlSpace => [No, Yes, No, No],
+            Self::DefaultEnglish => [Todo, Yes, Yes, Yes],
+            Self::RememberModePerApp => [Todo, Yes, Yes, Yes],
             // macOS 英文模式一律半角
-            Self::EnglishPunctuation => [No, Yes, Yes],
-            Self::AutoSpace => [Yes, Yes, Yes],
-            // macOS 看菜单栏图标，Linux 看 Fcitx5 的托盘
-            Self::StatusBar => [No, Yes, No],
-            Self::HorizontalGrid => [Yes, Yes, Todo],
-            Self::ExtraPageKeys => [Yes, Yes, Yes],
-            Self::HighlightKeys => [Yes, Yes, Yes],
-            Self::TogglePunctuation => [Yes, Yes, Yes],
-            Self::ToggleTraditional => [Todo, Yes, Yes],
+            Self::EnglishPunctuation => [No, Yes, Yes, Yes],
+            Self::AutoSpace => [Yes, Yes, Yes, Yes],
+            // 悬浮状态条只有 Windows；两个 Linux 版本都用框架托盘 / 自绘托盘
+            Self::StatusBar => [No, Yes, No, No],
+            // 矩阵只有自绘候选窗画得了：fcitx 面板不适用，Wayland 原生版支持
+            Self::HorizontalGrid => [Yes, Yes, No, Yes],
+            Self::ExtraPageKeys => [Yes, Yes, Yes, Yes],
+            Self::HighlightKeys => [Yes, Yes, Yes, Yes],
+            Self::TogglePunctuation => [Yes, Yes, Yes, Yes],
+            Self::ToggleTraditional => [Todo, Yes, Yes, Yes],
             // 系统的文本替换只有 macOS 有
-            Self::SystemTextReplacements => [Yes, No, No],
-            Self::ApiUsage => [Yes, Yes, Yes],
-            Self::CloudRequestControls => [Yes, Yes, Yes],
-            Self::VocabularyTranslation => [Yes, Yes, Yes],
-            Self::KeyHint => [Yes, Yes, Todo],
-            Self::ShowTones => [Yes, Yes, Yes],
-            Self::ExperimentalModels => [Yes, Yes, Yes],
-            Self::NumpadDigit => [Todo, Yes, Yes],
+            Self::SystemTextReplacements => [Yes, No, No, No],
+            Self::ApiUsage => [Yes, Yes, Yes, Yes],
+            Self::CloudRequestControls => [Yes, Yes, Yes, Yes],
+            Self::VocabularyTranslation => [Yes, Yes, Yes, Yes],
+            // 键位提示同矩阵：fcitx 不适用，Wayland 原生版支持
+            Self::KeyHint => [Yes, Yes, No, Yes],
+            Self::ShowTones => [Yes, Yes, Yes, Yes],
+            Self::ExperimentalModels => [Yes, Yes, Yes, Yes],
+            Self::NumpadDigit => [Todo, Yes, Yes, Yes],
+        }
+    }
+
+    /// Linux 两列里正好一个支持时返回那一列；都支持或都不支持（含「待实现」）时为 `None`。
+    fn linux_only(self) -> Option<Platform> {
+        let [_, _, fcitx, wayland] = self.table();
+        match (fcitx == Status::Supported, wayland == Status::Supported) {
+            (true, false) => Some(Platform::LinuxFcitx),
+            (false, true) => Some(Platform::LinuxWayland),
+            _ => None,
+        }
+    }
+
+    /// Linux 上这一项只有一个版本支持时，行说明后面该括注哪个版本。
+    pub fn linux_note(self) -> Option<&'static str> {
+        if !cfg!(target_os = "linux") {
+            return None;
+        }
+        match self.linux_only()? {
+            Platform::LinuxFcitx => Some("（仅 fcitx 版）"),
+            Platform::LinuxWayland => Some("（仅 Wayland 原生版）"),
+            // linux_only 只返回 Linux 的两列
+            _ => None,
+        }
+    }
+
+    /// 行说明：有版本括注时拼在后面，没有就原样借用。
+    pub fn describe<'a>(self, text: &'a str) -> Cow<'a, str> {
+        match self.linux_note() {
+            Some(note) => Cow::Owned(format!("{text}{note}")),
+            None => Cow::Borrowed(text),
         }
     }
 
@@ -198,6 +242,22 @@ impl Feature {
     }
 }
 
+/// 当前这一份设置程序该按哪些平台判断：macOS / Windows 只有自己一列，Linux 看装了哪个版本。
+#[cfg(target_os = "macos")]
+fn host() -> &'static [Platform] {
+    &[Platform::MacOs]
+}
+
+#[cfg(windows)]
+fn host() -> &'static [Platform] {
+    &[Platform::Windows]
+}
+
+#[cfg(not(any(target_os = "macos", windows)))]
+fn host() -> &'static [Platform] {
+    installed::Installed::current().platforms()
+}
+
 /// 某页的某行只在别的平台建出来。
 #[cfg(test)]
 pub fn elsewhere(page: PageId, row: &str) -> bool {
@@ -248,6 +308,21 @@ mod tests {
                     .iter()
                     .any(|platform| feature.status(*platform) == Status::Supported),
                 "{} 哪个平台都没有",
+                feature.label()
+            );
+        }
+    }
+
+    /// 只有一个 Linux 版本支持的项要在行说明里括注版本，其余项不许有括注。
+    #[test]
+    fn single_edition_rows_are_marked() {
+        for feature in Feature::ALL {
+            let marked = matches!(feature, Feature::HorizontalGrid | Feature::KeyHint);
+            let expected = marked.then_some(Platform::LinuxWayland);
+            assert_eq!(
+                feature.linux_only(),
+                expected,
+                "{} 的单版本括注不对",
                 feature.label()
             );
         }

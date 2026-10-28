@@ -136,8 +136,10 @@ fn key_hint(ui: &mut Ui<Message>, page: &Page) -> Result<[NodeId; 3], RenderErro
         120.0,
         false,
     )?;
+    // Linux 上只有 Wayland 原生版画得了键盘（fcitx 面板画不了）
+    let info = Feature::KeyHint.describe("候选窗口旁显示键位");
     let mode = SettingRow::new("键位提示")
-        .info("候选窗口旁显示键位")
+        .info(&info)
         .control(control)
         .build(ui, theme)?;
     let off = general.key_hint == KeyHintMode::Off;

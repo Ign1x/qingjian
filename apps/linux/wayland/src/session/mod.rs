@@ -13,6 +13,7 @@ mod output;
 mod preedit;
 mod repeat;
 mod reply;
+mod selection;
 mod server;
 mod unsent;
 

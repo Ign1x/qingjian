@@ -319,7 +319,7 @@ Fcitx5 / Fcitx4 插件写死 3、不用跟着改；一个会话只能发它握�
 `key_flushing` 是组句中快捷键先上原文再放行的那一套；`Reply` 里的展示身份、`english`、`mode`（`InputMode`，主题要非空的方案名时用 `scheme_name`）、帧上的 `translation_pending` 是 Linux Server 另附在原始 JSON 上的，按原始 JSON 取；
 `key` 报了 `selection_supported` 才会收到选区翻译的 `RequestSelection`（读成 `Reply::selection_request`，读出选区用 `selection` 回，那一键吃不吃以那次的回包为准；IBus 报 false）；
 `candidate` / `page` / `menu` / `menu_pick` 原样带画那一页的展示身份，帧换过了 Server 回 `Ignored`（读成什么都不做的缺省答复），`menu` 的回包是 `{"Menu": MenuReply}`、读成 `Reply::menu`；
-`indicator` 是托盘切中 / 英、全角标点与简繁（`ModeCommand`）；`acknowledge` 回报画出来的义项（没有回包，一次最多 128 对）；`AppSurrounding::around` 按 UTF-8 字节偏移截光标两侧各 80 字，规则同 `apps/linux/surrounding.h`；
+`indicator` 是托盘切中 / 英、全角标点与简繁（`ModeCommand`）；`acknowledge` 回报画出来的义项（没有回包，一次最多 128 对）；`AppSurrounding::around` 按 UTF-8 字节偏移截光标两侧各 80 字，`selected_text` 按同样的偏移取出选区里的文字（选区翻译用；越界、落在字符中间或超过 500 字回 `None`，不截半段），规则同 `apps/linux/surrounding.h`；
 `apps/linux/server/tests/client.rs` 拿它对着真 Server 走握手、按键、轮询、回执、冲洗、Shift 切换、右键菜单与托盘切换）与 `key`（keysym + X11 修饰键掩码 → `KeyEvent`，**与 `apps/linux/fcitx5/src/key/mapping.cpp` 必须一字不差**：
 几个前端喂同一个 Server 同一套 `[shortcut]`，不一致同一个键在不同框架下行为就不同；最容易错的是 Shift+数字：X11 给的 keysym 是 `@`，
 而译词 / 删候选快捷键按物理数字行认，要折回 `0x32`，`character` 仍留 `@`；`character` 按 keysym 查 Unicode（`xkeysym`，与 Fcitx5 的 `Key::keySymToUnicode` 同一张表，小键盘运算符也有字符），
@@ -659,6 +659,8 @@ Wayland 原生版的前端（设计见 `docs/design/linux-wayland.md`）：自�
   只在上屏或 preedit 变了时才发；发出一次之后等合成器转来应用的 `done`（最多 80 毫秒，`SETTLE`）再发下一次，中间的合并（foot 收到 serial 对不上的 `done` 整次丢掉）；转键之前先把攒着的发出去；
   抬键的回包帧内容没变就不重画，回执照发；被吃掉的键自己按 `repeat_info` 重复（下一次从上一次该到的时刻算，处理时间不拖慢节奏），删空后 Server 放行就转一次按下、把重复交还应用；
   失活后还按着的键保持 grab 等它们抬起再交还键盘（抬起经虚拟键盘转出去，虚拟键盘上才不卡）；Server 连不上不 grab、2 秒退避后重连；密码框只报能力、不 grab。
+  选区翻译（`selection.rs`）：前后文里有选区（cursor ≠ anchor）、不是敏感框时按下报 `selection_supported`；Server 回 `RequestSelection` 就用共用的 `selected_text` 从最近一次前后文里取字、`Server::selection` 回过去（取不出来回空串，Server 放行），之后的回包才按那一键落地；这一键按住不自己重复，重复与抬键都不报能读选区；译文上屏靠应用替换选区。
+  选区竞态：`Output::selection_current` 比较合成器最近一次 done 与会话快照，取字前 sync；隐私或应用主动改动文字位置使 `Method::epoch` 递增，旧选区回空串、旧上屏回包丢弃。`Field::invalidates` 共用于代次判断与会话取消，先丢弃 SETTLE 排队文字，再处理新状态；本地尚未画出翻译也照样 Reset。黑盒竞态用 `Server::before_reply` 与 `Compositor::update_before_reply` 先刷出 Wayland 更新再回 Server 答复，不用睡眠猜事件顺序。
   `link/` 一个应用一个会话：`Server::select` 定当前应用，会话第一次用到时才开（`OpenSession.app` 报 app_id；上下文是 `wayland-` 加 app_id 的 64 位 FNV-1a 哈希，
   Server 要求非空、不超过 64 字节、同连接内不重复，不知道哪个应用时是原来的 `wayland`），能力按会话记、变了才报，开着的超过 16 个就关最久没用的；
   断开重连只补开当前应用的会话、先报能力再补报焦点，别的应用用到再开。Link 的测试对着走真 socket 的假 Server（`session/tests/wire.rs`，像真 Server 一样对上下文重复、报能力前发事件直接断开）。
@@ -681,16 +683,26 @@ Wayland 原生版的前端（设计见 `docs/design/linux-wayland.md`）：自�
   测试：`tests/values.rs` 不连 D-Bus；`tests/bus.rs` 起私有 dbus-daemon（自带配置，服务目录里只有一个记下「被拉起过」的假服务）挂假 portal，缺省不跑。
 - 黑盒测试 `tests/blackbox/`：真的二进制对着测试进程里的假合成器与假 Server 跑，CI 上没有合成器也走一遍真的 Wayland 协议与 Server 协议。
   假合成器用 `wayland-server`（开发依赖）在自己的线程上听沙箱（每个测试一个临时目录，当 `XDG_RUNTIME_DIR`）里的私有 socket，
-  提供 wl_compositor / wl_shm / wl_seat / input-method-v2 / 虚拟键盘 / viewporter / 分数缩放，客户端的请求按先后记成 `Request`
+  提供 wl_compositor / wl_shm / wl_seat / input-method-v2 / 虚拟键盘 / viewporter / 分数缩放；应用那边的输入框只演它报给合成器的状态
+  （`Field`：前后文与选区、text_change_cause、content_type，密码框、敏感框、应用自己改了文字各有一个构造），每次 done 之前像 wlroots 那样整份转给输入法；客户端的请求按先后记成 `Request`
   （上屏、preedit、commit 的 serial、接管与交还键盘、虚拟键盘的键位表与键、候选窗每次 commit 的缓冲尺寸与画没画上东西、viewport 的目标尺寸）；
-  grab 一建好就像 wlroots 那样发键位表（`tests/fixtures/keymap.xkb`：美式布局里用到的十几个键，`xkbcli compile-keymap --format 1` 编过的文本）、重复设置与修饰键；
+  grab 一建好就像 wlroots 那样发键位表（`tests/fixtures/keymap.xkb`：美式布局里用到的十几个键，含演 Alt+Shift+T 用的 Alt 与 T，`xkbcli compile-keymap --format 1` 编过的文本）、重复设置与修饰键；
   虚拟键盘在键位表之前收到键或修饰键记成违规、因协议错误断开的记下错误，每个测试结束时核对一条都没有。
-  假 Server 照 `protocol::linux::client` 测试的写法（4 字节小端长度 + JSON），按下按排好的 `Answer` 答，别的照真 Server 的壳回、带展示身份。
-  被测进程的 `WAYLAND_DISPLAY`、`QINGJIAN_SOCKET`、`HOME` 与 XDG 各目录都指进沙箱（去掉继承来的 `WAYLAND_SOCKET`，碰不到真会话），
+  假 Server 照 `protocol::linux::client` 测试的写法（4 字节小端长度 + JSON），按下按排好的 `Answer` 答，别的照真 Server 的壳回、带展示身份与 `translation_pending`；
+  `Answer::select` 演选区翻译快捷键：先回 `RequestSelection`，前端回了选区照真 Server 的规矩答（空串或超过 500 字放行，不然吃掉、换上「翻译中…」），
+  `Server::translated` 之后的下一次轮询换上译文。没想到的消息不回空包：握手不合规矩、报能力之前的事件、这些测试里不该有的点选 / 翻页 / 菜单 / 托盘、
+  没要过的选区回话、认不出的消息都记成违规并断开连接（与真 Server 一样不再往下答）。
+  被测进程的 `WAYLAND_DISPLAY`、`QINGJIAN_SOCKET`、`HOME` 与 XDG 各目录都指进沙箱（去掉继承来的 `WAYLAND_SOCKET`，碰不到真会话；
+  也去掉 `DBUS_SESSION_BUS_ADDRESS`，不连宿主的会话总线读深浅，本地与 CI 一样按浅色画），
   `--stderr` 的日志收下来：就绪看「输入法就绪」那行（之后才装好 SIGTERM 的处理），测试失败时整份打出来。
-  「某个请求没发」靠同步点判断：把修饰键原样再发一次，等它经虚拟键盘转出来，前面的事件就都处理完了。
+  「某个请求没发」靠同步点判断：把修饰键原样再发一次，等它经虚拟键盘转出来，前面的事件就都处理完了；按个数等（这次 grab 上发过的修饰键全转出来才算），
+  跟着修饰键按下抬起发的那些可能还在路上，等「下一条」会早退。被测进程处理完一件事、却不向合成器与 Server 发任何东西时（一上来就是密码框），等它的 debug 日志。
+  每个测试结束（`Rig::stop`，drop 时自动调）发 SIGTERM：被测进程要以 0 退出、日志里没有 panic 与 ERROR，交还了键盘、虚拟键盘上没有还按着的键、候选窗收起，
+  与合成器、Server 的连接都断开，再核对两边都没有违规；测试自己收过退出状态的（起不来的那几个、SIGTERM 那个）只核对违规。
   libxkbcommon（CI 里 ubuntu:22.04 的裸容器没有）或 libwayland-client（与整个 workspace 一起编时是 dlopen 的）加载不了时二进制起不来，
-  测试认出那句错误、打印「跳过 …」后通过，说明绕过测试框架的输出捕获直接写 stderr，CI 日志里看得出没真跑；没有界面字体时只跳过候选窗那一个。NixOS 上的跑法见 README。
+  测试认出那句错误、打印「跳过 …」后通过，说明绕过测试框架的输出捕获直接写 stderr，CI 日志里看得出没真跑；没有界面字体时只跳过候选窗那一个。
+  设了 `QINGJIAN_BLACKBOX_REQUIRED=1`（非空、不是 0）时这几种跳过都改成失败：CI 的 Linux job（`core`）装好 `libxkbcommon0` 与 `libwayland-client0`、在 Test 一步设它，
+  缺库（界面字体用 runner 自带的，与设置程序的 UI 测试同一个）就红；ubuntu:22.04 那个裸容器不装、不设，照旧跳过。NixOS 上的跑法见 README。
 - 构建单独 `cargo build -p qingjian-linux-wayland`：和设置程序一起编时 winit 把 wayland-backend 统一成 dlopen libwayland 的那一种，NixOS 上找不到库。
   libxkbcommon 总是运行时 dlopen，NixOS 上要 `LD_LIBRARY_PATH` 或打包时补 rpath（见 README）。
 

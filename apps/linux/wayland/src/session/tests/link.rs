@@ -26,7 +26,7 @@ fn leave(link: &mut Link) {
 }
 
 fn press(link: &mut Link) {
-    link.key(to_key_event('n' as u32, 0), false, None)
+    link.key(to_key_event('n' as u32, 0), false, None, false)
         .expect("按键");
 }
 
@@ -185,7 +185,10 @@ fn reconnecting_reopens_only_the_current_session() {
     leave(&mut link);
     enter(&mut link, Some("foot"), sensitive());
     wire.hang_up();
-    assert!(link.key(to_key_event('n' as u32, 0), false, None).is_err());
+    assert!(
+        link.key(to_key_event('n' as u32, 0), false, None, false)
+            .is_err()
+    );
     assert!(!link.connected());
 
     // 会话层到点重连走的就是报焦点这一句：补报的一次，加上这次请求本身
@@ -280,5 +283,28 @@ fn a_password_field_only_reports_capabilities() {
             "0 Capabilities 2",
             "0 Focus 2 true",
         ]
+    );
+}
+
+/// 选区翻译的两步都发给当前应用的会话：按键带上 `selection_supported`，回选区带着 Server 给的请求编号与选中的文字。
+#[test]
+fn the_selection_goes_to_the_current_session() {
+    let wire = Wire::start();
+    let mut link = link(&wire);
+    enter(&mut link, Some("firefox"), Capabilities::default());
+    link.key(to_key_event('T' as u32, 0b1001), false, None, true)
+        .expect("按键");
+    link.selection(7, "苹果".to_owned()).expect("回选区");
+    let received = wire.received();
+    let events: Vec<&Value> = received
+        .iter()
+        .filter_map(|(_, message)| message.get("LinuxEvent"))
+        .filter(|event| event["session"] == 1)
+        .map(|event| &event["event"])
+        .collect();
+    assert_eq!(events[events.len() - 2]["Key"]["selection_supported"], true);
+    assert_eq!(
+        events[events.len() - 1]["Selection"],
+        serde_json::json!({"request": 7, "text": "苹果"})
     );
 }

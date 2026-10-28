@@ -2,15 +2,19 @@
 
 use qingjian_platform::protocol::Frame;
 
-use super::{Modifiers, Preedit};
+use super::{Field, Modifiers, Preedit};
 
 pub trait Output {
-    /// 焦点代次：输入框每激活、失活一次加一。
+    /// 输入目标代次：焦点、隐私能力或应用主动修改的文字位置变化时递增。
     fn epoch(&self) -> u64;
 
     /// 不阻塞地读一遍合成器新到的事件（新的排进队尾、代次随之更新）。
-    /// 等 Server 回包的那段时间里焦点可能已经换了，回包落地前先调它再比代次。
+    /// 等 Server 回包期间输入目标可能已变化，回包落地前先调它再比代次。
     fn sync(&mut self);
+
+    /// 最近一次 done 生效的选区与隐私能力仍与请求发起时相同。
+    /// sync 只把事件排队，Session 尚未处理这些事件，读取选区前须查合成器侧的最新状态。
+    fn selection_current(&self, field: &Field) -> bool;
 
     /// 接管或交还键盘。
     fn grab(&mut self, on: bool);

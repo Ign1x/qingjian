@@ -12,8 +12,8 @@ use wayland_protocols_misc::zwp_input_method_v2::client::zwp_input_method_v2::{
 
 use pending::Pending;
 
-use super::Wayland;
 use crate::session::{Field, Input, Surrounding};
+use crate::wayland::state::Wayland;
 
 /// 合成器那边关于输入框的状态。
 #[derive(Debug, Default)]
@@ -29,14 +29,23 @@ pub struct Method {
     /// 合成器认为我们激活着。
     active: bool,
 
+    /// 最近一次 done 生效的状态，用来拒绝尚在 Server 往返中的旧选区与旧位置回包。
+    field: Field,
+
     /// 收到过几次 `done`：commit 的 serial 必须等于它。
     pub dones: u32,
 
-    /// 焦点代次：激活、失活各加一。
+    /// 输入目标代次：焦点、隐私能力或应用主动修改的文字位置变化时递增。
     pub epoch: u64,
 }
 
 impl Method {
+    pub fn selection_current(&self, field: &Field) -> bool {
+        self.active
+            && self.field.capabilities() == field.capabilities()
+            && self.field.surrounding == field.surrounding
+    }
+
     /// `done`：待生效的整份生效，返回要排进队的事。又激活一次（同一个应用里换了输入框）先当失活处理。
     fn done(&mut self) -> Vec<Input> {
         self.dones = self.dones.wrapping_add(1);
@@ -48,6 +57,10 @@ impl Method {
             external_change: pending.external_change,
         };
         let mut inputs = Vec::new();
+        if pending.active.is_none() && self.active && field.invalidates(&self.field) {
+            self.epoch += 1;
+        }
+        self.field = field.clone();
         match pending.active {
             Some(true) => {
                 if self.active {
@@ -130,64 +143,4 @@ impl Dispatch<ZwpInputMethodV2, ()> for Wayland {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn done(method: &mut Method) -> Vec<Input> {
-        method.done()
-    }
-
-    /// 激活、更新、换输入框、失活：代次只在进出时变，`done` 一次计一次。
-    #[test]
-    fn transitions_follow_done() {
-        let mut method = Method::default();
-        method.pending.active = Some(true);
-        assert_eq!(done(&mut method), [Input::Activate(Field::default())]);
-        assert_eq!((method.epoch, method.dones), (1, 1));
-
-        method.pending.external_change = true;
-        assert_eq!(
-            done(&mut method),
-            [Input::Update(Field {
-                external_change: true,
-                ..Field::default()
-            })]
-        );
-        assert_eq!(method.epoch, 1, "更新不换代次");
-
-        method.pending.active = Some(true);
-        assert_eq!(
-            done(&mut method),
-            [Input::Deactivate, Input::Activate(Field::default())]
-        );
-        assert_eq!(method.epoch, 3);
-
-        method.pending.active = Some(false);
-        assert_eq!(done(&mut method), [Input::Deactivate]);
-        assert!(done(&mut method).is_empty(), "失活着不报更新");
-        assert_eq!((method.epoch, method.dones), (4, 5));
-    }
-
-    /// 内容类型一直有效到下次改；前后文与变化原因每次 `done` 之后回到初值。
-    #[test]
-    fn content_type_persists_but_surrounding_does_not() {
-        let mut method = Method {
-            password: true,
-            ..Method::default()
-        };
-        method.pending.active = Some(true);
-        method.pending.surrounding = Some(Surrounding {
-            text: "a".to_owned(),
-            cursor: 1,
-            anchor: 1,
-        });
-        let inputs = done(&mut method);
-        assert!(
-            matches!(&inputs[..], [Input::Activate(field)] if field.password && field.surrounding.is_some())
-        );
-        let inputs = done(&mut method);
-        assert!(
-            matches!(&inputs[..], [Input::Update(field)] if field.password && field.surrounding.is_none())
-        );
-    }
-}
+mod tests;

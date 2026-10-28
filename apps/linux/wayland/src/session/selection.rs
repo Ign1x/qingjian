@@ -4,7 +4,7 @@
 use qingjian_platform::protocol::linux::client::{ClientError, Reply};
 use qingjian_platform::protocol::linux::selected_text;
 
-use super::{Server, Session};
+use super::{Output, Server, Session};
 
 impl<S: Server> Session<S> {
     /// 这一键报不报 `selection_supported`：应用报的前后文里有选区（cursor 与 anchor 不等）。
@@ -21,12 +21,20 @@ impl<S: Server> Session<S> {
 
     /// Server 要选区：从最近一次前后文里取出选中的文字回过去，那一键的结果是这次的回包。
     /// 取不出来（偏移不对、超过 500 字）或是敏感输入框时回空串，Server 放行，快捷键原样交给应用。
-    pub(super) fn answer_selection(&mut self, request: u64) -> Result<Reply, ClientError> {
+    pub(super) fn answer_selection(
+        &mut self,
+        request: u64,
+        epoch: u64,
+        out: &mut impl Output,
+    ) -> Result<Reply, ClientError> {
+        // 等 Server 要选区时，合成器可能已报了新的选区或隐私能力；队列尚未交给 Session，不能只查 self.field。
+        out.sync();
+        let current = self.active && out.epoch() == epoch && out.selection_current(&self.field);
         let text = self
             .field
             .surrounding
             .as_ref()
-            .filter(|_| self.selectable())
+            .filter(|_| current && self.selectable())
             .and_then(|surrounding| {
                 selected_text(&surrounding.text, surrounding.cursor, surrounding.anchor)
             })

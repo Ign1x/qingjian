@@ -64,7 +64,7 @@ impl<S: Server> Session<S> {
             .ok()
             .and_then(|reply| reply.selection_request);
         if let Some(request) = selection {
-            result = self.answer_selection(request);
+            result = self.answer_selection(request, key.epoch, out);
         }
         match result {
             Ok(reply) => {

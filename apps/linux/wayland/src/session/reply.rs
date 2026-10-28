@@ -11,12 +11,13 @@ use super::{Output, POLL_INTERVAL, Preedit, SETTLE, Server, Session};
 const MAX_SENSES: usize = 128;
 
 impl<S: Server> Session<S> {
-    /// 落地一次回包。`epoch` 是发请求时的焦点代次：等回包期间输入框换了，上屏与候选都不落地——
+    /// 落地一次回包。`epoch` 是发请求时的输入目标代次：等回包期间焦点、隐私或文字位置变了，上屏与候选都不落地——
     /// 合成器（wlroots、Hyprland）不按 commit 的 serial 丢弃过期请求，文字会落进新的输入框。
     pub(super) fn apply(&mut self, reply: Reply, epoch: u64, out: &mut impl Output, now: Instant) {
         out.sync();
         if !self.active || out.epoch() != epoch {
-            tracing::debug!("等回包期间焦点换了，这次的上屏与候选不落地");
+            self.unsent.clear();
+            tracing::debug!("等回包期间输入目标变了，这次的上屏与候选不落地");
             return;
         }
         self.text(

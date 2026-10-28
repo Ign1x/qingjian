@@ -5,6 +5,7 @@
 
 mod answer;
 mod conversation;
+mod hook;
 mod opened;
 mod report;
 mod script;
@@ -26,6 +27,7 @@ use qingjian_platform::protocol::{CodecError, KeyEvent, read_message, write_mess
 use serde_json::Value;
 
 use conversation::Conversation;
+use hook::Hook;
 use script::Script;
 
 use super::Log;
@@ -105,6 +107,13 @@ impl Server {
     /// 选区翻译的译文到了：下一次轮询换上它（还在等译文时才换）。
     pub fn translated(&self, text: &str) {
         lock(&self.script).translation = Some(text.to_owned());
+    }
+
+    pub fn before_reply(&self, kind: &'static str, action: impl FnOnce() + Send + 'static) {
+        lock(&self.script).before_reply = Some(Hook {
+            kind,
+            action: Box::new(action),
+        });
     }
 
     /// 收到的按键，按先后：（按键，是不是抬起）。
@@ -216,7 +225,24 @@ fn serve(
             }
         };
         received.push(message.clone());
-        let reply = conversation.reply(&message, &mut lock(script));
+        let (reply, before_reply) = {
+            let mut script = lock(script);
+            let reply = conversation.reply(&message, &mut script);
+            let before_reply = if matches!(&reply, Ok(Some(_)))
+                && script
+                    .before_reply
+                    .as_ref()
+                    .is_some_and(|hook| hook.kind == kind(&message))
+            {
+                script.before_reply.take()
+            } else {
+                None
+            };
+            (reply, before_reply)
+        };
+        if let Some(before_reply) = before_reply {
+            (before_reply.action)();
+        }
         match reply {
             Ok(Some(reply)) => {
                 if write_message(&mut stream, &reply).is_err() {

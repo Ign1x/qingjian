@@ -85,6 +85,7 @@ qingjian-linux-wayland ──Unix socket，protocol::linux（与 Fcitx5 插件�
 - 翻译中应用自己改了选区或文字（鼠标点到别处，`text_change_cause` 是 other）按「组句中被应用改了」处理：报 `Reset`，Server 丢掉这次翻译，译文不会替换到别处。
 - 翻译快捷键按住不自己重复：重复的那一下 Server 会当成别的键、放弃这次翻译。重复的键与抬键都不报 `selection_supported`。
 - 选中的文字与前后文一样不进日志。
+- 读取选区前先同步合成器事件，核对输入目标代次及最新选区、隐私能力；等待 Server 时发生变化就回空串。目标代次除了焦点变化，也在隐私能力变化、应用主动改动文字位置时递增，拒绝尚在往返的旧回包。处理这些变化时先丢弃 SETTLE 中的旧上屏，再清组句；即使旧回包没显示，也向 Server 重置，防止抬键或轮询重新显示旧译文。
 
 框架面板画不了、只有自绘候选窗能画的两样——横排时 ↑ / ↓ 展开的多行矩阵、键位提示——由前端在握手时报：`LinuxHello` 的 `features`
 （`{"grid": bool, "key_hint": bool}`，客户端 `Connection::with_features`），只增不改、不升版，没报的（Fcitx5 / Fcitx4 插件、IBus 前端）按画不了算，

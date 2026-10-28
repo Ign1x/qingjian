@@ -40,7 +40,7 @@ use wayland_protocols_misc::zwp_virtual_keyboard_v1::server::zwp_virtual_keyboar
 use wayland_server::protocol::wl_compositor::WlCompositor;
 use wayland_server::protocol::wl_seat::WlSeat;
 use wayland_server::protocol::wl_shm::WlShm;
-use wayland_server::{Display, ListeningSocket};
+use wayland_server::{Display, ListeningSocket, Resource};
 
 use buffer::Buffer;
 use peer::Peer;
@@ -133,6 +133,34 @@ impl Compositor {
             self.call(move |state| state.update(field)),
             "被测进程还没拿输入法对象"
         );
+    }
+
+    /// 假 Server 回包前调用：先把输入框变化写进 Wayland socket，前端回包后的 sync 必须看得见。
+    pub fn update_before_reply(&self, field: Field) -> impl FnOnce() + Send + 'static {
+        let commands = self.commands.clone();
+        let mut waker = self.waker.try_clone().expect("复制合成器唤醒端");
+        move || {
+            let (reply, result) = mpsc::sync_channel(1);
+            commands
+                .send(Box::new(move |state| {
+                    assert!(state.update(field));
+                    state
+                        .input_method
+                        .as_ref()
+                        .expect("输入法对象")
+                        .handle()
+                        .upgrade()
+                        .expect("合成器仍在")
+                        .flush(None)
+                        .expect("把输入框变化送出去");
+                    let _ = reply.send(());
+                }))
+                .expect("合成器仍在");
+            waker.write_all(&[1]).expect("唤醒合成器");
+            result
+                .recv_timeout(crate::support::PATIENCE)
+                .expect("输入框变化已送出");
+        }
     }
 
     pub fn deactivate(&self) {

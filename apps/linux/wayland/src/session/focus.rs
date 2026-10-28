@@ -99,9 +99,16 @@ impl<S: Server> Session<S> {
         if !self.active {
             return;
         }
-        // 应用 commit 了：上一次发的它已经处理完，攒着的可以发了
+        let invalidated = field.invalidates(&self.field);
         self.settle_at = None;
-        self.flush(out, now);
+        if invalidated {
+            // 新位置不能接收旧位置排队的文字；隐私能力变化时也不能先上屏再清理。
+            self.unsent.clear();
+            self.repeat.stop();
+        } else {
+            // 应用处理完上一次更新，攒着的可以发了。
+            self.flush(out, now);
+        }
         if field.password != self.field.password {
             // 密码框点了「显示密码」这类：当成换了一个输入框
             self.deactivate(out);
@@ -117,13 +124,10 @@ impl<S: Server> Session<S> {
             self.clear(out);
             return;
         }
-        let moved = field.external_change
-            && field.surrounding != self.field.surrounding
-            && self.composing();
         self.field = field;
-        if moved && self.serving() {
-            // 组句中应用自己挪了光标或改了文字（点到别处、应用重置了输入法）：组句已经对不上，丢掉
-            tracing::debug!("组句中输入框被应用改了，丢掉组句");
+        if invalidated && self.serving() {
+            // 回包可能因目标已变化而未显示，本地没有组句也要取消 Server 上的翻译。
+            tracing::debug!("输入框被应用改了，重置组句与翻译");
             let epoch = out.epoch();
             match self.server.reset() {
                 Ok(reply) => self.apply(reply, epoch, out, now),

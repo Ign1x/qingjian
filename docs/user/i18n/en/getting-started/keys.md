@@ -94,6 +94,8 @@ All of these require AI services to be turned on first; see [AI services](../clo
 | Ask for AI candidates manually while typing pinyin | `⌃⌥J` | `Ctrl + Alt + J` | `Ctrl + Alt + J` |
 | Ask about a character | `u`, then type pinyin | Same | Same |
 
+The Wayland native edition also uses `Alt + Shift + T` to translate a selection provided by the app (up to 500 characters). Password and sensitive fields are excluded; moving the selection cancels the translation. See [Translating selected text](../cloud/question-and-translate.md#Translating-selected-text).
+
 ## Prefixes
 
 | Input | Result |

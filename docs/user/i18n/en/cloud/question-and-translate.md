@@ -40,6 +40,7 @@ The shortcut can be changed under 设置 → 快捷键 (Settings → Shortcuts);
 Limitations on Linux:
 
 - The app has to provide the selected text to the input method (through Fcitx in the fcitx edition, directly to Qingjian in the Wayland native edition). Under X11, Fcitx4 can also read the current app's system selection; native Wayland apps only support the former.
+- In the Wayland native edition, switching fields, moving the selection, or marking the field as sensitive while Qingjian is reading the selection or waiting for a translation cancels the translation so it cannot replace text elsewhere. Password and sensitive fields never provide selected text to Qingjian for translation.
 - If you upgraded from an earlier version and your configuration file still has the old translation shortcut, installing the update doesn't change it; change it to `Alt + Shift + T` yourself, see [Editing the configuration file](../advanced/config-file.md#AI-services).
 
 On Android, tap 青简翻译 (Qingjian Translate) in the system's text selection menu; see [Android: tools and AI](../platforms/android-tools.md#Translating-selected-text).

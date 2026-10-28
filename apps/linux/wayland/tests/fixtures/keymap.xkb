@@ -8,6 +8,7 @@ xkb_keycodes "qingjian-test" {
 	<AE01>               = 10;
 	<AE02>               = 11;
 	<BKSP>               = 22;
+	<AD05>               = 28;
 	<AD08>               = 31;
 	<AD09>               = 32;
 	<RTRN>               = 36;
@@ -16,6 +17,7 @@ xkb_keycodes "qingjian-test" {
 	<AC06>               = 43;
 	<LFSH>               = 50;
 	<AB06>               = 57;
+	<LALT>               = 64;
 	<SPCE>               = 65;
 };
 
@@ -48,6 +50,9 @@ xkb_compatibility "qingjian-test" {
 	interpret Control_L+AnyOfOrNone(all) {
 		action= SetMods(modifiers=Control);
 	};
+	interpret Alt_L+AnyOfOrNone(all) {
+		action= SetMods(modifiers=Mod1);
+	};
 };
 
 xkb_symbols "qingjian-test" {
@@ -57,6 +62,7 @@ xkb_symbols "qingjian-test" {
 	key <AE01>               {	[               1,          exclam ] };
 	key <AE02>               {	[               2,              at ] };
 	key <BKSP>               {	[       BackSpace ] };
+	key <AD05>               {	[               t,               T ] };
 	key <AD08>               {	[               i,               I ] };
 	key <AD09>               {	[               o,               O ] };
 	key <RTRN>               {	[          Return ] };
@@ -65,9 +71,11 @@ xkb_symbols "qingjian-test" {
 	key <AC06>               {	[               h,               H ] };
 	key <LFSH>               {	[         Shift_L ] };
 	key <AB06>               {	[               n,               N ] };
+	key <LALT>               {	[           Alt_L ] };
 	key <SPCE>               {	[           space ] };
 	modifier_map Shift { <LFSH> };
 	modifier_map Control { <LCTL> };
+	modifier_map Mod1 { <LALT> };
 };
 
 };

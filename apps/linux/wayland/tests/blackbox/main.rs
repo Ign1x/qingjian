@@ -6,6 +6,9 @@
 
 mod forwarding;
 mod popup;
+mod privacy;
+mod selection;
 mod startup;
 mod support;
+mod surrounding;
 mod typing;

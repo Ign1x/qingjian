@@ -25,7 +25,9 @@ impl<S: Server> Session<S> {
         if let Err(error) = self.server.capabilities(self.field.capabilities()) {
             tracing::warn!(%error, "报输入框能力失败");
         }
-        if !self.field.password {
+        if self.field.password {
+            tracing::debug!("密码框：不报焦点、不接管键盘，键直接归应用");
+        } else {
             self.connect(out);
         }
     }

@@ -168,12 +168,16 @@ Server 对这样的会话照旧：↑ / ↓ 只移高亮、帧上不带键盘。
   候选右键菜单（`Renderer::render_menu` 画在同一个 popup 里，与 macOS / Windows 一样自绘）、中 / 英提示（`Renderer::render_status` 在 popup 里亮一秒）与主题里的模式、
   托盘（StatusNotifierItem + DBusMenu，原生菜单）、选区翻译（已做，见协议对照）；Server 补齐设置程序里 Linux 标「待实现」的输入功能（辅码、形码、自动加空格、翻页与高亮键、
   全半角与简繁快捷键、小键盘数字、按应用记中英、横排矩阵、拼音行声调、键位提示、实验模型）。
+  黑盒测试补齐（已做，见「验证」）：content_type（密码框、敏感框）、前后文与 text_change_cause、选区翻译，假 Server 对没想到的消息报错，测完查正常退出。
 - **之后**：按 `text_input_rectangle` 判断翻没翻、调排布；设置程序支持表区分两个版本；CI 跑黑盒测试（要 libxkbcommon 与 libwayland-client）。
 
 ## 验证
 
 能自动跑的都是纯逻辑（按键表、抬键与重复、`content_type` 映射、偏移换算与前后文截取、选区取字与选区翻译的往返、4 KB 切块、像素换算与补边、回包身份判断、活动窗口的跟踪、按应用分会话、外观偏好的取值与要不要重画），
 不要合成器，CI 照跑；按应用分会话另有一组对着走真 socket 的假 Server 测连接上的消息。
+黑盒测试（`tests/blackbox`）让真二进制对着假合成器与假 Server 走一遍真的两套协议：起不来的两种退出、SIGTERM、打字上屏、转发、失活时还按着的键、候选窗贴图与缩放，
+密码框（不开会话、不接管键盘、里面敲的键不到 Server、「显示密码」后接回来）、敏感框（不带前后文、不报能读选区）、前后文、组句中应用改了文字、选区翻译的一整轮；
+断言按 SETTLE 的节奏走（要连着发的更新先让假合成器转一次应用的 done），每个测试结束时查被测进程正常退出、没有残留。
 portal 的 D-Bus 往来另有对着私有 dbus-daemon 上假 portal 的测试（`ReadOne`、第 1 版的 `Read`、`SettingChanged`、不按需拉起、portal 后上线），
 要 dbus-daemon，缺省不跑：`cargo test -p qingjian-linux-wayland -- --ignored portal`。
 只能真会话验的，在 Hyprland 上逐个应用过：foot / kitty、GTK4、Firefox、Chromium（`--enable-wayland-ime`）、Qt6——

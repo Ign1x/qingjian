@@ -682,14 +682,21 @@ Wayland 原生版的前端（设计见 `docs/design/linux-wayland.md`）：自�
   测试：`tests/values.rs` 不连 D-Bus；`tests/bus.rs` 起私有 dbus-daemon（自带配置，服务目录里只有一个记下「被拉起过」的假服务）挂假 portal，缺省不跑。
 - 黑盒测试 `tests/blackbox/`：真的二进制对着测试进程里的假合成器与假 Server 跑，CI 上没有合成器也走一遍真的 Wayland 协议与 Server 协议。
   假合成器用 `wayland-server`（开发依赖）在自己的线程上听沙箱（每个测试一个临时目录，当 `XDG_RUNTIME_DIR`）里的私有 socket，
-  提供 wl_compositor / wl_shm / wl_seat / input-method-v2 / 虚拟键盘 / viewporter / 分数缩放，客户端的请求按先后记成 `Request`
+  提供 wl_compositor / wl_shm / wl_seat / input-method-v2 / 虚拟键盘 / viewporter / 分数缩放；应用那边的输入框只演它报给合成器的状态
+  （`Field`：前后文与选区、text_change_cause、content_type，密码框、敏感框、应用自己改了文字各有一个构造），每次 done 之前像 wlroots 那样整份转给输入法；客户端的请求按先后记成 `Request`
   （上屏、preedit、commit 的 serial、接管与交还键盘、虚拟键盘的键位表与键、候选窗每次 commit 的缓冲尺寸与画没画上东西、viewport 的目标尺寸）；
-  grab 一建好就像 wlroots 那样发键位表（`tests/fixtures/keymap.xkb`：美式布局里用到的十几个键，`xkbcli compile-keymap --format 1` 编过的文本）、重复设置与修饰键；
+  grab 一建好就像 wlroots 那样发键位表（`tests/fixtures/keymap.xkb`：美式布局里用到的十几个键，含演 Alt+Shift+T 用的 Alt 与 T，`xkbcli compile-keymap --format 1` 编过的文本）、重复设置与修饰键；
   虚拟键盘在键位表之前收到键或修饰键记成违规、因协议错误断开的记下错误，每个测试结束时核对一条都没有。
-  假 Server 照 `protocol::linux::client` 测试的写法（4 字节小端长度 + JSON），按下按排好的 `Answer` 答，别的照真 Server 的壳回、带展示身份。
+  假 Server 照 `protocol::linux::client` 测试的写法（4 字节小端长度 + JSON），按下按排好的 `Answer` 答，别的照真 Server 的壳回、带展示身份与 `translation_pending`；
+  `Answer::select` 演选区翻译快捷键：先回 `RequestSelection`，前端回了选区照真 Server 的规矩答（空串或超过 500 字放行，不然吃掉、换上「翻译中…」），
+  `Server::translated` 之后的下一次轮询换上译文。没想到的消息不回空包：握手不合规矩、报能力之前的事件、这些测试里不该有的点选 / 翻页 / 菜单 / 托盘、
+  没要过的选区回话、认不出的消息都记成违规并断开连接（与真 Server 一样不再往下答）。
   被测进程的 `WAYLAND_DISPLAY`、`QINGJIAN_SOCKET`、`HOME` 与 XDG 各目录都指进沙箱（去掉继承来的 `WAYLAND_SOCKET`，碰不到真会话），
   `--stderr` 的日志收下来：就绪看「输入法就绪」那行（之后才装好 SIGTERM 的处理），测试失败时整份打出来。
-  「某个请求没发」靠同步点判断：把修饰键原样再发一次，等它经虚拟键盘转出来，前面的事件就都处理完了。
+  「某个请求没发」靠同步点判断：把修饰键原样再发一次，等它经虚拟键盘转出来，前面的事件就都处理完了；按个数等（这次 grab 上发过的修饰键全转出来才算），
+  跟着修饰键按下抬起发的那些可能还在路上，等「下一条」会早退。被测进程处理完一件事、却不向合成器与 Server 发任何东西时（一上来就是密码框），等它的 debug 日志。
+  每个测试结束（`Rig::stop`，drop 时自动调）发 SIGTERM：被测进程要以 0 退出、日志里没有 panic 与 ERROR，交还了键盘、虚拟键盘上没有还按着的键、候选窗收起，
+  与合成器、Server 的连接都断开，再核对两边都没有违规；测试自己收过退出状态的（起不来的那几个、SIGTERM 那个）只核对违规。
   libxkbcommon（CI 里 ubuntu:22.04 的裸容器没有）或 libwayland-client（与整个 workspace 一起编时是 dlopen 的）加载不了时二进制起不来，
   测试认出那句错误、打印「跳过 …」后通过，说明绕过测试框架的输出捕获直接写 stderr，CI 日志里看得出没真跑；没有界面字体时只跳过候选窗那一个。NixOS 上的跑法见 README。
 - 构建单独 `cargo build -p qingjian-linux-wayland`：和设置程序一起编时 winit 把 wayland-backend 统一成 dlopen libwayland 的那一种，NixOS 上找不到库。

@@ -11,6 +11,10 @@ pub struct Answer {
 
     /// 换上的帧；`None` 是帧不变。
     pub frame: Option<Frame>,
+
+    /// 要选区（选区翻译快捷键）：回 `RequestSelection`，带这个请求编号；这一键的结果等前端回了选区再定，
+    /// 照真 Server 的规矩：回的是空串（或超过 500 字）就放行，不然吃掉、开始翻译。
+    pub select: Option<u64>,
 }
 
 impl Answer {
@@ -20,6 +24,7 @@ impl Answer {
             outcome: KeyOutcome::Consumed,
             commit: None,
             frame: Some(composing(preedit, candidates)),
+            select: None,
         }
     }
 
@@ -29,6 +34,7 @@ impl Answer {
             outcome: KeyOutcome::Consumed,
             commit: Some(text.to_owned()),
             frame: Some(Frame::default()),
+            select: None,
         }
     }
 
@@ -38,6 +44,15 @@ impl Answer {
             outcome: KeyOutcome::Passthrough,
             commit: None,
             frame: None,
+            select: None,
+        }
+    }
+
+    /// 这一键是选区翻译快捷键：先要选区。
+    pub fn select(request: u64) -> Self {
+        Self {
+            select: Some(request),
+            ..Self::passthrough()
         }
     }
 }
@@ -50,20 +65,33 @@ fn composing(preedit: &str, candidates: &[&str]) -> Frame {
             kind: PreeditKind::Typed,
         }],
         cursor: preedit.chars().count(),
-        candidates: CandidateList {
-            items: candidates
-                .iter()
-                .map(|text| Candidate {
-                    text: (*text).to_owned(),
-                    kind: CandidateKind::Chinese,
-                    syllables: Vec::new(),
-                    reading: None,
-                    translation: None,
-                    aux_code: None,
-                })
-                .collect(),
-        },
+        candidates: list(candidates, CandidateKind::Chinese),
         page_count: 1,
         ..Frame::default()
+    }
+}
+
+/// 选区翻译的一帧，与真 Server 的 `translation_frame` 一样：没有拼音，只有一条云端候选（「翻译中…」或译文）。
+pub fn translation(text: &str) -> Frame {
+    Frame {
+        candidates: list(&[text], CandidateKind::Cloud),
+        page_count: 1,
+        ..Frame::default()
+    }
+}
+
+fn list(candidates: &[&str], kind: CandidateKind) -> CandidateList {
+    CandidateList {
+        items: candidates
+            .iter()
+            .map(|text| Candidate {
+                text: (*text).to_owned(),
+                kind,
+                syllables: Vec::new(),
+                reading: None,
+                translation: None,
+                aux_code: None,
+            })
+            .collect(),
     }
 }

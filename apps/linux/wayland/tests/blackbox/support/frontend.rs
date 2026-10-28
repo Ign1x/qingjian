@@ -35,6 +35,9 @@ pub struct Frontend {
 
     /// 读 stderr 的线程；进程退出、管道关上它就结束。
     reader: Option<JoinHandle<()>>,
+
+    /// 测试已经收过它的退出状态（[`Self::exit`]，或起不来时 [`Self::ready`]），收尾时不再查。
+    checked: bool,
 }
 
 impl Frontend {
@@ -71,6 +74,7 @@ impl Frontend {
             child,
             lines,
             reader: Some(reader),
+            checked: false,
         }
     }
 
@@ -88,6 +92,7 @@ impl Frontend {
             if let Some(status) = self.child.try_wait().expect("查被测进程的状态") {
                 let stderr = self.drain();
                 if let Some(reason) = missing_library(&stderr) {
+                    self.checked = true;
                     skip(reason);
                     return false;
                 }
@@ -116,6 +121,7 @@ impl Frontend {
             thread::sleep(Duration::from_millis(10));
         };
         let stderr = self.drain();
+        self.checked = true;
         if let Some(reason) = missing_library(&stderr) {
             skip(reason);
             return None;
@@ -124,6 +130,19 @@ impl Frontend {
             code: status.code(),
             stderr,
         })
+    }
+
+    /// 收尾：测试没收过退出状态的话发 SIGTERM、等它退出，交出退出状态；收过的是 `None`。
+    /// 测试中途它自己退了（崩了、被合成器断开）是错。
+    pub fn finish(&mut self) -> Option<Exit> {
+        if self.checked {
+            return None;
+        }
+        if let Some(status) = self.child.try_wait().expect("查被测进程的状态") {
+            panic!("被测进程在测试中途退出了（{status}）：\n{}", self.drain());
+        }
+        self.terminate();
+        self.exit()
     }
 
     /// 发 SIGTERM（systemd 停服务、会话退出时就是它）。
@@ -140,6 +159,16 @@ impl Frontend {
             .entries()
             .iter()
             .any(|line| line.contains(PAINTER))
+    }
+
+    /// 等日志里出现含 `needle` 的一行：被测进程处理完某件事、又不向合成器或 Server 发任何东西时，靠它知道处理过了。
+    pub fn wait_log(&self, what: &str, needle: &str) {
+        self.lines.wait(0, what, |line| line.contains(needle));
+    }
+
+    /// 到现在为止的日志。
+    pub fn log(&self) -> Vec<String> {
+        self.lines.entries()
     }
 
     fn stderr(&self) -> String {

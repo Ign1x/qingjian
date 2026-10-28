@@ -74,7 +74,8 @@ cargo test -p qingjian-linux-wayland
 与 Server 的连接（一个应用一个会话、关最久没用的、重连补开）对着走真 socket 的假 Server 测。
 
 `tests/blackbox/` 是黑盒测试：真的二进制连测试进程里的假合成器（wayland-server）与假 Server，过一遍起不来的两种退出、SIGTERM、
-接管键盘、行内拼音与上屏、放行的键经虚拟键盘转出、失活时还按着的键、候选窗贴图与分数缩放。怎么搭的见 crate-notes。
+接管键盘、行内拼音与上屏、放行的键经虚拟键盘转出、失活时还按着的键、候选窗贴图与分数缩放、密码框与敏感框、前后文、组句中应用改了文字、选区翻译的一整轮；
+每个测试结束时查被测进程以 0 退出、交还了键盘、没留下按着的键，假 Server 收到没想到的消息也算失败。怎么搭的见 crate-notes。
 二进制运行时 dlopen libxkbcommon，加载不了时这些测试打印「跳过 …」后通过（CI 的裸容器就是这样）。NixOS 上：
 
 ```bash

@@ -1,11 +1,13 @@
 //! 组句的展示状态：缓冲变化时重查候选并重建 [`Composed`]，云端词异步并入，高亮 / 翻页，按状态生成给 DLL 的帧。
 
+mod grid;
 mod state;
 
 use qingjian_core::candidate::arrows::Focus;
 use qingjian_core::{
     Candidate, CandidateKind, CandidateLayout, CandidateList, CloudWord, Query, SurroundingText,
 };
+use qingjian_core::{Cell, Grid};
 use qingjian_platform::protocol::{Frame, KeyEvent, KeyModifiers, PreeditKind, PreeditSegment};
 
 pub(super) use self::state::Composed;
@@ -16,6 +18,8 @@ impl Router {
     pub(super) fn recompose(&mut self, surrounding: Option<SurroundingText>) {
         self.highlight = 0;
         self.navigated = false;
+        // 新一轮查询收回单行（与 macOS 壳、Windows Server 一致）
+        self.grid = None;
         self.sentence = None;
         if self.engine.composition().is_empty() {
             self.focus = Focus::default();
@@ -175,9 +179,15 @@ impl Router {
         }
     }
 
-    /// 整页翻 `step`，高亮落到目标页第一个候选。
+    /// 整页翻 `step`，高亮落到目标页第一个候选；矩阵展开着时一次翻一屏。
     pub(super) fn page(&mut self, step: isize) {
         if step == 0 {
+            return;
+        }
+        if self.grid.is_some() {
+            if self.move_screens(step) {
+                self.engine.note_page_turn();
+            }
             return;
         }
         let count = self.candidate_count();
@@ -281,20 +291,23 @@ impl Router {
                     marked_parts(&followed)
                 };
                 let page = highlight / page_size;
-                let items: Vec<Candidate> = layout
-                    .page(page)
-                    .into_iter()
-                    // 空文本只用于显示占位，不传给 Engine 上屏；保持数字标签与固定位置一致。
-                    .map(|cell| {
-                        cell.candidate().cloned().unwrap_or_else(|| Candidate {
-                            text: String::new(),
-                            kind: CandidateKind::Chinese,
-                            syllables: Vec::new(),
-                            reading: None,
-                            translation: None,
-                            aux_code: None,
-                        })
+                // 横排展开成矩阵时画视口里的几行（行尾补空位），序号由前端只标在高亮所在那一行；单行时只画当前页。
+                // 空文本只用于显示占位，不传给 Engine 上屏；保持数字标签与固定位置一致。
+                let viewport = self.grid.as_ref().map(|grid| grid.rows(layout));
+                let columns = if viewport.is_some() { page_size } else { 0 };
+                let first = viewport
+                    .as_ref()
+                    .map_or(page * page_size, |rows| rows.start * page_size);
+                let items: Vec<Candidate> = viewport
+                    .unwrap_or(page..page + 1)
+                    .flat_map(|row| {
+                        let mut cells = layout.page(row);
+                        if columns > 0 {
+                            cells.resize(page_size, Cell::Empty);
+                        }
+                        cells
                     })
+                    .map(|cell| cell.candidate().cloned().unwrap_or_else(empty_cell))
                     .collect();
                 let mut candidates = CandidateList { items };
                 self.engine.annotate(&mut candidates);
@@ -308,13 +321,17 @@ impl Router {
                     highlight: if self.config.two_area_arrows() && self.focus == Focus::Pinyin {
                         usize::MAX
                     } else {
-                        highlight - page * page_size
+                        highlight - first
                     },
                     page,
                     page_count: layout.pages().max(1),
                     layout: self.config.layout,
-                    columns: 0,
-                    column_ems: Vec::new(),
+                    columns,
+                    column_ems: if columns > 0 {
+                        Grid::column_ems(layout)
+                    } else {
+                        Vec::new()
+                    },
                     appearance: self.config.appearance,
                     aux_code_show: false,
                     translation_pos: self.config.translation_pos,
@@ -324,6 +341,18 @@ impl Router {
                 }
             }
         }
+    }
+}
+
+/// 帧里空位的占位候选（云端词还没到、矩阵行尾不满）：文本为空，前端按空格子画。
+fn empty_cell() -> Candidate {
+    Candidate {
+        text: String::new(),
+        kind: CandidateKind::Chinese,
+        syllables: Vec::new(),
+        reading: None,
+        translation: None,
+        aux_code: None,
     }
 }
 

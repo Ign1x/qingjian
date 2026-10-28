@@ -110,6 +110,10 @@ impl Router {
                 Effect::Changed(None)
             }
             codes::ESCAPE => {
+                // 横排矩阵展开着时第一下 Esc 只收回单行（高亮留在原处）
+                if self.collapse_grid() {
+                    return Effect::Navigated;
+                }
                 self.engine.clear();
                 Effect::Changed(None)
             }

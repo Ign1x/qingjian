@@ -30,6 +30,7 @@ impl Router {
             previous.highlight = self.highlight;
             previous.navigated = self.navigated;
             previous.focus = self.focus;
+            previous.grid = self.grid.take();
             previous.display_frame = None;
             previous.last_frame = None;
             previous.switch_tap = None;
@@ -42,6 +43,7 @@ impl Router {
         self.highlight = next.highlight;
         self.navigated = next.navigated;
         self.focus = next.focus;
+        self.grid = next.grid.take();
         self.engine.set_application(next.app.clone());
         self.engine.set_private(next.private);
         self.notice = None;
@@ -73,6 +75,7 @@ impl Router {
         info.highlight = 0;
         info.navigated = false;
         info.focus = Focus::default();
+        info.grid = None;
         // 真正的隐私能力变化是输入边界。仅在切换上下文时恢复 private 不走这里，
         // 因此普通与私密会话来回切换不会丢掉各自尚未上屏的组句。
         if self.focused == Some(session) {
@@ -85,6 +88,7 @@ impl Router {
             self.highlight = 0;
             self.navigated = false;
             self.focus = Focus::default();
+            self.grid = None;
         } else {
             info.engine.discard_input();
         }
@@ -101,6 +105,7 @@ impl Router {
         self.highlight = 0;
         self.navigated = false;
         self.focus = Focus::default();
+        self.grid = None;
     }
     pub(super) fn close_session(&mut self, session: SessionId) {
         if !self.sessions.contains_key(&session) {

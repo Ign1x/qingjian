@@ -82,6 +82,7 @@ qingjian-linux-wayland ──Unix socket，protocol::linux（与 Fcitx5 插件�
 框架面板画不了、只有自绘候选窗能画的两样——横排时 ↑ / ↓ 展开的多行矩阵、键位提示——由前端在握手时报：`LinuxHello` 的 `features`
 （`{"grid": bool, "key_hint": bool}`，客户端 `Connection::with_features`），只增不改、不升版，没报的（Fcitx5 / Fcitx4 插件、IBus 前端）按画不了算，
 Server 对这样的会话照旧：↑ / ↓ 只移高亮、帧上不带键盘。报了却解不出当协议错误断开。
+报了 `grid` 的会话在 `[general] horizontal_grid` 开着、横排时由 Server 出矩阵帧（`columns` / `column_ems`，按键规则同 Windows），这时 `Candidate` / `Menu` / `MenuPick` 的 `index` 是帧里视口的第几格（行优先），不是当前页的第几个。
 
 ## 按键
 

@@ -81,6 +81,9 @@ pub struct RouterConfig {
 
     /// 候选高亮由哪对方向键移动（`[shortcut] highlight_keys`）。
     pub highlight_keys: HighlightKeys,
+
+    /// 横排时上 / 下键把单行展开成多行矩阵（`[general] horizontal_grid`）；还要前端画得了，见 `Router::grid_keys`。
+    pub horizontal_grid: bool,
 }
 
 impl RouterConfig {
@@ -106,6 +109,11 @@ impl RouterConfig {
     /// 方向键分拼音行与候选两区（Core 的 `arrows::route`）：横排，而且高亮移动键选了 `←` / `→`。
     pub fn two_area_arrows(&self) -> bool {
         self.layout == LayoutMode::Horizontal && self.highlight_keys == HighlightKeys::LeftRight
+    }
+
+    /// 横排矩阵这套按键在配置上开着：开关开着（`[general] horizontal_grid`）而且排布是横排。
+    pub fn grid_keys(&self) -> bool {
+        self.horizontal_grid && self.layout == LayoutMode::Horizontal
     }
 }
 
@@ -143,6 +151,7 @@ impl From<&Config> for RouterConfig {
             translation_pos: config.general.translation_pos,
             extra_page_keys: config.shortcut.extra_page_keys,
             highlight_keys: config.shortcut.highlight_keys,
+            horizontal_grid: config.general.horizontal_grid,
         }
     }
 }

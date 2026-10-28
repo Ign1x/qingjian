@@ -100,15 +100,20 @@ fn key_settings_apply_on_next_tick() {
     let mut router = watched(&dir, "");
     assert_eq!(router.config.extra_page_keys.step(','), None);
     assert_eq!(router.config.highlight_keys, HighlightKeys::UpDown);
+    assert!(!router.config.horizontal_grid);
 
     write_config(
         &dir.join("config.toml"),
-        "[shortcut]\nextra_page_keys = [\",.\"]\nhighlight_keys = \"leftright\"\n",
+        concat!(
+            "[general]\nhorizontal_grid = true\n",
+            "[shortcut]\nextra_page_keys = [\",.\"]\nhighlight_keys = \"leftright\"\n",
+        ),
         200,
     );
     poll(&mut router);
     assert_eq!(router.config.extra_page_keys.step(','), Some(-1));
     assert_eq!(router.config.highlight_keys, HighlightKeys::LeftRight);
+    assert!(router.config.horizontal_grid);
     std::fs::remove_dir_all(&dir).unwrap();
 }
 

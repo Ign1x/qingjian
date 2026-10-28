@@ -64,14 +64,16 @@ impl Router {
         true
     }
 
-    /// 当前页第 `index` 格的候选（布局里的原样，不带译文）。
+    /// 这一帧第 `index` 格的候选（布局里的原样，不带译文）；横排矩阵展开着时是视口里的第几格。
     fn menu_candidate(&self, index: usize) -> Option<Candidate> {
-        let page_size = self.config.page_size;
-        if self.translation.is_some() || self.engine.composition().is_empty() || index >= page_size
+        let cells = self.frame_cells();
+        if self.translation.is_some()
+            || self.engine.composition().is_empty()
+            || index >= cells.len()
         {
             return None;
         }
-        self.layout_candidate(self.highlight / page_size * page_size + index)
+        self.layout_candidate(cells.start + index)
     }
 
     /// 配置文件里的自定义短语；没开热加载（测试）时为空表。

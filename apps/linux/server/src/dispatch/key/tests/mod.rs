@@ -1,6 +1,7 @@
 //! 本地输入行为：受控词库与固定候选页。
 mod arrows;
 mod behavior;
+mod grid;
 mod paging;
 mod schemes;
 mod support;

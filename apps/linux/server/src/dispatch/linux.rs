@@ -193,7 +193,9 @@ impl Router {
                 }
             }
             LinuxEvent::Candidate { identity, index } => {
-                if self.valid_panel_event(session, &identity) && index < self.config.page_size {
+                // 格号按这一帧算：横排矩阵展开着时是视口里的第几格
+                let cells = self.frame_cells();
+                if self.valid_panel_event(session, &identity) && index < cells.len() {
                     if self.translation.is_some() {
                         if index == 0 {
                             commit = self.translation.as_ref().and_then(|job| job.result.clone());
@@ -203,8 +205,7 @@ impl Router {
                         }
                         outcome = KeyOutcome::Consumed;
                     } else {
-                        let offset = self.highlight / self.config.page_size * self.config.page_size;
-                        commit = self.commit_index(offset + index);
+                        commit = self.commit_index(cells.start + index);
                         if commit.is_some() {
                             self.recompose(None);
                             outcome = KeyOutcome::Consumed;
@@ -310,6 +311,7 @@ impl Router {
         info.highlight = 0;
         info.navigated = false;
         info.focus = Focus::default();
+        info.grid = None;
         if let Some(identity) = &mut info.display_identity {
             self.display_revision += 1;
             identity.revision = self.display_revision;
@@ -323,6 +325,7 @@ impl Router {
             self.highlight = 0;
             self.navigated = false;
             self.focus = Focus::default();
+            self.grid = None;
         } else {
             info.engine.discard_input();
         }

@@ -91,5 +91,4 @@ The Linux column in the tables above is the fcitx edition. The Wayland native ed
 | Mode indicator (pop-up or tray) | Shown by Fcitx / IBus | — |
 | Candidates in English mode | Per the app list | Only after unticking 只在写字的应用里给 (Only in writing apps) |
 | Picking candidates with the mouse | ✓ | — |
-| Translating selected text | ✓ | — |
 | X11 apps | ✓ | — |

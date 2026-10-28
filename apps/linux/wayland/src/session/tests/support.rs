@@ -23,7 +23,10 @@ pub enum Call {
         code: u32,
         release: bool,
         context: bool,
+        selection: bool,
     },
+    /// 回了选区：请求编号与选中的文字。
+    Selection(u64, String),
     Poll,
     Acknowledge(u64),
 }
@@ -55,6 +58,12 @@ pub struct FakeServer {
     /// Server 挂了：所有请求都失败。
     pub down: bool,
 
+    /// 下一个报了能读选区的按下回「要选区」（选区翻译快捷键），带这个请求编号；那一键的答复等回了选区再按 `presses` 给。
+    pub selection_request: Option<u64>,
+
+    /// 回包上的 `translation_pending`：选区翻译在等译文。
+    pub pending: bool,
+
     /// 选着的应用。
     app: Option<String>,
 
@@ -81,7 +90,7 @@ impl FakeServer {
             frame: self.frame.clone(),
             identity: Some(identity(self.revision)),
             english,
-            translation_pending: false,
+            translation_pending: self.pending,
             ..Reply::default()
         }
     }
@@ -142,19 +151,39 @@ impl Server for FakeServer {
         event: KeyEvent,
         release: bool,
         surrounding: Option<AppSurrounding>,
+        selection_supported: bool,
     ) -> Result<Reply, ClientError> {
         self.calls.push(Call::Key {
             code: event.virtual_key,
             release,
             context: surrounding.is_some(),
+            selection: selection_supported,
         });
         self.check()?;
+        if selection_supported && let Some(request) = self.selection_request.take() {
+            return Ok(Reply {
+                selection_request: Some(request),
+                ..Reply::default()
+            });
+        }
         let script = if release {
             &mut self.releases
         } else {
             &mut self.presses
         };
         match script.pop_front() {
+            Some(answer) => {
+                self.frame = answer.frame;
+                Ok(self.reply(answer.outcome, answer.commit, answer.english))
+            }
+            None => Ok(self.reply(KeyOutcome::Passthrough, None, None)),
+        }
+    }
+
+    fn selection(&mut self, request: u64, text: String) -> Result<Reply, ClientError> {
+        self.calls.push(Call::Selection(request, text));
+        self.check()?;
+        match self.presses.pop_front() {
             Some(answer) => {
                 self.frame = answer.frame;
                 Ok(self.reply(answer.outcome, answer.commit, answer.english))

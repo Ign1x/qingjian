@@ -27,12 +27,18 @@ pub trait Server {
     fn reset(&mut self) -> Result<Reply, ClientError>;
 
     /// 一次按键。组句中放行带 Ctrl / Alt / Super 的键时先把原文上屏（回包里带着），见 `Connection::key_flushing`。
+    /// `selection_supported` 说这一键时应用里有能读的选区：报了的话选区翻译快捷键的回包是 [`Reply::selection_request`]，
+    /// 要用 [`Self::selection`] 回了选区才有这一键的结果。
     fn key(
         &mut self,
         event: KeyEvent,
         release: bool,
         surrounding: Option<AppSurrounding>,
+        selection_supported: bool,
     ) -> Result<Reply, ClientError>;
+
+    /// 回 Server 的选区请求：`text` 是应用里选中的文字，读不了给空串。回包是触发它的那一键的结果。
+    fn selection(&mut self, request: u64, text: String) -> Result<Reply, ClientError>;
 
     /// 组句期间取最新的帧。
     fn poll(&mut self) -> Result<Reply, ClientError>;

@@ -196,10 +196,15 @@ impl Server for Link {
         event: KeyEvent,
         release: bool,
         surrounding: Option<AppSurrounding>,
+        selection_supported: bool,
     ) -> Result<Reply, ClientError> {
         self.with(|connection, session| {
-            connection.key_flushing(session, event, release, surrounding, false)
+            connection.key_flushing(session, event, release, surrounding, selection_supported)
         })
+    }
+
+    fn selection(&mut self, request: u64, text: String) -> Result<Reply, ClientError> {
+        self.with(|connection, session| connection.selection(session, request, text))
     }
 
     fn poll(&mut self) -> Result<Reply, ClientError> {

@@ -210,7 +210,7 @@ apps/linux/scripts/install.sh --frontend wayland --enable-service
 - 英文模式暂时认不出当前应用：取消「设置 → 中英文」的「只在写字的应用里给」后才给英文候选。
 - 打字中切换到别的窗口时，没上屏的拼音会丢掉（fcitx 版会原样上屏）。
 - 按住 `Shift` 用鼠标选中文字后松开 `Shift`，会切换中英。
-- 暂不支持：鼠标点选候选、候选右键菜单、翻译选中的文字，以及上文 fcitx 版暂不支持的各项。
+- 暂不支持：鼠标点选候选、候选右键菜单，以及上文 fcitx 版暂不支持的各项。
 - 执行 `systemctl --user status qingjian-wayland` 可查看运行状态与出错原因；停止工作时执行 `systemctl --user restart qingjian-wayland` 重新启动。
 
 ## 更新与卸载

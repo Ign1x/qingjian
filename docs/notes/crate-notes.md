@@ -659,6 +659,7 @@ Wayland 原生版的前端（设计见 `docs/design/linux-wayland.md`）：自�
   只在上屏或 preedit 变了时才发；发出一次之后等合成器转来应用的 `done`（最多 80 毫秒，`SETTLE`）再发下一次，中间的合并（foot 收到 serial 对不上的 `done` 整次丢掉）；转键之前先把攒着的发出去；
   抬键的回包帧内容没变就不重画，回执照发；被吃掉的键自己按 `repeat_info` 重复（下一次从上一次该到的时刻算，处理时间不拖慢节奏），删空后 Server 放行就转一次按下、把重复交还应用；
   失活后还按着的键保持 grab 等它们抬起再交还键盘（抬起经虚拟键盘转出去，虚拟键盘上才不卡）；Server 连不上不 grab、2 秒退避后重连；密码框只报能力、不 grab。
+  选区翻译（`selection.rs`）：前后文里有选区（cursor ≠ anchor）、不是敏感框时按下报 `selection_supported`；Server 回 `RequestSelection` 就用共用的 `selected_text` 从最近一次前后文里取字、`Server::selection` 回过去（取不出来回空串，Server 放行），之后的回包才按那一键落地；这一键按住不自己重复，重复与抬键都不报能读选区；译文上屏靠应用替换选区。
   `link/` 一个应用一个会话：`Server::select` 定当前应用，会话第一次用到时才开（`OpenSession.app` 报 app_id；上下文是 `wayland-` 加 app_id 的 64 位 FNV-1a 哈希，
   Server 要求非空、不超过 64 字节、同连接内不重复，不知道哪个应用时是原来的 `wayland`），能力按会话记、变了才报，开着的超过 16 个就关最久没用的；
   断开重连只补开当前应用的会话、先报能力再补报焦点，别的应用用到再开。Link 的测试对着走真 socket 的假 Server（`session/tests/wire.rs`，像真 Server 一样对上下文重复、报能力前发事件直接断开）。

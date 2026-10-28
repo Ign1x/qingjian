@@ -70,7 +70,7 @@ LD_LIBRARY_PATH=$(nix-build '<nixpkgs>' -A libxkbcommon --no-out-link)/lib targe
 cargo test -p qingjian-linux-wayland
 ```
 
-会话规则（按键转发、抬起跟着按下走、过期回包、上屏切块、重复、Server 断开重连、按应用分会话）、input-method-v2 的状态机、活动窗口的跟踪、位图裁边与缩放都是纯逻辑，不要合成器；
+会话规则（按键转发、抬起跟着按下走、过期回包、上屏切块、重复、Server 断开重连、按应用分会话、选区翻译）、input-method-v2 的状态机、活动窗口的跟踪、位图裁边与缩放都是纯逻辑，不要合成器；
 与 Server 的连接（一个应用一个会话、关最久没用的、重连补开）对着走真 socket 的假 Server 测。
 
 `tests/blackbox/` 是黑盒测试：真的二进制连测试进程里的假合成器（wayland-server）与假 Server，过一遍起不来的两种退出、SIGTERM、

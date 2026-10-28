@@ -196,7 +196,7 @@ On other desktops, run the same command from their autostart configuration. The 
 - English mode can't tell which app you're in yet: English candidates only appear after you untick 只在写字的应用里给 (Only in writing apps) under 设置 → 中英文 (Settings → Chinese/English).
 - If you switch to another window while typing, the pinyin not yet committed is lost (the fcitx edition commits it as typed).
 - Selecting text with the mouse while holding `Shift` switches between Chinese and English when you release `Shift`.
-- Not yet supported: picking candidates with the mouse, the candidate right-click menu, translating selected text, and everything listed above as not yet supported in the fcitx edition.
+- Not yet supported: picking candidates with the mouse, the candidate right-click menu, and everything listed above as not yet supported in the fcitx edition.
 - Run `systemctl --user status qingjian-wayland` to see whether it's running and why it stopped; if it stops working, restart it with `systemctl --user restart qingjian-wayland`.
 
 ## Updating and uninstalling

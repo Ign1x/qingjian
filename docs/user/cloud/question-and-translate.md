@@ -39,8 +39,7 @@ AI 服务关着、在密码框里，或应用不提供选中的文字（部分�
 
 Linux 上的限制：
 
-- 应用需向 Fcitx 提供选中的文字。Fcitx4 在 X11 下还能读取当前应用的系统选区；Wayland 原生应用只能用前一种。
-- Linux 的 Wayland 原生版暂不支持翻译选中的文字，快捷键原样交给应用。
+- 应用需向输入法提供选中的文字（fcitx 版经由 Fcitx，Wayland 原生版直接提供给青简）。Fcitx4 在 X11 下还能读取当前应用的系统选区；Wayland 原生应用只能用前一种。
 - 从较早版本升级上来、配置文件里写着旧翻译快捷键的，安装更新不会改掉它，需自己改成 `Alt + Shift + T`，见 [直接编辑配置文件](../advanced/config-file.md#AI-服务)。
 
 Android 在系统的文字选择菜单里点「青简翻译」，见 [Android：工具与 AI](../platforms/android-tools.md#翻译选中的文字)。

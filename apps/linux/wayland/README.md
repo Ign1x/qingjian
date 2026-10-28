@@ -14,6 +14,11 @@
 - 应用走 Wayland 的 text-input：`GTK_IM_MODULE` / `QT_IM_MODULE` 不要设成 `fcitx` / `ibus`（Qt 6.7 起设 `wayland` 或不设）；
   Chromium / Electron 加 `--enable-wayland-ime`，只认 text-input-v3 的合成器上再加 `--wayland-text-input-version=3`。XWayland 应用没有输入法。
 
+## 中 / 英提示与托盘
+
+切中 / 英时在候选窗口的位置显示短暂提示；主题里的模式也随当前会话更新。状态栏有托盘（如 waybar 的 tray 模块）时，图标显示中 / 英，左键切换，右键可选中文、英文、全角标点、繁体输出或打开设置。
+没有输入框时切换作用于活动窗口的应用；没有活动窗口时作用于最近使用的会话。没有托盘或会话总线仍可输入；托盘宿主稍后启动或重启会自动重新登记。
+
 ## 安装
 
 与 fcitx 版同一个脚本，装到 `~/.local`（用户怎么装、各合成器的自启写法见用户文档 [Linux](../../../docs/user/platforms/linux.md) 的「Wayland 原生版」一节）：
@@ -83,7 +88,14 @@ LD_LIBRARY_PATH=$(nix-build '<nixpkgs>' -A libxkbcommon --no-out-link)/lib cargo
 
 与整个 workspace 一起跑（`cargo test --workspace`）时前端改成 dlopen libwayland-client，`LD_LIBRARY_PATH` 里还要加上
 `$(nix-build '<nixpkgs>' -A wayland --no-out-link)/lib`，不然同样跳过。
-真会话里要过的一遍见设计文档的「验证」一节。
+托盘与 portal 的 D-Bus 测试各自启动私有 dbus-daemon，不连接宿主会话总线。安装 dbus-daemon 后显式运行：
+
+```bash
+cargo test -p qingjian-linux-wayland -- --ignored --nocapture
+```
+
+应看到 5 个 D-Bus 测试实际通过，没有「dbus-daemon 起不来…跳过」。黑盒子进程也使用不可达的 D-Bus 地址，避免在宿主状态栏登记图标。
+真会话里要过的一遍见设计文档的「验证」一节。中 / 英提示、主题模式与托盘目前只有自动化验证，尚待嵌套合成器或真会话验证。
 
 ## 验证记录
 

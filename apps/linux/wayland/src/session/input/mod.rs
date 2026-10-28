@@ -4,11 +4,13 @@ mod field;
 mod key;
 mod modifiers;
 mod surrounding;
+mod target;
 
 pub use field::Field;
 pub use key::Key;
 pub use modifiers::Modifiers;
 pub use surrounding::Surrounding;
+pub use target::ModeTarget;
 
 /// 一件事。input-method-v2 的状态在 `done` 时整份生效，所以输入框的进出与变化都是 `done` 之后才排进来。
 #[derive(Debug, Clone, PartialEq)]
@@ -36,4 +38,7 @@ pub enum Input {
 
     /// 活动窗口换了应用（合成器经 foreign-toplevel 报的 app_id）；没有激活着的窗口、窗口没报 app_id 时是 `None`。
     App(Option<String>),
+
+    /// 托盘上点了切换（中 / 英、全角标点、简繁）。
+    Tray(ModeTarget),
 }

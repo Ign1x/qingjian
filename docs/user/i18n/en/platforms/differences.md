@@ -88,7 +88,8 @@ The Linux column in the tables above is the fcitx edition. The Wayland native ed
 | Custom themes, candidate fonts and sizes | — | ✓ |
 | Glosses beside candidates | First gloss only | All glosses |
 | Chinese/English mode | Each window keeps its own | Each app keeps its own |
-| Mode indicator (pop-up or tray) | Shown by Fcitx / IBus | A hint where the candidate window appears |
+| Mode-switch hint | Shown by Fcitx / IBus | Briefly shows 中 or 英 where the candidate window appears |
+| Tray | Provided by Fcitx / IBus | Qingjian's 中 / 英 icon; left-click to switch, right-click for mode, punctuation, traditional output or settings (requires status bar support) |
 | Picking candidates with the mouse | ✓ | — |
 | Translating selected text | ✓ | — |
 | X11 apps | ✓ | — |

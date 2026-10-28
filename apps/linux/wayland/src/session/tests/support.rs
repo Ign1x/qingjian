@@ -6,7 +6,7 @@ use std::time::{Duration, Instant};
 use qingjian_core::{Candidate, CandidateKind, CandidateList};
 use qingjian_platform::protocol::linux::client::{ClientError, Reply};
 use qingjian_platform::protocol::linux::{
-    AppSurrounding, Capabilities, DisplayIdentity, InputMode,
+    AppSurrounding, Capabilities, DisplayIdentity, InputMode, ModeCommand,
 };
 use qingjian_platform::protocol::{Frame, KeyEvent, KeyOutcome, PreeditKind, PreeditSegment};
 
@@ -28,6 +28,7 @@ pub enum Call {
     },
     Poll,
     Acknowledge(u64),
+    Indicator(ModeCommand),
 }
 
 /// 一次按下的脚本化答复。
@@ -187,6 +188,35 @@ impl Server for FakeServer {
         };
         reply.outcome = KeyOutcome::Passthrough;
         Ok(reply)
+    }
+
+    /// 照真 Server：切当前应用那份模式；切中 / 英时组句原样上屏（拼音行就是原文）、帧清空，回包带 `english`。
+    fn indicator(&mut self, command: ModeCommand) -> Result<Reply, ClientError> {
+        self.calls.push(Call::Indicator(command));
+        self.check()?;
+        let mut english = None;
+        if let Some(mode) = self.modes.get_mut(&self.app) {
+            match command {
+                ModeCommand::ToggleEnglish => {
+                    mode.english = !mode.english;
+                    english = Some(mode.english);
+                }
+                ModeCommand::TogglePunctuation => mode.full_width = !mode.full_width,
+                ModeCommand::ToggleTraditional => mode.traditional = !mode.traditional,
+            }
+        }
+        let mut commit = None;
+        if command == ModeCommand::ToggleEnglish {
+            let raw: String = self
+                .frame
+                .preedit
+                .iter()
+                .map(|segment| segment.text.as_str())
+                .collect();
+            commit = (!raw.is_empty()).then_some(raw);
+            self.frame = Frame::default();
+        }
+        Ok(self.reply(KeyOutcome::Consumed, commit, english))
     }
 
     fn acknowledge(

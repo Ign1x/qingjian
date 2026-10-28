@@ -1,14 +1,18 @@
-//! 输入状态的显示：回包上的模式交给候选窗的主题；切中 / 英时在候选窗的位置亮一下提示。
+//! 输入状态的显示：回包上的模式交给候选窗的主题与托盘；切中 / 英时在候选窗的位置亮一下提示。
 
 use qingjian_platform::protocol::linux::InputMode;
 
-use super::Wayland;
+use super::state::Wayland;
 
 impl Wayland {
-    /// 输入模式变了：之后画的候选窗按它显示主题里的 `mode.*`。`None`（与 Server 断了）时候选窗沿用上一次的。
+    /// 输入模式变了：之后画的候选窗按它显示主题里的 `mode.*`，托盘换图标与菜单的勾。
+    /// `None`（与 Server 断了）时候选窗沿用上一次的，托盘换回不带中 / 英的图标。
     pub(super) fn set_mode(&mut self, mode: Option<&InputMode>) {
         if let (Some(mode), Some(painter)) = (mode, &mut self.painter) {
             painter.set_mode(mode);
+        }
+        if let Some(tray) = &self.tray {
+            tray.show(mode);
         }
     }
 

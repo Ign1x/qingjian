@@ -25,6 +25,7 @@ use super::toplevel::Toplevels;
 use super::xkb::Xkb;
 use crate::error::Error;
 use crate::session::Input;
+use crate::tray::Tray;
 use crate::view::Painter;
 
 pub struct Wayland {
@@ -69,6 +70,9 @@ pub struct Wayland {
 
     /// 别的输入法占着这个 seat。
     pub unavailable: bool,
+
+    /// 托盘；确定当得了输入法之后才起（缺协议、seat 被占的桌面上不闪一下图标）。
+    pub tray: Option<Tray>,
 }
 
 impl Wayland {
@@ -131,6 +135,7 @@ impl Wayland {
             reload_at: Instant::now(),
             inbox: VecDeque::new(),
             unavailable: false,
+            tray: None,
         })
     }
 }

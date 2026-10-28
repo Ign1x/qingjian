@@ -11,7 +11,9 @@ use std::path::PathBuf;
 use std::time::{Duration, Instant};
 
 use qingjian_platform::protocol::linux::client::{ClientError, Connection, Reply};
-use qingjian_platform::protocol::linux::{AppSurrounding, Capabilities, DisplayIdentity};
+use qingjian_platform::protocol::linux::{
+    AppSurrounding, Capabilities, DisplayIdentity, ModeCommand,
+};
 use qingjian_platform::protocol::{KeyEvent, SessionId};
 
 use opened::Opened;
@@ -204,6 +206,10 @@ impl Server for Link {
 
     fn poll(&mut self) -> Result<Reply, ClientError> {
         self.with(|connection, session| connection.poll(session))
+    }
+
+    fn indicator(&mut self, command: ModeCommand) -> Result<Reply, ClientError> {
+        self.with(|connection, session| connection.indicator(session, command))
     }
 
     fn acknowledge(

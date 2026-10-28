@@ -684,6 +684,14 @@ Wayland 原生版的前端（设计见 `docs/design/linux-wayland.md`）：自�
   等它上线再读（为什么不拉起见设计文档「显示」）；方法调用 25 秒超时。`Desktop` 是三个原子量，`Preference` 是某一刻的值，
   `Preference::redraws` 定画着的帧要不要重画（只有「跟随系统」的帧跟着换深浅；减少动态效果变了总要重画，循环动画要停下或接着播）。
   测试：`tests/values.rs` 不连 D-Bus；`tests/bus.rs` 起私有 dbus-daemon（自带配置，服务目录里只有一个记下「被拉起过」的假服务）挂假 portal，缺省不跑。
+- `tray/`：StatusNotifierItem（`/StatusNotifierItem`）与 DBusMenu（`/MenuBar`），总线名 `org.kde.StatusNotifierItem-<pid>-1`；
+  `spawn` 在独立单线程 tokio 运行时挂对象、向 `org.kde.StatusNotifierWatcher` 登记（25 秒超时、`NoAutoStart`），先订 owner 变化，宿主后上线 / 重启时再登记。
+  `Tray` 用 watch 接收 Server 回包的模式，`Clicks` 把菜单目标排队并写非阻塞 socket 叫醒主循环；后台退出后读到 EOF 就移除 fd，避免 `POLLHUP` 空转。
+  `session/tray.rs` 选当前输入框的会话；未激活则选活动应用，没有活动应用保留最近会话；先 poll 再按 `ModeTarget` 判断需不需要发 indicator。
+  两次请求沿用同一个焦点代次；查询中焦点变化则取消，未激活时只更新模式，不落地文字与候选。图标发 `NewIcon` / `NewToolTip`，菜单发 `LayoutUpdated`，勾选态始终照回包。
+  图标源 `assets/icon/linux/tray-{zh,en}.svg` 在启动时栅格成 16 / 22 / 24 / 32 / 48 / 64 像素，不知道模式时用同目录 hicolor 的青简 PNG；
+  `IconPixmap` 为不预乘的 ARGB 网络字节序。`settings::Launcher` 优先拉起同目录设置程序，其次 PATH，托盘拉起的子进程未退出前不重复开。
+  `tests/bus/` 对着私有总线的假宿主测注册、属性、点击与信号，含后上线和重启；`testing::Bus` 与 portal 共用，所有 D-Bus 集成测试均为 `#[ignore]`。
 - 黑盒测试 `tests/blackbox/`：真的二进制对着测试进程里的假合成器与假 Server 跑，CI 上没有合成器也走一遍真的 Wayland 协议与 Server 协议。
   假合成器用 `wayland-server`（开发依赖）在自己的线程上听沙箱（每个测试一个临时目录，当 `XDG_RUNTIME_DIR`）里的私有 socket，
   提供 wl_compositor / wl_shm / wl_seat / input-method-v2 / 虚拟键盘 / viewporter / 分数缩放，客户端的请求按先后记成 `Request`

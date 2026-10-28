@@ -56,6 +56,11 @@ impl Frontend {
             // 有 WAYLAND_SOCKET 时客户端不看 WAYLAND_DISPLAY，会连到继承下来的真会话上
             .env_remove("WAYLAND_SOCKET")
             .env_remove("WAYLAND_DEBUG")
+            // 会话总线也不给：不然托盘会在真桌面的状态栏里登记图标，显式给不存在的地址，禁止回退到宿主总线
+            .env(
+                "DBUS_SESSION_BUS_ADDRESS",
+                "unix:path=/nonexistent/qingjian-test-bus",
+            )
             .stdin(Stdio::null())
             .stdout(Stdio::null())
             .stderr(Stdio::piped())

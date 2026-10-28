@@ -7,5 +7,6 @@ mod keys;
 mod link;
 mod mode;
 mod support;
+mod tray;
 mod typing;
 mod wire;

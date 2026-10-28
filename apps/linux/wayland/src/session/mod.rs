@@ -15,12 +15,13 @@ mod preedit;
 mod repeat;
 mod reply;
 mod server;
+mod tray;
 mod unsent;
 
 #[cfg(test)]
 mod tests;
 
-pub use input::{Field, Input, Key, Modifiers, Surrounding};
+pub use input::{Field, Input, Key, ModeTarget, Modifiers, Surrounding};
 pub use link::Link;
 pub use output::Output;
 pub use preedit::Preedit;
@@ -137,6 +138,7 @@ impl<S: Server> Session<S> {
             Input::Modifiers(modifiers) => self.modifiers(modifiers, out),
             Input::Repeat { rate, delay } => self.repeat.configure(rate, delay),
             Input::App(app) => self.switch_app(app, now),
+            Input::Tray(target) => self.tray(target, out, now),
         }
     }
 

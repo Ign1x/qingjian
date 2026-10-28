@@ -123,6 +123,14 @@ Server 对这样的会话照旧：↑ / ↓ 只移高亮、帧上不带键盘。
   位置由合成器定，就是候选窗出现的地方。候选窗开着时不盖住它（切中 / 英时组句原样上屏、候选本来就收了）；提示亮着时来了非空帧就换成候选，
   空帧不收它（切换键是 Ctrl + Alt + Space 时抬起另几个键的回包也是空帧，收了就只闪一下）；失焦、与 Server 断开时跟候选窗一起收。
   popup 只有输入框激活时合成器才显示，所以只在激活着、回包没过期时亮；没有输入框时从托盘切换只换托盘图标。
+- **托盘。** 前端在会话总线上提供 StatusNotifierItem 与 DBusMenu，由 waybar 等托盘宿主画图标与原生菜单。
+  图标按回包的 `mode.english` 显示中 / 英；还没拿到模式、或与 Server 往返失败时显示青简标志。左键切中 / 英；右键菜单提供中文、英文、全角标点、繁体输出、设置与版本号。
+  菜单的勾只照 Server 回包更新，不先在本地翻转；点选排进主循环，先 `Poll` 查询目标会话的当前模式，不是目标才发 `Indicator`，避免菜单显示滞后时切反。
+  输入框激活时用它当前的会话；未激活时用活动窗口的应用，没有活动窗口则沿用最近会话（还没用过任何会话时才用匿名会话）。未激活时只更新模式，不上屏、不弹提示。
+  查询期间焦点变化就取消切换，切换回包仍按原焦点代次校验。设置程序优先找前端同目录，其次 PATH；从托盘打开的设置未退出前不重复启动。
+  后台线程独立跑 zbus，通过 watch 传模式、队列传点击、非阻塞 socket 唤醒 Wayland 主循环；线程退出后移除唤醒 fd，避免挂断导致空转。
+  没有会话总线或托盘宿主不影响输入；注册禁用 D-Bus 按需启动，先订宿主上下线再注册，宿主后来上线或重启时重新注册。没有总线时托盘线程退出，本次进程不重连总线。
+  不支持 DBusMenu 的宿主仍可左键切换，但不能弹右键菜单；不提供「退出」，避免误点后整个 seat 没有输入法。
 - **外观跟随系统。** 帧里的外观是 `System` 时深浅看桌面：后台线程在会话总线上读 xdg-desktop-portal Settings 的 `org.freedesktop.appearance` `color-scheme`，
   1（偏好深色）为深色，0（无偏好）、2（偏好浅色）与不认识的值为浅色。先订 `SettingChanged` 再读初值（读的途中改了也漏不掉），之后跟着信号变；
   读用 `ReadOne`，第 1 版的 portal 没有它，退回 `Read`（值多包一层 variant）。
@@ -167,7 +175,7 @@ Server 对这样的会话照旧：↑ / ↓ 只移高亮、帧上不带键盘。
   `install.sh --frontend wayland`、systemd 用户服务（退出码 2 不重启）、deb / rpm 另出 `qingjian-wayland` 包、用户文档；对着假合成器与假 Server 的黑盒测试。
 - **第二轮第二批**：前端接上 v4——鼠标点选与滚轮翻页（`Rendered::hit_at` → `Candidate` / `Page`，先验合成器肯不肯把指针事件给 popup）、
   候选右键菜单（`Renderer::render_menu` 画在同一个 popup 里，与 macOS / Windows 一样自绘）、中 / 英提示与主题里的模式（已做，见「显示」）、
-  托盘（StatusNotifierItem + DBusMenu，原生菜单）、选区翻译；Server 补齐设置程序里 Linux 标「待实现」的输入功能（辅码、形码、自动加空格、翻页与高亮键、
+  托盘（已做，StatusNotifierItem + DBusMenu，原生菜单，见「显示」）、选区翻译；Server 补齐设置程序里 Linux 标「待实现」的输入功能（辅码、形码、自动加空格、翻页与高亮键、
   全半角与简繁快捷键、小键盘数字、按应用记中英、横排矩阵、拼音行声调、键位提示、实验模型）。
 - **之后**：按 `text_input_rectangle` 判断翻没翻、调排布；设置程序支持表区分两个版本；CI 跑黑盒测试（要 libxkbcommon 与 libwayland-client）。
 
@@ -177,6 +185,8 @@ Server 对这样的会话照旧：↑ / ↓ 只移高亮、帧上不带键盘。
 不要合成器，CI 照跑；按应用分会话另有一组对着走真 socket 的假 Server 测连接上的消息。
 portal 的 D-Bus 往来另有对着私有 dbus-daemon 上假 portal 的测试（`ReadOne`、第 1 版的 `Read`、`SettingChanged`、不按需拉起、portal 后上线），
 要 dbus-daemon，缺省不跑：`cargo test -p qingjian-linux-wayland -- --ignored portal`。
+托盘另有同样隔离的 D-Bus 测试：`cargo test -p qingjian-linux-wayland -- --ignored tray`，检查注册、图标与菜单属性、点击、模式更新、宿主后上线与重启，以及不按需拉起宿主。
+中 / 英提示、主题模式与托盘尚未在真会话验过：需在有托盘的嵌套合成器或真会话中检查左右键、勾选态、组句中切换、失焦后切换、宿主重启、设置窗口，以及深浅色和高分屏图标。
 只能真会话验的，在 Hyprland 上逐个应用过：foot / kitty、GTK4、Firefox、Chromium（`--enable-wayland-ime`）、Qt6——
 打字上屏、数字选词、翻页、Shift 切换后 Shift 不卡、组句中按住退格、Ctrl+C 先上原文、NumLock、密码框、组句中切窗口、整句重排换帧、1.5 倍缩放不糊、热加载换主题、桌面切深浅、Server 中途重启、
 两个应用里各自切中 / 英后来回切换各自记住、`[apps]` 英文候选名单里的应用出英文候选（按应用分会话与跟随深浅还没在真会话里验过）。

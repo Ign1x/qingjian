@@ -25,9 +25,10 @@ pub fn place(
     sticky: Option<Side>,
     gap: i32,
 ) -> (Side, (i32, i32), (i32, i32)) {
-    // 两侧总放得下，先用上次那一侧，否则按翻转后的优先顺序取第一个
-    let side = sticky.unwrap_or_else(|| side::order(flipped)[0]);
     let (candidate_x, candidate_y, candidate_width, candidate_height) = candidate;
+    // 两侧总放得下，先用上次那一侧，否则按翻转与候选窗的形状（宽至少是高的两倍算横排一长条）取第一个
+    let bar = candidate_width >= candidate_height.saturating_mul(2);
+    let side = sticky.unwrap_or_else(|| side::order(flipped, bar)[0]);
     let (_width, height, _shadow_x, shadow_y) = keyboard;
     let (height, shadow_y) = (height as i32, shadow_y as i32);
     match side {
@@ -60,11 +61,18 @@ mod tests {
     /// 键盘内容区 200 × 64、左上阴影 10 × 8；候选窗内容区 100 × 50。
     const KEYBOARD: (u32, u32, u32, u32) = (200, 64, 10, 8);
 
-    /// 未翻转：先往右并排，候选窗不动，键盘内容区在候选窗右边一个间隙处。
+    /// 竖排未翻转：先往右并排，候选窗不动，键盘内容区在候选窗右边一个间隙处。
     #[test]
     fn not_flipped_prefers_the_right() {
-        let placed = place((0, 40, 100, 50), KEYBOARD, false, None, 4);
+        let placed = place((0, 40, 100, 150), KEYBOARD, false, None, 4);
         assert_eq!(placed, (Side::Right, (0, 0), (104, 40)));
+    }
+
+    /// 横排一长条未翻转：先往下，候选窗不动，键盘内容区在候选窗下沿一个间隙处。
+    #[test]
+    fn a_bar_prefers_below() {
+        let placed = place((0, 40, 300, 50), KEYBOARD, false, None, 4);
+        assert_eq!(placed, (Side::Away, (0, 0), (0, 94)));
     }
 
     /// 翻转（候选窗在光标上方）：先往背向光标的那一侧，键盘摆在上面，候选窗下移 `上阴影 + 键盘高 + 间隙 − 候选窗上沿`，

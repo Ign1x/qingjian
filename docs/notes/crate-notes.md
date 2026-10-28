@@ -731,7 +731,7 @@ Wayland 原生版的前端（设计见 `docs/design/linux-wayland.md`）：自�
   `mod.rs` 是主循环（`poll` 等合成器事件、托盘唤醒 fd 或下一个到点的事，SIGINT / SIGTERM 退出前替按着的键补抬起）。
 - `view/`：`Painter`（字体库、渲染器、主题，配置与主题目录每秒查一次戳；外观「跟随系统」按 `portal::Desktop` 取深浅，桌面的偏好变得影响到画着的那一帧时 `reload` 也返回 `true`；
   `set_mode` 经 `qingjian_platform::display::render_mode` 记下 Server 模式，画帧时交给主题；`render_status` 用同一个渲染器画一格提示，`status_text` 为「英」、「中」或「中 · 方案名」，深浅跟上一帧的外观设置），
-  `key_hint/` 是键位提示的三块：`side`（`Side::Right` 并排、`Side::Away` 往背向光标那一侧，`order(flipped)` 定先试哪个）、
+  `key_hint/` 是键位提示的三块：`side`（`Side::Right` 并排、`Side::Away` 往背向光标那一侧，`order(flipped, bar)` 定先试哪个：翻了或候选窗是横排一长条先往背向光标那侧）、
   `place`（纯算术：候选窗、键盘两块内容区与间隙算进同一张位图，翻到上方时位图原点在 y = 0、键盘从上方阴影起、候选窗下移给它让位，相对光标不跳）、
   `paint`（`Painter::render_key_hint` 用单独一个渲染器画键盘——与候选窗共用会打断候选窗的过渡动画，同 Windows；第一次用时才 `FontLibrary::system` 建，建不成不再试），
   字根图的键盘画过一次就留着复用（解析整张表贵），双拼的键随敲的音节变、每次现算，深浅跟候选窗，`bitmap::fade` 拿回包的 `opacity` 乘到预乘 alpha 上；主题换肤时与候选窗一起重装字体；

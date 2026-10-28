@@ -675,6 +675,11 @@ Wayland 原生版的前端（设计见 `docs/design/linux-wayland.md`）：自�
   `keyboard.rs` 是进程里唯一的虚拟键盘（与输入法同一条连接，合成器才不会把转出去的键又送回 grab）；`popup.rs` 有分数缩放时用 viewport、buffer scale 保持 1，
   收鼠标的区域（wl_region）设成 `Canvas::input_region` 的卡片矩形，变了才重设；
   `pointer/` 绑 wl_seat 第 8 版，按 seat 的能力拿 / 放 wl_pointer（`release` 第 3 版才有），只认落在候选窗 surface 上的事件：按下时按 `Wayland::canvas` 认出 `Spot` 排 `Input::Click`，
+  换候选帧或隐藏时清掉队列里按旧位图认出的点击；没有有效 `Canvas` 时不排点击，避免把旧序号配上新展示身份误选。
+  菜单打开、替换与关闭也作废旧点击；每次点击携带自己的 surface 坐标，`Wayland::next_input` 出队时才更新菜单锚点，后续点击不能提前挪动它。
+  `Menu` 回包与点选回包一样先同步并复核焦点代次；已知焦点变化时不再发送排队的鼠标请求。
+  `axis_stop` 先结算同帧最后一段位移，再清手势累计；负向格数按无符号绝对值比较，避免极值溢出。
+  缓冲耗尽时 `repaint` 留住最新画面，归还缓冲唤醒主循环后补贴，再恢复命中区域；渲染失败则清旧位图与动画，保留新帧供后续重画。
   `wheel.rs` 把 `axis_value120`（第 5–7 版 `axis_discrete`）、`axis` 与 `axis_stop` 按帧折成翻页（一格 120、触摸板 50 逻辑像素一页，一帧最多一页，第 5 版之前没有 `frame` 时每个事件自成一帧）；
   进来时有 `wp_cursor_shape_manager_v1` 就设 `default` 形状；`menu.rs` 把会话要弹的菜单画好（锚点是最近一次按下的位置换成候选窗内容区里的点）、跟着指针换悬停项重画；
   `shm.rs` 三块缓冲轮换；`context.rs` 实现 `Output`；`present.rs` 留着候选窗的 `Rendered`（菜单要与它合成，动画帧换掉它），每次贴图后换上新的 `Canvas`，

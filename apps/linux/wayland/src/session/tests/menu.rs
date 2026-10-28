@@ -7,15 +7,16 @@ use qingjian_platform::protocol::KeyOutcome;
 use qingjian_platform::protocol::linux::MenuItem;
 use qingjian_platform::protocol::linux::key::keysym;
 
-use super::super::{Click, Input, POLL_INTERVAL, Session, Spot};
 use super::support::{
     Call, FakeServer, Out, Recorder, answer, composing, key, ready, settled, type_letter,
 };
+use crate::session::{Click, Input, POLL_INTERVAL, Session, Spot};
 
 fn click(right: bool, spot: Spot) -> Input {
     Input::Click(Click {
         right,
         spot: Some(spot),
+        position: (0.0, 0.0),
         epoch: 0,
     })
 }

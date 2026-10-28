@@ -21,6 +21,9 @@ pub struct Wheel {
 
     /// 跨帧攒着、还不够一页的距离；手指离开触摸板（`axis_stop`）时清掉。
     swiped: f64,
+
+    /// stop 与最后一段 axis 可以同帧；算完这帧再清累计量。
+    stopped: bool,
 }
 
 impl Wheel {
@@ -40,16 +43,24 @@ impl Wheel {
 
     /// 手指离开了触摸板：攒着的距离清掉，下一次滑动从头算。
     pub fn stop(&mut self) {
-        self.swiped = 0.0;
+        self.stopped = true;
     }
 
     /// 一帧结束：够一页就交出方向，`true` 是往下（下一页）。
     pub fn frame(&mut self) -> Option<bool> {
+        let page = self.accumulate();
+        if std::mem::take(&mut self.stopped) {
+            self.swiped = 0.0;
+        }
+        page
+    }
+
+    fn accumulate(&mut self) -> Option<bool> {
         let distance = std::mem::take(&mut self.distance);
         if let Some(value120) = self.value120.take() {
             // 有格数就按格算，`axis` 的距离说的是同一下
             let total = self.notches.saturating_add(value120);
-            if total.abs() < NOTCH {
+            if total.unsigned_abs() < NOTCH as u32 {
                 self.notches = total;
                 return None;
             }
@@ -128,11 +139,35 @@ mod tests {
         assert_eq!(wheel.frame(), None, "翻完从头攒");
 
         wheel.stop();
+        assert_eq!(wheel.frame(), None);
         wheel.axis(40.0);
         assert_eq!(wheel.frame(), None, "抬过手，前一次滑的不算");
         wheel.axis(-45.0);
         assert_eq!(wheel.frame(), None, "换了方向从头攒");
         wheel.axis(-10.0);
+        assert_eq!(wheel.frame(), Some(false));
+    }
+
+    #[test]
+    fn stop_finishes_the_last_frame_then_clears_the_gesture() {
+        let mut wheel = Wheel::default();
+        wheel.axis(40.0);
+        assert_eq!(wheel.frame(), None);
+        wheel.axis(10.0);
+        wheel.stop();
+        assert_eq!(wheel.frame(), Some(true), "抬手那一帧也算进这次滑动");
+
+        wheel.axis(30.0);
+        wheel.stop();
+        assert_eq!(wheel.frame(), None);
+        wheel.axis(25.0);
+        assert_eq!(wheel.frame(), None, "上一次手势剩下的距离不能带进下一次");
+    }
+
+    #[test]
+    fn saturated_negative_notches_do_not_overflow() {
+        let mut wheel = Wheel::default();
+        wheel.discrete(i32::MIN);
         assert_eq!(wheel.frame(), Some(false));
     }
 }

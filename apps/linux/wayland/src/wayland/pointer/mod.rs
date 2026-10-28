@@ -15,8 +15,8 @@ use wayland_protocols::wp::cursor_shape::v1::client::wp_cursor_shape_manager_v1:
 
 use wheel::Wheel;
 
-use super::Wayland;
 use crate::session::{Click, Input};
+use crate::wayland::state::Wayland;
 
 /// evdev 的左键与右键（`linux/input-event-codes.h` 的 `BTN_LEFT` / `BTN_RIGHT`）。
 const BUTTON_LEFT: u32 = 0x110;
@@ -32,7 +32,7 @@ pub struct Pointer {
     /// 指针在候选窗上的位置（surface 逻辑像素）；不在候选窗上是 `None`。
     pub position: Option<(f64, f64)>,
 
-    /// 最近一次在候选窗上按下的位置：右键菜单摆在这里。
+    /// 正在处理的点击的位置；出队时更新，右键菜单摆在这里。
     pub pressed_at: Option<(f64, f64)>,
 
     wheel: Wheel,
@@ -80,14 +80,23 @@ impl Wayland {
         let Some((x, y)) = pointer.position else {
             return;
         };
-        pointer.pressed_at = Some((x, y));
-        let spot = self.canvas.as_ref().and_then(|canvas| canvas.spot(x, y));
+        // 未贴上当前帧时不认落点，也不能把这次点击当成点在菜单外。
+        let Some(canvas) = &self.canvas else {
+            return;
+        };
+        let spot = canvas.spot(x, y);
         tracing::debug!(right, ?spot, "鼠标按在候选窗上");
         self.inbox.push_back(Input::Click(Click {
             right,
             spot,
+            position: (x, y),
             epoch: self.method.epoch,
         }));
+    }
+
+    /// 点击按旧位图认序号，处理时却取最新展示身份；换帧后必须作废，否则 Server 无法识别误选。
+    pub(super) fn drop_clicks(&mut self) {
+        self.inbox.retain(|input| !matches!(input, Input::Click(_)));
     }
 
     /// 一帧滚动结束：够一页就排给会话。

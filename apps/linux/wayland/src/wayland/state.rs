@@ -87,9 +87,23 @@ pub struct Wayland {
 
     /// 贴在 popup 上的那一张：鼠标的落点按它认。
     pub canvas: Option<Canvas>,
+
+    /// 最新画面还没拿到可写缓冲，等合成器归还后补贴。
+    pub repaint: bool,
 }
 
 impl Wayland {
+    /// 取下一件事；菜单的位置跟着正在处理的点击，不随队尾的点击提前变化。
+    pub fn next_input(&mut self) -> Option<Input> {
+        let input = self.inbox.pop_front()?;
+        if let Input::Click(click) = &input
+            && let Some(pointer) = &mut self.pointer
+        {
+            pointer.pressed_at = Some(click.position);
+        }
+        Some(input)
+    }
+
     /// 绑定要用的全局对象，建好输入法、虚拟键盘与候选窗。缺输入法或虚拟键盘的合成器（KWin、GNOME）直接报错。
     pub fn new(
         globals: &GlobalList,
@@ -161,6 +175,7 @@ impl Wayland {
             window: None,
             menu: None,
             canvas: None,
+            repaint: false,
         })
     }
 }

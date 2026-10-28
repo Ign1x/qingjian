@@ -12,12 +12,12 @@ use std::time::Instant;
 
 use qingjian_platform::protocol::linux::client::{ClientError, Reply};
 
-use super::{Click, Output, POLL_INTERVAL, Server, Session, Spot};
+use crate::session::{Click, Output, POLL_INTERVAL, Server, Session, Spot};
 
 impl<S: Server> Session<S> {
     pub(super) fn click(&mut self, click: Click, out: &mut impl Output, now: Instant) {
         // 候选窗开着、键交给 Server 处理时才算数：候选窗收起之后才排到的点击不理
-        if !self.serving() || self.drawn.is_none() {
+        if !self.serving() || self.drawn.is_none() || out.epoch() != click.epoch {
             return;
         }
         if self.menu.is_some() {
@@ -26,7 +26,7 @@ impl<S: Server> Session<S> {
                 Some(Spot::Menu) => {}
                 Some(Spot::Candidate(index)) if click.right => {
                     self.close_menu(out, now);
-                    self.open_menu(index, out);
+                    self.open_menu(index, click.epoch, out);
                 }
                 // 点到菜单外面只收起菜单、不选词，与系统的右键菜单一样
                 _ => self.close_menu(out, now),
@@ -34,7 +34,7 @@ impl<S: Server> Session<S> {
             return;
         }
         match click.spot {
-            Some(Spot::Candidate(index)) if click.right => self.open_menu(index, out),
+            Some(Spot::Candidate(index)) if click.right => self.open_menu(index, click.epoch, out),
             Some(Spot::Candidate(index)) => {
                 if let Some(identity) = self.identity.clone() {
                     let reply = self.server.candidate(identity, index);
@@ -47,7 +47,7 @@ impl<S: Server> Session<S> {
 
     /// 滚轮翻一页。只有一页时不问 Server；菜单开着时不翻（翻了菜单就对不上右键的那一格了）。
     pub(super) fn scroll(&mut self, next: bool, epoch: u64, out: &mut impl Output, now: Instant) {
-        if !self.serving() || self.menu.is_some() {
+        if !self.serving() || self.menu.is_some() || out.epoch() != epoch {
             return;
         }
         let pages = self.drawn.as_ref().map_or(0, |(frame, _)| frame.page_count);
@@ -69,7 +69,7 @@ impl<S: Server> Session<S> {
     }
 
     /// 右键本页第 `index` 个候选：问 Server 这一格能做哪几件事，有就弹菜单、停掉轮询。
-    fn open_menu(&mut self, index: usize, out: &mut impl Output) {
+    fn open_menu(&mut self, index: usize, epoch: u64, out: &mut impl Output) {
         let Some(identity) = self.identity.clone() else {
             return;
         };
@@ -80,7 +80,8 @@ impl<S: Server> Session<S> {
                 return;
             }
         };
-        if items.is_empty() {
+        out.sync();
+        if out.epoch() != epoch || items.is_empty() {
             return;
         }
         let labels: Vec<String> = items.iter().map(|item| item.label.clone()).collect();

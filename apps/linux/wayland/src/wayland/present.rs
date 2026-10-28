@@ -4,28 +4,36 @@ use std::time::{Duration, Instant};
 
 use qingjian_platform::protocol::Frame;
 
-use super::Wayland;
 use crate::view::{self, Canvas, blit};
+use crate::wayland::state::Wayland;
 
 /// 多久查一次配置、主题与桌面的外观偏好有没有变。
 const RELOAD_INTERVAL: Duration = Duration::from_secs(1);
 
 impl Wayland {
     /// 画出这一帧并贴上，返回画出来的译词义项。字体库没建起来时不画（只有行内拼音）。
-    /// 换了一帧，弹着的右键菜单对不上了，一并收起。
+    /// 换了一帧，弹着的右键菜单与排着的点击都对不上了（[`Self::drop_clicks`]），画没画成都作废。
     pub(super) fn show(&mut self, frame: &Frame) -> Vec<(usize, usize)> {
+        self.menu = None;
+        self.drop_clicks();
+        self.shown = Some(frame.clone());
         let scale = self.popup.scale();
         let Some(rendered) = self
             .painter
             .as_mut()
             .and_then(|painter| painter.render(frame, scale as f32))
         else {
-            // 候选窗上还是旧的那一帧：不再按它认鼠标落点，免得点中的序号落到新的一帧上
+            // 保留待重画的新帧，但清掉旧画面与动画，避免后续 tick 恢复旧布局的点击区域。
+            self.popup.hide();
+            self.window = None;
             self.canvas = None;
+            self.animate_at = None;
+            self.repaint = false;
+            if let Some(painter) = &mut self.painter {
+                painter.forget();
+            }
             return Vec::new();
         };
-        self.shown = Some(frame.clone());
-        self.menu = None;
         let senses = view::senses(&rendered);
         self.window = Some(rendered);
         self.paint();
@@ -38,7 +46,9 @@ impl Wayland {
         self.window = None;
         self.menu = None;
         self.canvas = None;
+        self.drop_clicks();
         self.animate_at = None;
+        self.repaint = false;
         if let Some(painter) = &mut self.painter {
             painter.forget();
         }
@@ -63,6 +73,9 @@ impl Wayland {
         }
         if redraw {
             self.redraw();
+        }
+        if self.repaint {
+            self.paint();
         }
     }
 
@@ -110,6 +123,7 @@ impl Wayland {
             tracing::debug!("缓冲都还在合成器手里，这一帧跳过");
             // 同上：贴着的不是这一帧，先不收点击
             self.canvas = None;
+            self.repaint = true;
             return;
         };
         blit(&pixels, canvas.width(), &placement, buffer_pixels);
@@ -127,5 +141,6 @@ impl Wayland {
             }
         }
         self.canvas = Some(canvas);
+        self.repaint = false;
     }
 }

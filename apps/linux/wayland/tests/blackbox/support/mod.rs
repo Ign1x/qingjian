@@ -24,5 +24,6 @@ pub const KEYMAP: &str = include_str!("../../fixtures/keymap.xkb");
 /// 测试按的键，evdev 键码（`linux/input-event-codes.h`），都在 [`KEYMAP`] 里。
 pub const KEY_ESC: u32 = 1;
 pub const KEY_A: u32 = 30;
+pub const KEY_H: u32 = 35;
 pub const KEY_N: u32 = 49;
 pub const KEY_SPACE: u32 = 57;

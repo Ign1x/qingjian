@@ -4,7 +4,10 @@
 use std::thread;
 use std::time::Duration;
 
-use super::support::{
+mod backpressure;
+mod races;
+
+use crate::support::{
     Answer, BUTTON_LEFT, BUTTON_RIGHT, KEY_ESC, KEY_N, MENU, Request, Rig, Setup, Targets, kind,
     skip,
 };
@@ -13,7 +16,7 @@ use super::support::{
 const STALE: &str = "这一下 Server 没理";
 
 /// 起好、接管键盘，打一个 n 让候选窗按 `answer` 画出来，交出能点的地方。缺运行库或界面字体时 `None`（已打印跳过）。
-fn composing(answer: Answer) -> Option<(Rig, Targets)> {
+pub(super) fn composing(answer: Answer) -> Option<(Rig, Targets)> {
     let rig = Rig::start(Setup::default())?;
     if !rig.frontend.painter() {
         skip("这台机器上没有界面字体，候选窗画不出来");

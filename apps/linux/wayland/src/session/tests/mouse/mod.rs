@@ -2,14 +2,17 @@
 
 use qingjian_platform::protocol::{Frame, KeyOutcome};
 
-use super::super::{Click, Input, Spot};
-use super::support::{Call, Out, answer, composing, ready, settled, type_letter};
+mod lifecycle;
+
+use crate::session::tests::support::{Call, Out, answer, composing, ready, settled, type_letter};
+use crate::session::{Click, Input, Spot};
 
 /// 左键按在 `spot` 上。
 fn left(spot: Option<Spot>) -> Input {
     Input::Click(Click {
         right: false,
         spot,
+        position: (0.0, 0.0),
         epoch: 0,
     })
 }

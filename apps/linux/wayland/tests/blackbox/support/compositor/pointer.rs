@@ -10,7 +10,9 @@ use wayland_protocols::wp::cursor_shape::v1::server::wp_cursor_shape_manager_v1:
 use wayland_server::protocol::wl_pointer::{self, Axis, AxisSource, ButtonState, WlPointer};
 use wayland_server::{Client, DataInit, Dispatch, DisplayHandle, GlobalDispatch, New, WEnum};
 
-use super::{Compositor, Request, State};
+use super::Compositor;
+use crate::support::compositor::request::Request;
+use crate::support::compositor::state::State;
 
 /// evdev 的左键与右键（`linux/input-event-codes.h`）。
 pub const BUTTON_LEFT: u32 = 0x110;
@@ -35,6 +37,15 @@ impl State {
         let pointer = self.pointer.as_ref().expect("被测进程没拿指针");
         (pointer, self.serial, self.time)
     }
+
+    /// 在指针停着的地方按下再抬起一个键，各跟一个 frame。
+    fn click(&mut self, button: u32) {
+        for pressed in [ButtonState::Pressed, ButtonState::Released] {
+            let (pointer, serial, time) = self.pointer();
+            pointer.button(serial, time, button, pressed);
+            pointer.frame();
+        }
+    }
 }
 
 impl Compositor {
@@ -57,13 +68,31 @@ impl Compositor {
 
     /// 在指针停着的地方按下再抬起一个键。
     pub fn click(&self, button: u32) {
+        self.call(move |state| state.click(button));
+    }
+
+    /// 多次移动与点击一批送出，用来复现事件排队期间菜单变化。
+    pub fn clicks(&self, clicks: &[(f64, f64, u32)]) {
+        let clicks = clicks.to_vec();
         self.call(move |state| {
-            for pressed in [ButtonState::Pressed, ButtonState::Released] {
-                let (pointer, serial, time) = state.pointer();
-                pointer.button(serial, time, button, pressed);
+            for (x, y, button) in clicks {
+                let (pointer, _, time) = state.pointer();
+                pointer.motion(time, x, y);
                 pointer.frame();
+                state.click(button);
             }
         });
+    }
+
+    /// 按下键盘上的 `code`、紧跟着在指针停着的地方点一下 `button`、再抬起 `code`，一起送出去：
+    /// 被测进程处理到这一下点击时，前面那个键已经换上了新的一帧。
+    pub fn type_and_click(&self, code: u32, button: u32) {
+        let sent = self.call(move |state| {
+            let pressed = state.key(code, true);
+            state.click(button);
+            pressed.and(state.key(code, false))
+        });
+        sent.expect("被测进程没有接管键盘");
     }
 
     /// 滚轮滚 `value120` 个 120 分之一格（正的往下）：与真合成器一样，同一下的格数与距离放在一帧里。

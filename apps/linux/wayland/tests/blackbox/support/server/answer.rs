@@ -55,6 +55,15 @@ impl Answer {
             ..Self::passthrough()
         }
     }
+
+    /// 换上的帧是第 `page` 页（从 0 起），一共 `count` 页。
+    pub fn on_page(mut self, page: usize, count: usize) -> Self {
+        if let Some(frame) = &mut self.frame {
+            frame.page = page;
+            frame.page_count = count;
+        }
+        self
+    }
 }
 
 /// 组句中的一帧，与真 Server 发的一样：行内拼音放进应用（缺省的 `preedit_mode`），光标在末尾。

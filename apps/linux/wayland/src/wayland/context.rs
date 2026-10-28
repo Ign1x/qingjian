@@ -79,4 +79,12 @@ impl Output for Context<'_> {
     fn hide(&mut self) {
         self.wayland.hide();
     }
+
+    fn open_menu(&mut self, items: &[String]) -> bool {
+        self.wayland.open_menu(items)
+    }
+
+    fn close_menu(&mut self) {
+        self.wayland.close_menu();
+    }
 }

@@ -9,7 +9,7 @@ use crate::support::{
 };
 
 /// 按一次 Alt+Shift+T：Alt、Shift 本身放行（转给应用），T 照 `answer` 答；最后等被测进程处理完这一串。
-fn press_translate(rig: &Rig, answer: Answer) {
+pub(super) fn press_translate(rig: &Rig, answer: Answer) {
     rig.server.answer(Answer::passthrough());
     rig.server.answer(Answer::passthrough());
     rig.server.answer(answer);

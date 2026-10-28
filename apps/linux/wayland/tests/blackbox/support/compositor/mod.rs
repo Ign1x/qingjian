@@ -1,6 +1,6 @@
 //! 假合成器：用 wayland-server 搭的最小合成器，在测试进程里自己的线程上听沙箱里的一个私有 socket，
-//! 被测进程当它是真合成器连上来。提供 wl_compositor、wl_shm、wl_seat、input-method-v2、虚拟键盘、
-//! viewporter 与分数缩放；客户端的请求按先后记进 [`Compositor::requests`]，测试经 [`Compositor::call`] 让它发事件。
+//! 被测进程当它是真合成器连上来。提供 wl_compositor、wl_shm、wl_seat（键盘与指针）、input-method-v2、虚拟键盘、
+//! viewporter、分数缩放与 cursor-shape；客户端的请求按先后记进 [`Compositor::requests`]，测试经 [`Compositor::call`] 让它发事件。
 //! 应用那边的输入框只演它报给合成器的状态（[`Field`]），合成器每次 done 之前转给输入法。
 
 mod buffer;
@@ -9,6 +9,7 @@ mod keyboard;
 mod method;
 mod peer;
 mod picture;
+mod pointer;
 mod pool;
 mod request;
 mod scale;
@@ -19,6 +20,7 @@ mod wayland;
 
 pub use field::Field;
 pub use picture::Picture;
+pub use pointer::{BUTTON_LEFT, BUTTON_RIGHT};
 pub use request::Request;
 pub use setup::Setup;
 pub use state::State;
@@ -33,6 +35,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{self, Receiver, Sender};
 use std::thread::{self, JoinHandle};
 
+use wayland_protocols::wp::cursor_shape::v1::server::wp_cursor_shape_manager_v1::WpCursorShapeManagerV1;
 use wayland_protocols::wp::fractional_scale::v1::server::wp_fractional_scale_manager_v1::WpFractionalScaleManagerV1;
 use wayland_protocols::wp::viewporter::server::wp_viewporter::WpViewporter;
 use wayland_protocols_misc::zwp_input_method_v2::server::zwp_input_method_manager_v2::ZwpInputMethodManagerV2;
@@ -256,13 +259,15 @@ fn serve(
     let mut handle = display.handle();
     handle.create_global::<State, WlCompositor, ()>(6, ());
     handle.create_global::<State, WlShm, ()>(1, ());
-    handle.create_global::<State, WlSeat, ()>(7, ());
+    // 第 8 版：滚轮按 120 分之一格报（axis_value120）
+    handle.create_global::<State, WlSeat, ()>(8, ());
     if state.setup.input_method {
         handle.create_global::<State, ZwpInputMethodManagerV2, ()>(1, ());
     }
     handle.create_global::<State, ZwpVirtualKeyboardManagerV1, ()>(1, ());
     handle.create_global::<State, WpViewporter, ()>(1, ());
     handle.create_global::<State, WpFractionalScaleManagerV1, ()>(1, ());
+    handle.create_global::<State, WpCursorShapeManagerV1, ()>(1, ());
     let clients = display.backend().poll_fd().as_raw_fd();
     loop {
         let mut fds = [listener.as_raw_fd(), clients, wakee.as_raw_fd()].map(|fd| libc::pollfd {

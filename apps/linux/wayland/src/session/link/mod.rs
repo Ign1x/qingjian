@@ -11,7 +11,7 @@ use std::path::PathBuf;
 use std::time::{Duration, Instant};
 
 use qingjian_platform::protocol::linux::client::{ClientError, Connection, Reply};
-use qingjian_platform::protocol::linux::{AppSurrounding, Capabilities, DisplayIdentity};
+use qingjian_platform::protocol::linux::{AppSurrounding, Capabilities, DisplayIdentity, MenuItem};
 use qingjian_platform::protocol::{KeyEvent, SessionId};
 
 use opened::Opened;
@@ -225,5 +225,30 @@ impl Server for Link {
 
     fn retry_at(&self) -> Option<Instant> {
         self.retry_at
+    }
+
+    fn candidate(&mut self, identity: DisplayIdentity, index: usize) -> Result<Reply, ClientError> {
+        self.with(|connection, session| connection.candidate(session, identity, index))
+    }
+
+    fn page(&mut self, identity: DisplayIdentity, next: bool) -> Result<Reply, ClientError> {
+        self.with(|connection, session| connection.page(session, identity, next))
+    }
+
+    fn menu(
+        &mut self,
+        identity: DisplayIdentity,
+        index: usize,
+    ) -> Result<Vec<MenuItem>, ClientError> {
+        self.with(|connection, session| connection.menu(session, identity, index))
+    }
+
+    fn menu_pick(
+        &mut self,
+        identity: DisplayIdentity,
+        index: usize,
+        action: u32,
+    ) -> Result<Reply, ClientError> {
+        self.with(|connection, session| connection.menu_pick(session, identity, index, action))
     }
 }

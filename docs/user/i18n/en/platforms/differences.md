@@ -84,11 +84,11 @@ The Linux column in the tables above is the fcitx edition. The Wayland native ed
 | Feature | fcitx edition | Wayland native edition |
 |---|---|---|
 | Candidate window | Fcitx / IBus candidate panel | Drawn by Qingjian, same as macOS and Windows |
-| Seven built-in themes, light and dark | — | ✓ (follow system is light for now) |
+| Seven built-in themes, light and dark | — | ✓ (can follow the desktop's light/dark preference) |
 | Custom themes, candidate fonts and sizes | — | ✓ |
 | Glosses beside candidates | First gloss only | All glosses |
-| Chinese/English mode | Each window keeps its own | Shared by all windows |
+| Chinese/English mode | Each window keeps its own | Each app keeps its own; shared if the desktop can't identify apps |
 | Mode indicator (pop-up or tray) | Shown by Fcitx / IBus | — |
-| Candidates in English mode | Per the app list | Only after unticking 只在写字的应用里给 (Only in writing apps) |
-| Picking candidates with the mouse | ✓ | — |
+| Candidates in English mode | Per the app list | Per the app list; if the desktop can't identify apps, untick 只在写字的应用里给 (Only in writing apps) |
+| Candidate right-click menu (pin, demote, delete) | — | ✓ |
 | X11 apps | ✓ | — |

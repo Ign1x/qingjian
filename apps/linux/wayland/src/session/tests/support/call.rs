@@ -24,4 +24,12 @@ pub enum Call {
     Selection(u64, String),
     Poll,
     Acknowledge(u64),
+    /// 点了第几个候选，带的展示身份的版本号。
+    Candidate(usize, u64),
+    /// 翻页：是不是下一页。
+    Page(bool),
+    /// 右键第几个候选。
+    Menu(usize),
+    /// 点了菜单里的一项：右键的那一格、那一项的编号。
+    MenuPick(usize, u32),
 }

@@ -127,14 +127,19 @@ fn serve(index: usize, mut stream: UnixStream, received: &Mutex<Vec<(usize, Valu
                         return;
                     }
                     *reported = true;
-                    revision += 1;
-                    Some(json!({"KeyResult": {
-                        "session": session,
-                        "outcome": KeyOutcome::Passthrough,
-                        "commit": Value::Null,
-                        "frame": Frame::default(),
-                        "identity": {"generation": 1, "context": context, "revision": revision},
-                    }}))
+                    if event["event"].get("Menu").is_some() {
+                        // 问菜单只回那一格能做的几项，不推进展示身份
+                        Some(json!({"Menu": {"session": session, "items": []}}))
+                    } else {
+                        revision += 1;
+                        Some(json!({"KeyResult": {
+                            "session": session,
+                            "outcome": KeyOutcome::Passthrough,
+                            "commit": Value::Null,
+                            "frame": Frame::default(),
+                            "identity": {"generation": 1, "context": context, "revision": revision},
+                        }}))
+                    }
                 }
             }
         } else if let Some(poll) = message.get("Poll") {

@@ -5,8 +5,10 @@ mod context;
 mod grab;
 mod keyboard;
 mod memfd;
+mod menu;
 mod method;
 mod noop;
+mod pointer;
 mod popup;
 mod present;
 mod shm;
@@ -54,7 +56,7 @@ pub fn run(painter: Option<Painter>, socket: PathBuf) -> Result<(), Error> {
         if wayland.unavailable {
             return Err(Error::Unavailable);
         }
-        while let Some(input) = wayland.inbox.pop_front() {
+        while let Some(input) = wayland.next_input() {
             let mut context = Context {
                 wayland: &mut wayland,
                 queue: &mut queue,

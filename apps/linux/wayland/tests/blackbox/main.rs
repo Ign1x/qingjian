@@ -5,6 +5,7 @@
 #![cfg(target_os = "linux")]
 
 mod forwarding;
+mod pointer;
 mod popup;
 mod privacy;
 mod selection;

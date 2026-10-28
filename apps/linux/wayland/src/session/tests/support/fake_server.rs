@@ -3,7 +3,7 @@
 use super::{Answer, Call, identity};
 use crate::session::Server;
 use qingjian_platform::protocol::linux::client::{ClientError, Reply};
-use qingjian_platform::protocol::linux::{AppSurrounding, Capabilities, DisplayIdentity};
+use qingjian_platform::protocol::linux::{AppSurrounding, Capabilities, DisplayIdentity, MenuItem};
 use qingjian_platform::protocol::{Frame, KeyEvent, KeyOutcome};
 use std::collections::VecDeque;
 use std::time::{Duration, Instant};
@@ -29,6 +29,12 @@ pub struct FakeServer {
 
     /// 回包上的 `translation_pending`：选区翻译在等译文。
     pub pending: bool,
+
+    /// 点候选、翻页、点菜单项的答复，按先后用掉；没有就吃掉、帧不变。
+    pub clicks: VecDeque<Answer>,
+
+    /// 右键菜单的几项。
+    pub menu: Vec<MenuItem>,
 
     /// 选着的应用。
     app: Option<String>,
@@ -69,6 +75,29 @@ impl FakeServer {
         }
         self.connected = true;
         Ok(())
+    }
+
+    /// 帧在 Server 那边换了、前端还不知道：之后带旧身份的点选都过期。
+    pub fn advance(&mut self) {
+        self.revision += 1;
+    }
+
+    /// 点选的身份对不上当前帧就像真 Server 那样回 `Ignored`，对得上照脚本答。
+    fn click(&mut self, identity: &DisplayIdentity) -> Result<Reply, ClientError> {
+        self.check()?;
+        if identity.revision != self.revision {
+            return Ok(Reply::default());
+        }
+        let answer = self.clicks.pop_front();
+        let (commit, english) = match answer {
+            Some(answer) => {
+                self.frame = answer.frame;
+                self.pending = false;
+                (answer.commit, answer.english)
+            }
+            None => (None, None),
+        };
+        Ok(self.reply(KeyOutcome::Consumed, commit, english))
     }
 }
 
@@ -196,5 +225,39 @@ impl Server for FakeServer {
 
     fn retry_at(&self) -> Option<Instant> {
         self.retry_at
+    }
+
+    fn candidate(&mut self, identity: DisplayIdentity, index: usize) -> Result<Reply, ClientError> {
+        self.calls.push(Call::Candidate(index, identity.revision));
+        self.click(&identity)
+    }
+
+    fn page(&mut self, identity: DisplayIdentity, next: bool) -> Result<Reply, ClientError> {
+        self.calls.push(Call::Page(next));
+        self.click(&identity)
+    }
+
+    /// 只是问一句：帧与身份都不变；身份过期回空的。
+    fn menu(
+        &mut self,
+        identity: DisplayIdentity,
+        index: usize,
+    ) -> Result<Vec<MenuItem>, ClientError> {
+        self.calls.push(Call::Menu(index));
+        self.check()?;
+        if identity.revision != self.revision {
+            return Ok(Vec::new());
+        }
+        Ok(self.menu.clone())
+    }
+
+    fn menu_pick(
+        &mut self,
+        identity: DisplayIdentity,
+        index: usize,
+        action: u32,
+    ) -> Result<Reply, ClientError> {
+        self.calls.push(Call::MenuPick(index, action));
+        self.click(&identity)
     }
 }

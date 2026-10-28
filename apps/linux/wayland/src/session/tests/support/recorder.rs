@@ -13,6 +13,9 @@ pub struct Recorder {
 
     /// 下一次 `sync` 时焦点代次跳一下（等回包期间用户点到了别处）。
     pub switch_on_sync: bool,
+
+    /// 右键菜单画不出来（菜单的字体库建不起来）。
+    pub menu_fails: bool,
 }
 
 impl Output for Recorder {
@@ -64,5 +67,17 @@ impl Output for Recorder {
 
     fn hide(&mut self) {
         self.log.push(Out::Hide);
+    }
+
+    fn open_menu(&mut self, items: &[String]) -> bool {
+        if self.menu_fails {
+            return false;
+        }
+        self.log.push(Out::Menu(items.to_vec()));
+        true
+    }
+
+    fn close_menu(&mut self) {
+        self.log.push(Out::CloseMenu);
     }
 }

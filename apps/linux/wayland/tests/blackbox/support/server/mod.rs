@@ -1,7 +1,7 @@
 //! 假的青简 Server：同一套线上格式（4 字节小端长度 + JSON），在测试进程里自己的线程上听一个 Unix socket。
 //! 只复刻协议的形状、不复刻引擎（与 `qingjian_platform::protocol::linux::client` 的测试同一个思路）：
-//! 按下照测试排好的 [`Answer`] 答，别的照真 Server 的壳回，收到的每条消息都记下来给测试核对；
-//! 没想到的消息记成违规、断开连接（见 `conversation.rs`），测试结束时一条都不能有。
+//! 按下与候选窗上的点击按测试排好的 [`Answer`] 答，别的照真 Server 的壳回，收到的每条消息都记下来给测试核对；
+//! 鼠标请求须由测试逐种允许，没想到的消息记成违规、断开连接（见 `conversation.rs`），测试结束时一条都不能有。
 
 mod answer;
 mod conversation;
@@ -10,7 +10,11 @@ mod opened;
 mod report;
 mod script;
 
+#[cfg(test)]
+mod tests;
+
 pub use answer::Answer;
+pub use conversation::MENU;
 pub use report::KeyReport;
 
 use std::io::ErrorKind;
@@ -99,9 +103,19 @@ impl Server {
         }
     }
 
-    /// 排一个按下的答复。没排到的按下与所有抬起都放行、帧不变，与真 Server 一样。
+    /// 排一个按下（或候选窗上的点候选、翻页、点菜单项）的答复。没排到的与所有抬起都放行、帧不变，与真 Server 一样。
     pub fn answer(&self, answer: Answer) {
         lock(&self.script).presses.push_back(answer);
+    }
+
+    /// 只允许当前测试会发的鼠标事件；别的鼠标操作仍算违规。
+    pub fn allow_pointer(&self, events: &[&'static str]) {
+        assert!(
+            events
+                .iter()
+                .all(|event| matches!(*event, "Candidate" | "Page" | "Menu" | "MenuPick"))
+        );
+        lock(&self.script).pointer_events.extend(events);
     }
 
     /// 选区翻译的译文到了：下一次轮询换上它（还在等译文时才换）。
@@ -114,6 +128,15 @@ impl Server {
             kind,
             action: Box::new(action),
         });
+    }
+
+    /// 收到的某一种 `LinuxEvent`（`Candidate`、`Page`、`Menu`…）的内容，按先后。
+    pub fn pointer_events(&self, name: &str) -> Vec<Value> {
+        self.received
+            .entries()
+            .iter()
+            .filter_map(|message| message.get("LinuxEvent")?.get("event")?.get(name).cloned())
+            .collect()
     }
 
     /// 收到的按键，按先后：（按键，是不是抬起）。

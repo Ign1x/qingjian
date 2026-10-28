@@ -191,12 +191,16 @@ On other desktops, run the same command from their autostart configuration. The 
 
 ### Differences from the fcitx edition
 
-- Change the candidate window's theme, fonts and font sizes under 设置 → 外观 (Settings → Appearance), see [Appearance and themes](../personalize/appearance.md); with 外观 (Appearance) set to follow the system, it's shown in light mode for now.
-- One Chinese/English mode is shared by all windows; switching shows no indicator, and there's no tray icon.
-- English mode can't tell which app you're in yet: English candidates only appear after you untick 只在写字的应用里给 (Only in writing apps) under 设置 → 中英文 (Settings → Chinese/English).
+- Change the candidate window's theme, fonts and font sizes under 设置 → 外观 (Settings → Appearance), see [Appearance and themes](../personalize/appearance.md); following the system uses the desktop's light/dark preference, or light mode if the desktop provides none.
+- Each app keeps its own Chinese/English mode; if the desktop can't identify the current app, all windows share one mode. Switching shows no indicator, and there's no tray icon.
+- English candidates follow the app list; if the desktop can't identify the current app, untick 只在写字的应用里给 (Only in writing apps) under 设置 → 中英文 (Settings → Chinese/English) to show them.
 - If you switch to another window while typing, the pinyin not yet committed is lost (the fcitx edition commits it as typed).
 - Selecting text with the mouse while holding `Shift` switches between Chinese and English when you release `Shift`.
-- Not yet supported: picking candidates with the mouse, the candidate right-click menu, and everything listed above as not yet supported in the fcitx edition.
+- You can use the mouse on the candidate window: click a candidate to commit it (clicking a gloss beside it also commits the candidate itself), scroll the wheel over the candidate window to turn pages, and right-click a candidate to pin, demote or delete it (not yet in the fcitx edition), see [Typing habits](../personalize/habits.md#Candidate-right-click-menu). While the right-click menu is open, clicking outside the candidate window doesn't close it; pressing any key does.
+- If typing or paging changes the candidates, or a context menu opens or closes, queued clicks on the old layout are cancelled; click the updated candidate or menu again.
+- Touchpad paging counts the last movement before you lift your fingers, then starts a fresh total for the next gesture. If the desktop temporarily falls behind, the candidate window catches up with the latest content before accepting clicks again.
+- To translate selected text, select it in the app and press `Alt + Shift + T`, then press Enter once the translation appears to replace the selection. Sensitive and password fields don't expose selections; changing the selection or switching input fields cancels the translation.
+- Not yet supported: everything listed above as not yet supported in the fcitx edition.
 - Run `systemctl --user status qingjian-wayland` to see whether it's running and why it stopped; if it stops working, restart it with `systemctl --user restart qingjian-wayland`.
 
 ## Updating and uninstalling

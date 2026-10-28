@@ -10,4 +10,7 @@ pub enum Out {
     Text(String, String),
     Show(Vec<String>),
     Hide,
+    /// 弹出右键菜单，各项的字。
+    Menu(Vec<String>),
+    CloseMenu,
 }

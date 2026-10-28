@@ -4,7 +4,7 @@ use std::time::Instant;
 
 use qingjian_platform::protocol::KeyEvent;
 use qingjian_platform::protocol::linux::client::{ClientError, Reply};
-use qingjian_platform::protocol::linux::{AppSurrounding, Capabilities, DisplayIdentity};
+use qingjian_platform::protocol::linux::{AppSurrounding, Capabilities, DisplayIdentity, MenuItem};
 
 pub trait Server {
     /// 接下来的请求发给哪个应用的会话：一个应用一个会话，`[apps]` 按应用的设置与中 / 英状态都跟着会话走。
@@ -55,4 +55,25 @@ pub trait Server {
 
     /// 断开之后最早什么时候再试；没断过是 `None`。
     fn retry_at(&self) -> Option<Instant>;
+
+    /// 点了候选窗上本页第 `index` 个候选。`identity` 是候选窗上那一帧的展示身份，帧已经换了 Server 回 `Ignored`。
+    fn candidate(&mut self, identity: DisplayIdentity, index: usize) -> Result<Reply, ClientError>;
+
+    /// 在候选窗上滚滚轮翻页：`next` 为下一页。`identity` 同 [`Self::candidate`]。
+    fn page(&mut self, identity: DisplayIdentity, next: bool) -> Result<Reply, ClientError>;
+
+    /// 右键了本页第 `index` 个候选：这一格能做的几项，空的就不弹菜单。只是问一句，帧与展示身份都不变。
+    fn menu(
+        &mut self,
+        identity: DisplayIdentity,
+        index: usize,
+    ) -> Result<Vec<MenuItem>, ClientError>;
+
+    /// 点了右键菜单里的一项：`index` 同弹菜单时的那一格，`action` 是那一项的 [`MenuItem::id`]。
+    fn menu_pick(
+        &mut self,
+        identity: DisplayIdentity,
+        index: usize,
+        action: u32,
+    ) -> Result<Reply, ClientError>;
 }

@@ -1,12 +1,14 @@
-//! 一条连接上的对话：照真 Server（`apps/linux/server/src/ipc/connection.rs`）的壳回包，按下照脚本答。
+//! 一条连接上的对话：照真 Server（`apps/linux/server/src/ipc/connection.rs`）的壳回包，按下与测试允许的鼠标操作照脚本答。
 //!
 //! 没想到的消息不回个空包糊弄过去：真 Server 会断开连接的（握手不合规矩、报能力之前发事件、轮询没开的会话），
-//! 与这些测试里前端不该发的（点选、翻页、右键菜单、托盘、没要过的选区回话、认不出的消息），都当违规交给调用方，
+//! 与这些测试里前端不该发的（未允许的鼠标操作、托盘、没要过的选区回话、认不出的消息），都当违规交给调用方，
 //! 调用方记下来、断开连接，测试结束时报出来。
 
 use std::collections::HashMap;
 
-use qingjian_platform::protocol::linux::{DisplayAcknowledged, LINUX_UI_PROTOCOL, LinuxEvent};
+use qingjian_platform::protocol::linux::{
+    DisplayAcknowledged, DisplayIdentity, LINUX_UI_PROTOCOL, LinuxEvent,
+};
 use qingjian_platform::protocol::{Frame, KeyOutcome, PROTOCOL_VERSION, ServerMessage, SessionId};
 use serde_json::{Value, json};
 
@@ -22,6 +24,9 @@ const MAX_SENSES: usize = 128;
 
 /// 违规：一句说明。
 type Violation = String;
+
+/// 右键菜单回的几项：编号与字，与真 Server 的候选菜单一样带编号。
+pub const MENU: [(u32, &str); 2] = [(1, "置顶"), (5, "删除")];
 
 #[derive(Default)]
 pub struct Conversation {
@@ -134,12 +139,22 @@ impl Conversation {
             (_, None) => return Err(format!("报能力之前发了事件：{body}")),
             _ => {}
         }
-        let (outcome, commit) = match event {
+        if let Some(reply) = self.panel(&event, session, script)? {
+            return Ok(reply);
+        }
+        let selection_supported = matches!(
+            event,
             LinuxEvent::Key {
                 release: false,
-                selection_supported,
+                selection_supported: true,
                 ..
-            } => {
+            }
+        );
+        let (outcome, commit) = match event {
+            LinuxEvent::Key { release: false, .. }
+            | LinuxEvent::Candidate { .. }
+            | LinuxEvent::Page { .. }
+            | LinuxEvent::MenuPick { .. } => {
                 let answer = script
                     .presses
                     .pop_front()
@@ -264,6 +279,45 @@ impl Conversation {
             "revision": self.revision,
         });
         body["frame"]["translation_pending"] = json!(self.pending);
+    }
+
+    /// 候选窗上的鼠标操作（点候选、翻页、问菜单、点菜单项）像真 Server 那样先核对展示身份：对不上当前帧回 `Ignored`；
+    /// 须先由测试逐种允许，问菜单只回那几项、不推进身份。别的事件是 `None`，照常处理。
+    fn panel(
+        &self,
+        event: &LinuxEvent,
+        session: u64,
+        script: &Script,
+    ) -> Result<Option<Value>, Violation> {
+        let (name, identity) = match event {
+            LinuxEvent::Candidate { identity, .. } => ("Candidate", identity),
+            LinuxEvent::Page { identity, .. } => ("Page", identity),
+            LinuxEvent::Menu { identity, .. } => ("Menu", identity),
+            LinuxEvent::MenuPick { identity, .. } => ("MenuPick", identity),
+            _ => return Ok(None),
+        };
+        if !script.pointer_events.contains(name) {
+            return Err(format!("这个测试没允许 {name}：{event:?}"));
+        }
+        let current = DisplayIdentity {
+            generation: self.generation,
+            context: self.sessions[&session]
+                .context
+                .clone()
+                .expect("事件已核对握手"),
+            revision: self.revision,
+        };
+        if *identity != current {
+            return Ok(Some(json!({"Ignored": {"session": session}})));
+        }
+        if !matches!(event, LinuxEvent::Menu { .. }) {
+            return Ok(None);
+        }
+        let items: Vec<Value> = MENU
+            .iter()
+            .map(|(id, label)| json!({"id": id, "label": label}))
+            .collect();
+        Ok(Some(json!({"Menu": {"session": session, "items": items}})))
     }
 }
 

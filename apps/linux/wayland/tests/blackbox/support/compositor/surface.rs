@@ -1,9 +1,14 @@
 //! 一个 surface 上 commit 才生效的状态：缓冲、viewport 的目标尺寸、buffer scale。
 
+use std::sync::{Mutex, PoisonError};
+
 use wayland_server::Resource;
 use wayland_server::protocol::wl_buffer::WlBuffer;
 
-use super::{Buffer, Picture, Request};
+use super::Compositor;
+use crate::support::compositor::buffer::Buffer;
+use crate::support::compositor::picture::Picture;
+use crate::support::compositor::request::Request;
 
 pub struct Surface {
     /// 下次 commit 换上的缓冲：`Some(None)` 是挂空缓冲（收起）。
@@ -16,6 +21,10 @@ pub struct Surface {
     pub destination: Option<(i32, i32)>,
 
     pub scale: i32,
+
+    hold: bool,
+
+    held: Vec<WlBuffer>,
 }
 
 impl Default for Surface {
@@ -25,6 +34,8 @@ impl Default for Surface {
             picture: None,
             destination: None,
             scale: 1,
+            hold: false,
+            held: Vec::new(),
         }
     }
 }
@@ -34,12 +45,16 @@ impl Surface {
         self.attached = Some(buffer);
     }
 
-    /// commit：换上新挂的缓冲，读出画面后马上还给客户端（像把它拷进纹理的合成器那样），返回这次 commit 的样子。
+    /// commit：换上新挂的缓冲，缺省读出画面后马上还给客户端；测试可以暂扣以模拟缓冲耗尽，返回这次 commit 的样子。
     pub fn commit(&mut self) -> Request {
         if let Some(attached) = self.attached.take() {
             self.picture = attached.map(|buffer| {
                 let picture = buffer.data::<Buffer>().map(Buffer::picture);
-                buffer.release();
+                if self.hold {
+                    self.held.push(buffer);
+                } else {
+                    buffer.release();
+                }
                 picture.expect("缓冲是 wl_shm 池建的")
             });
         }
@@ -48,5 +63,25 @@ impl Surface {
             destination: self.destination,
             scale: self.scale,
         }
+    }
+}
+
+impl Compositor {
+    /// 暂扣或归还候选窗缓冲，模拟合成器绘制慢于输入事件的情况。
+    pub fn hold_buffers(&self, hold: bool) {
+        self.call(move |state| {
+            let popup = state.popup.as_ref().expect("候选窗已创建");
+            let mut surface = popup
+                .data::<Mutex<Surface>>()
+                .expect("surface 状态")
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner);
+            surface.hold = hold;
+            if !hold {
+                for buffer in surface.held.drain(..) {
+                    buffer.release();
+                }
+            }
+        });
     }
 }

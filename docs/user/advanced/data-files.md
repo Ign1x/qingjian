@@ -63,6 +63,6 @@ description: 青简数据文件夹的位置、每个文件记的是什么、运�
 - **Windows**：`%APPDATA%\Qingjian\models\hanzhang-tongbian\`
 - **Linux**：`~/.local/share/qingjian/models/hanzhang-tongbian/`
 
-- 含章·知微（`hanzhang-zhiwei-small.qjm`，放在 `models/hanzhang-zhiwei/`）不再随包，在「设置 → 实验功能」下载，或自己放进这个目录后在实验功能里打开（`[model] name = "zhiwei"`）；它会参考光标前的几十个字重排候选。知意下载后在 `models/zhiyi/`（Windows 是 `models/zhiyi-onnx/`）。
+- 含章·知微（`hanzhang-zhiwei-small.qjm`，放在 `models/hanzhang-zhiwei/`）不再随包，在「设置 → 实验功能」下载，或自己放进这个目录后在实验功能里打开（`[model] name = "zhiwei"`）；它会参考光标前的几十个字重排候选。知意下载后在 `models/zhiyi/`（Windows 与 Linux 是 `models/zhiyi-onnx/`）。
 - 旧版用过的 `model-p2c/` 与 `model/` 文件夹仍可读取；同一模型的新文件夹优先。
 - 直接导出的 `model.safetensors`、`config.json`、`vocab.json` 三个文件也能识别；同一文件夹里两种都有时优先用 `.qjm`。

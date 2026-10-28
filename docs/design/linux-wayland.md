@@ -161,6 +161,7 @@ Server 对这样的会话照旧：↑ / ↓ 只移高亮、帧上不带键盘。
   候选右键菜单（`Renderer::render_menu` 画在同一个 popup 里，与 macOS / Windows 一样自绘）、中 / 英提示（`Renderer::render_status` 在 popup 里亮一秒）与主题里的模式、
   托盘（StatusNotifierItem + DBusMenu，原生菜单）、选区翻译；Server 补齐设置程序里 Linux 标「待实现」的输入功能（辅码、形码、自动加空格、翻页与高亮键、
   全半角与简繁快捷键、小键盘数字、按应用记中英、横排矩阵、拼音行声调、键位提示、实验模型）。
+- **第二轮第二批 Server 输入方案已接**：辅码及 v3 插件帧降级、形码与自定义双拼、实验模型（知意 CPU 两线程、含章·知微），fcitx 版与 Wayland 原生版共用；方案名随 `mode.scheme` 返回，用户方案与形码词库支持热加载。Linux 知意需要另装 ONNX Runtime 1.24+，缺失时回退含章。
 - **之后**：按 `text_input_rectangle` 判断翻没翻、调排布；设置程序支持表区分两个版本；CI 跑黑盒测试（要 libxkbcommon 与 libwayland-client）。
 
 ## 验证

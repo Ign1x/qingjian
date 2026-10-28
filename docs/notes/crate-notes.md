@@ -271,6 +271,9 @@ P2C 自由生成实验：`--eval-text <集> --eval-generate data/models/hanzhang
 
 ## crates/qingjian-platform
 
+可选 feature `models` 提供本地模型装配（`models::{ModelDirs, ModelFiles, ModelLoader, LoadedModel}`），只有 Server 开；默认配置 / 协议构建不带 neural / ONNX 依赖。
+从 Windows 的 `dispatch/rescore/{models,loader}` 提取目录选择与后台预热：每次加载现找用户下载，知意 int8 ONNX 用 CPU 两线程，缺模型或运行库沿用含章回退次序；Windows 的调用方留待后续迁移。
+
 输入方案是**两条独立的轴**：`Scheme`（拼音侧：全拼 / 双拼九套 / 用户双拼 `Scheme::Custom` / 大千注音 / 关，`[general] scheme`；
 认不出的写法能当方案 id 就是 `Custom`，id 由 `GeneralConfig::custom_shuangpin` 给，找不到时壳按全拼跑）
 与 `[general] code`（形码侧：`off` 为关 / `wubi86` / 用户方案 id，`GeneralConfig::code`；没写时认旧键 `wubi = "wubi86"`）。两边都开就是**混输**（`GeneralConfig::mixed`）。
@@ -620,6 +623,11 @@ v4 的两样给 Rust 前端：候选右键菜单（`dispatch/menu.rs`，与 Wind
 发给握手 v3 的会话（Fcitx5 / Fcitx4 插件）的帧在 `dispatch/display/legacy.rs` 降级：码段当普通拼音段，候选种类不是字符串的（自定义短语的 `{"Custom": n}`）改报 `Chinese`——
 Fcitx5 插件用 `value("kind", "Local")` 按字符串取，碰到对象抛 `type_error` 断开整条连接；`aux_code_show` 开着时码拼在候选文字后面（面板只有文字与注记两栏，选词按下标回 Server，上屏的仍是原词）。
 会话握手的版本由 ipc 层随 `DisplayReporting` 的 `version` 交给 Router（`SessionInfo::linux_ui`）。IBus 前端是 Rust、与 Server 同一次编译，帧原样收，码由 `ibus/view.rs` 自己拼在候选后面。
+
+实验模型：`[model] name`（`tongbian` / `zhiwei` / `zhiyi`）、`enabled` 与 `zhiyi_tier` 接到 `dispatch/rescore`，设置页在 Linux 与 Windows 一样下载 `models/zhiyi-onnx/`（int8 ONNX），知微在 `models/hanzhang-zhiwei/`。
+模型名称 / 开关变了丢弃旧加载接收端、卸掉整句与选词模型，重新通过 `qingjian_platform::models` 找文件并加载；只换档不重载。后台接上时若还在第一页且没移动高亮，为当前组句补一次停键重排。
+Linux 的知意沿用 Windows 的 CPU 两线程，不探测 GPU、不退到大模型 CPU safetensors。运行库由 `paths::onnx_runtime` 找：显式 `ORT_DYLIB_PATH`、用户 `models/onnxruntime/lib`、随包根 `lib`、`LD_LIBRARY_PATH` 与系统库目录，认 `libonnxruntime.so` / `.so.1`；需要 API 24（ONNX Runtime 1.24+），安装运行库后重启 Server。
+无模型 / 无运行库回退含章；加载错误只记日志、按词库输入。前文仍用 Linux 现有的会话上屏历史，未接应用里的前文。
 
 线上类型（`LinuxEvent` / `Capabilities` / `DisplayIdentity` / `DisplayAcknowledged` / `InputMode` / `ModeCommand` / `MenuReply` / `LINUX_UI_PROTOCOL` / `socket_path`）
 在 `qingjian_platform::protocol::linux`，不在 Server crate 里——与 Windows 的 TSF DLL 同一条理由：

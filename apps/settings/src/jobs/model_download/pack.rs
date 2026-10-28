@@ -1,3 +1,5 @@
+//! 实验模型的下载版本与用户目录；无 Metal 的平台用 int8 ONNX 版知意。
+
 use std::path::{Path, PathBuf};
 
 use qingjian_platform::LocalModel;
@@ -25,7 +27,7 @@ pub struct Pack {
 
 impl Pack {
     /// macOS 用 safetensors 版（candle 跑）。
-    #[cfg(not(windows))]
+    #[cfg(target_os = "macos")]
     const ZHIYI: Self = Self {
         model: LocalModel::Zhiyi,
         tag: "zhiyi-v1.0.0",
@@ -35,8 +37,8 @@ impl Pack {
         size: "154 MB",
     };
 
-    /// Windows 用 int8 ONNX 版（ONNX Runtime 跑）。
-    #[cfg(windows)]
+    /// Windows 与 Linux 用 int8 ONNX 版（ONNX Runtime 跑）。
+    #[cfg(not(target_os = "macos"))]
     const ZHIYI: Self = Self {
         model: LocalModel::Zhiyi,
         tag: "zhiyi-onnx-v1.0.0",
@@ -79,5 +81,24 @@ impl Pack {
     pub fn installed(self) -> bool {
         crate::system::paths::user_dir()
             .is_some_and(|dir| self.install_path(&dir).join(self.marker).is_file())
+    }
+}
+
+#[cfg(all(test, not(target_os = "macos")))]
+mod tests {
+    use super::Pack;
+    use qingjian_platform::LocalModel;
+    use std::path::Path;
+
+    #[test]
+    fn cpu_platforms_download_the_onnx_pack() {
+        let pack = Pack::of(LocalModel::Zhiyi).unwrap();
+        assert_eq!(pack.tag, "zhiyi-onnx-v1.0.0");
+        assert_eq!(
+            pack.install_path(Path::new("data")),
+            Path::new("data/models/zhiyi-onnx")
+        );
+        assert_eq!(pack.marker, "laya.int8g.onnx");
+        assert_eq!(pack.size, "70 MB");
     }
 }

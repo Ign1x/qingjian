@@ -19,14 +19,14 @@ use self::answer::Answer;
 use self::composed::Composed;
 pub use self::config::RouterConfig;
 use self::reload::ConfigReload;
-pub use self::rescore::find_model;
-use self::rescore::{ModelLoader, RescoreState};
+use self::rescore::RescoreState;
 pub use self::schemes::find_bundled_schemes;
 use self::session::SessionInfo;
 use self::translate::Translation;
 use qingjian_core::Engine;
-use qingjian_platform::SchemeSlot;
+use qingjian_platform::models::{ModelDirs, ModelLoader};
 use qingjian_platform::protocol::{ClientMessage, ServerMessage, SessionId};
+use qingjian_platform::{LocalModelConfig, SchemeSlot};
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
@@ -77,8 +77,10 @@ pub struct Router {
     /// 最近一次学习落盘的时刻。
     last_flush: Instant,
 
-    /// 本地整句模型（`.qjm` 或三件套目录）；没有模型文件为 `None`。
-    model_path: Option<PathBuf>,
+    /// 每次加载时现找，设置页下载完后切换模型即可使用。
+    model_dirs: ModelDirs,
+
+    applied_model: LocalModelConfig,
 
     /// 进行中的模型加载；加载完接到 Engine 上就清掉。
     model_loader: Option<ModelLoader>,
@@ -120,7 +122,8 @@ impl Router {
             notice: None,
             display_revision: 0,
             last_flush: Instant::now(),
-            model_path: None,
+            model_dirs: ModelDirs::default(),
+            applied_model: LocalModelConfig::default(),
             model_loader: None,
             rescore: RescoreState::default(),
             reload: None,

@@ -14,6 +14,8 @@ pub mod display;
 mod error;
 pub mod extra_dictionaries;
 pub mod logs;
+#[cfg(feature = "models")]
+pub mod models;
 pub mod protocol;
 pub mod resources;
 mod scheme_meta;

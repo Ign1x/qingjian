@@ -5,5 +5,6 @@ pub mod error;
 #[cfg(any(target_os = "linux", target_os = "freebsd"))]
 pub mod ipc;
 pub use assembly::{AssemblySpec, LanguageModelFiles};
-pub use dispatch::{Router, RouterConfig, find_bundled_schemes, find_model};
+pub use dispatch::{Router, RouterConfig, find_bundled_schemes};
 pub use error::ServerError;
+pub use qingjian_platform::models::find_model;

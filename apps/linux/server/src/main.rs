@@ -7,9 +7,9 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
     use qingjian_core::Language;
     use qingjian_linux_server::{
         AssemblySpec, LanguageModelFiles, Router, RouterConfig, assembly, find_bundled_schemes,
-        find_model,
     };
     use qingjian_platform::Config;
+    use qingjian_platform::models::ModelDirs;
     use std::path::PathBuf;
     if std::env::args().any(|arg| arg == "--version") {
         println!("qingjian-linux-server {}", env!("CARGO_PKG_VERSION"));
@@ -98,7 +98,14 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
     let mut router = Router::new(engine, RouterConfig::from(&config));
     router.configure_schemes(&config, Some(user_dir.clone()), find_bundled_schemes(&root));
     tracing::info!(scheme = %router.scheme_name(), "输入方案已装配");
-    router.configure_local_model(find_model(Some(&user_dir), &root), &config.model);
+    router.configure_local_model(
+        ModelDirs {
+            runtime: paths::onnx_runtime(&user_dir, &root),
+            user: Some(user_dir.clone()),
+            bundled_root: root.clone(),
+        },
+        &config.model,
+    );
     router.watch_config(&config, config_path, root, user_dir);
     extern "C" fn stop(_: libc::c_int) {
         qingjian_linux_server::ipc::request_shutdown();

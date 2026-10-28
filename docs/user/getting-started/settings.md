@@ -31,7 +31,7 @@ description: 打开设置的方法、搜索与 ⓘ 说明、设置窗口 12 页�
 | 云服务 | AI 服务的开关、服务商、各项 AI 功能 | [AI 服务](../cloud/index.md) |
 | 统计 | 输入量、速度、词汇进度、AI 用量 | [统计](../learning/statistics.md) |
 | 生词本 | 时间线与词表、导出、清空 | [生词本](../learning/vocabulary.md) |
-| 实验功能 | 下载并启用试用中的本地模型：知意、含章·知微（macOS、Windows） | [整句、简拼与纠错](../input/sentence.md#实验功能) |
+| 实验功能 | 下载并启用试用中的本地模型：知意、含章·知微（macOS、Windows、Linux） | [整句、简拼与纠错](../input/sentence.md#实验功能) |
 | 高级 | 配置文件、日志、输入日志 | [隐私](../help/privacy.md)、[直接编辑配置文件](../advanced/config-file.md) |
 | 关于 | 版本、检查更新、许可、数据来源、隐私说明 | [隐私](../help/privacy.md#检查更新) |
 

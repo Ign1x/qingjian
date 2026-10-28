@@ -18,7 +18,7 @@ The macOS and Windows versions are in beta with nearly the same features; keys f
 | Dachen Zhuyin | — | ✓ | ✓ | ✓ |
 | Wubi, Wubi–pinyin mixed input | ✓ | ✓ | — | ✓ |
 | Custom double pinyin / shape-based schemes | ✓ | ✓ | — | — |
-| Auxiliary code | ✓ | ✓ | — | — |
+| Auxiliary code | ✓ | ✓ | ✓ | — |
 | Key hints and radical chart | ✓ | ✓ | — | — |
 | Local sentence model | ✓ | ✓ | ✓ | — |
 | English mode and English completion | ✓ | ✓ | ✓ | ✓ (English keyboard) |

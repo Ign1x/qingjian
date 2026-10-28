@@ -15,7 +15,7 @@ description = "一两句话说这套方案是什么"
 license = "CC-BY-4.0"
 ```
 
-macOS 与 Windows 支持，Linux 暂不支持。
+macOS 与 Windows 都支持；Linux 暂时只支持辅码码表与辅码方案，自制双拼与形码方案还不支持。
 
 ## 自制双拼方案
 

@@ -12,6 +12,9 @@ pub(crate) struct SessionInfo {
     /// 前端握手时报的显示能力（横排矩阵、键位提示），没握手或没报为全关。
     pub(crate) features: qingjian_platform::protocol::linux::Features,
 
+    /// 前端握手报的 Linux 协议版本，没握手为 0。v3 的是 Fcitx5 / Fcitx4 插件，发给它们的帧要降级（见 `dispatch/display/legacy.rs`）。
+    pub(crate) linux_ui: u32,
+
     /// 待确认的当前候选帧。
     pub(crate) display_frame: Option<qingjian_platform::protocol::Frame>,
 
@@ -58,6 +61,7 @@ impl SessionInfo {
             active: true,
             display_identity: None,
             features: Default::default(),
+            linux_ui: 0,
             display_frame: None,
             last_frame: None,
             private: true,

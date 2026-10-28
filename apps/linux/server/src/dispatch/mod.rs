@@ -11,6 +11,7 @@ mod message;
 mod mode;
 mod reload;
 mod rescore;
+mod schemes;
 mod session;
 mod translate;
 
@@ -20,6 +21,7 @@ pub use self::config::RouterConfig;
 use self::reload::ConfigReload;
 pub use self::rescore::find_model;
 use self::rescore::{ModelLoader, RescoreState};
+pub use self::schemes::find_bundled_schemes;
 use self::session::SessionInfo;
 use self::translate::Translation;
 use qingjian_core::Engine;

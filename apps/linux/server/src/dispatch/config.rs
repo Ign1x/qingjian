@@ -74,6 +74,9 @@ pub struct RouterConfig {
 
     /// 译词旁显示词性（`[general] translation_pos`）。
     pub translation_pos: bool,
+
+    /// 候选上显示辅码（`[general] aux_code_show`），随帧下发。
+    pub aux_code_show: bool,
 }
 
 impl RouterConfig {
@@ -129,6 +132,7 @@ impl From<&Config> for RouterConfig {
             },
             translate_selection: config.shortcut.translate_selection,
             translation_pos: config.general.translation_pos,
+            aux_code_show: config.general.aux_code_show,
         }
     }
 }

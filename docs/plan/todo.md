@@ -157,7 +157,6 @@
   Windows 点带读音候选的译词可能点错义项（没验）；Wayland 前端在 `view::renumber_senses` 里先换回 Core 的编号（不然回执整份被 Server 拒掉），上游修了就删
 - [ ] 候选 → 渲染帧的换算收口：共享的 `qingjian_platform::display` 已有（Linux Wayland 前端在用），Windows Server（`ui/candidates/{row,render_data}.rs`）与 macOS（`candidates/row.rs` + `bitmap/convert.rs`）各自单独提 PR 改用它，改完删掉自己那份
 - [ ] 设置项的平台缺口（设置程序 `apps/settings/src/support/` 表里标「待实现」的项，输入法接上之前设置里不显示；测试逐条对照这里）：
-  - [ ] 辅码：Linux
   - [ ] 形码与自定义方案：Linux
   - [ ] 默认英文模式：macOS
   - [ ] 按应用记住中英模式：macOS、Linux

@@ -610,6 +610,13 @@ v4 的两样给 Rust 前端：候选右键菜单（`dispatch/menu.rs`，与 Wind
 托盘切换（`Indicator`）的中 / 英与切换键同一条路（组句原样上屏、回包带 `english`，`english_mode` 关着不切），全角标点切当前模式那一份、简繁在简体与上次用的繁体之间切（同 Windows 的简繁快捷键），
 后两样当场改内存并写回配置（`[general] full_width_punctuation` / `english_full_width_punctuation` / `traditional_variant` / `last_traditional`），热加载读回来的是同一个值。
 `[general] preedit` 使用已有 `both` / `inline` / `window`；没有新增 Linux 自绘配置。详见 [linux-fcitx5.md](linux-fcitx5.md)。
+辅码照 Windows Server 接：启动按 `[aux_code]` 用 `code_tables::AuxCodeSources` 在随包 `data/generated/codes`、用户 `codes/` 与两处 `schemes/` 里挑一套装上（`assembly::assemble`），
+触发键、候选上显示码、码删空后留在辅码按 `[general]` 设给 Engine；热加载看用户 `codes/` 与 `schemes/` 的逐文件快照与 `[aux_code]` 的变化重装（`reload_aux_codes`，组句中当场按新表重查）。
+按键与 Windows 的 `dispatch/key/input.rs` 同一套（字母进码段、触发键进辅码且再敲幂等、筛空时空格 / 标点 / 数字都吞掉、Esc 只清码段、辅码态敲标点先上屏高亮候选）；
+码段与先选好的词随 `EngineSession` 跟着会话走，一个输入框里敲到一半切到另一个不串。
+发给握手 v3 的会话（Fcitx5 / Fcitx4 插件）的帧在 `dispatch/display/legacy.rs` 降级：码段当普通拼音段，候选种类不是字符串的（自定义短语的 `{"Custom": n}`）改报 `Chinese`——
+Fcitx5 插件用 `value("kind", "Local")` 按字符串取，碰到对象抛 `type_error` 断开整条连接；`aux_code_show` 开着时码拼在候选文字后面（面板只有文字与注记两栏，选词按下标回 Server，上屏的仍是原词）。
+会话握手的版本由 ipc 层随 `DisplayReporting` 的 `version` 交给 Router（`SessionInfo::linux_ui`）。IBus 前端是 Rust、与 Server 同一次编译，帧原样收，码由 `ibus/view.rs` 自己拼在候选后面。
 
 线上类型（`LinuxEvent` / `Capabilities` / `DisplayIdentity` / `DisplayAcknowledged` / `InputMode` / `ModeCommand` / `MenuReply` / `LINUX_UI_PROTOCOL` / `socket_path`）
 在 `qingjian_platform::protocol::linux`，不在 Server crate 里——与 Windows 的 TSF DLL 同一条理由：

@@ -15,7 +15,7 @@ description = "A sentence or two about what this scheme is"
 license = "CC-BY-4.0"
 ```
 
-Supported on macOS and Windows; not yet on Linux.
+Supported on macOS and Windows; Linux supports auxiliary code tables and auxiliary code schemes so far, but not yet custom double pinyin or shape-based schemes.
 
 ## Custom double pinyin schemes
 

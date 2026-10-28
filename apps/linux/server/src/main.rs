@@ -6,7 +6,8 @@ mod paths;
 fn run() -> Result<(), Box<dyn std::error::Error>> {
     use qingjian_core::Language;
     use qingjian_linux_server::{
-        AssemblySpec, LanguageModelFiles, Router, RouterConfig, assembly, find_model,
+        AssemblySpec, LanguageModelFiles, Router, RouterConfig, assembly, find_bundled_schemes,
+        find_model,
     };
     use qingjian_platform::Config;
     use std::path::PathBuf;
@@ -52,6 +53,9 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
         language_model: LanguageModelFiles::find(&root.join("data/generated")),
         bundled_dicts_dir: Some(root.join("data/generated/dicts")),
         dictionaries: config.dictionaries.clone(),
+        bundled_codes_dir: Some(root.join("data/generated/codes")),
+        bundled_schemes_dir: find_bundled_schemes(&root),
+        aux_code: config.aux_code.clone(),
         levels_dir: Some(root.join("assets/levels")),
         user_dir: Some(user_dir.clone()),
         input_log: config.general.input_log,
@@ -83,6 +87,10 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
     engine.set_english_max_in_chinese(config.general.english_max_in_chinese());
     engine.set_english_min_position(config.general.english_min_position());
     engine.set_mode_keys(config.shortcut.mode);
+    engine.set_aux_code_key(config.general.aux_code_key(), config.general.page_keys());
+    engine.set_aux_keep_empty(config.general.aux_code_keep_empty);
+    engine.set_aux_enabled(config.aux_code.enabled);
+    engine.set_aux_show(config.general.aux_code_show);
     engine
         .set_custom_phrases(config.custom_phrases.clone())
         .map_err(std::io::Error::other)?;

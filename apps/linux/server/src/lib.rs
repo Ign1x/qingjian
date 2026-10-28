@@ -5,5 +5,5 @@ pub mod error;
 #[cfg(any(target_os = "linux", target_os = "freebsd"))]
 pub mod ipc;
 pub use assembly::{AssemblySpec, LanguageModelFiles};
-pub use dispatch::{Router, RouterConfig, find_model};
+pub use dispatch::{Router, RouterConfig, find_bundled_schemes, find_model};
 pub use error::ServerError;

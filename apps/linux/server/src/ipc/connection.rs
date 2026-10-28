@@ -82,7 +82,7 @@ pub(super) fn serve_connection(
             };
             dispatch_json(
                 &sender,
-                json!({"DisplayReporting": {"session": session.global, "identity": identity, "features": features}}),
+                json!({"DisplayReporting": {"session": session.global, "identity": identity, "features": features, "version": version}}),
             );
             session.identity = Some(identity);
             session.version = version;

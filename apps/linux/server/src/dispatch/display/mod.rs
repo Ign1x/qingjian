@@ -1,5 +1,6 @@
 //! Linux 版本化显示初始化与实际呈现确认，Windows 协议保持不变。
 mod annotation;
+mod legacy;
 #[cfg(test)]
 mod tests;
 
@@ -28,9 +29,15 @@ impl Router {
                 .get("features")
                 .and_then(|value| serde_json::from_value(value.clone()).ok())
                 .unwrap_or_default();
+            let linux_ui = body
+                .get("version")
+                .and_then(Value::as_u64)
+                .and_then(|version| u32::try_from(version).ok())
+                .unwrap_or(0);
             let info = self.sessions.get_mut(&session)?;
             info.display_identity = Some(identity);
             info.features = features;
+            info.linux_ui = linux_ui;
             info.display_frame = None;
             info.last_frame = None;
             if self.focused == Some(session) {
@@ -73,6 +80,13 @@ impl Router {
             let body = value.as_object_mut()?.values_mut().next()?;
             body["frame"]["translation_pending"] = json!(pending);
             annotate_frame(frame, &mut body["frame"]);
+            if self
+                .sessions
+                .get(session)
+                .is_some_and(|info| info.linux_ui == legacy::PLUGIN_VERSION)
+            {
+                legacy::downgrade(frame, &mut body["frame"]);
+            }
             if let Some(mode) = self.input_mode(*session) {
                 body["mode"] = json!(mode);
             }

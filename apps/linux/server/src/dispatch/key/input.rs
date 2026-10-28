@@ -109,7 +109,12 @@ impl Router {
                 Effect::Changed(None)
             }
             codes::ESCAPE => {
-                self.engine.clear();
+                // 辅码态里 Esc 只清码段、拼音留着（与 Core 的 clear_aux 语义一致）
+                if self.engine.in_aux() {
+                    self.engine.clear_aux();
+                } else {
+                    self.engine.clear();
+                }
                 Effect::Changed(None)
             }
             codes::RETURN => {
@@ -185,6 +190,15 @@ impl Router {
             || is_zhuyin_key
             || (c.is_ascii_uppercase() && self.config.shift_letter_compose)
         {
+            // 辅码态：字母进码段（逐键即筛），不进拼音缓冲区
+            if c.is_ascii_lowercase() && self.engine.push_aux_code(c) {
+                return Effect::Changed(None);
+            }
+            // 大写（shift_letter_compose）落在辅码态：先清码段回拼音态（与 Esc 同语义）再收进缓冲区；
+            // 码段不清会挂在已变化的缓冲区上继续筛
+            if c.is_ascii_uppercase() && self.engine.in_aux() {
+                self.engine.clear_aux();
+            }
             self.engine.push(c);
             return Effect::Changed(None);
         }
@@ -287,6 +301,20 @@ impl Router {
                 return Effect::Changed(None);
             }
         }
+        // 辅码触发键：拼音打完整了、这个键也没被键盘方案吃掉 → 进辅码态（触发键不进缓冲区）
+        if self.engine.aux_trigger(c) {
+            self.engine.enter_aux();
+            return Effect::Changed(None);
+        }
+        // 已经在辅码态里再敲触发键是幂等的，既不上屏候选也不当标点
+        if self.engine.in_aux() && c == self.engine.aux_code_key() {
+            return Effect::Changed(None);
+        }
+        // 码段筛空（例如码敲错一个字母）：空格 / 标点 / 数字都不上屏原始拼音，吞掉停在辅码态等退格
+        if self.engine.in_aux() && !self.engine.aux_code().is_empty() && self.candidate_count() == 0
+        {
+            return Effect::Changed(None);
+        }
         if let Some(digit) = codes::digit(event)
             && (!self.engine.is_zhuyin_mode() || self.navigated)
         {
@@ -309,15 +337,16 @@ impl Router {
             }
             return Effect::Changed(Some(self.commit_highlighted()));
         }
-        // 表达式 / 问字模式下的其他字符不进缓冲区（与 macOS 壳一致）；
+        // 表达式 / 问字模式下的其他字符不进缓冲区（与 macOS 壳一致），辅码态里敲标点同理（码段随之清空）；
         // 普通拼音组句里的标点也一样——会转全角的（`,` `.` `?` `!` 引号、括号这些）先把高亮候选上屏再补标点
         //（`nihao,` 一气打完「你好，」），翻页键已在前面上方拦走，数字后的 `.` 是否保持半角由 Core 判断；
         // 这条上屏行为由 `[general] punct_commits` 控制（缺省关：标点进英文直输段）。
         // 不会转的符号（`-` `/` `@`）仍进英文直输段；`'` 是隔音符，任何模式都进缓冲区。
-        if c != '\''
+        if (c != '\''
             && (expression
                 || self.engine.question_mode()
-                || (self.config.punct_commits && punctuation::converts(c)))
+                || (self.config.punct_commits && punctuation::converts(c))))
+            || self.engine.in_aux()
         {
             // 高亮候选没吃完拼音时它留在组句里：连同前面留着的先交给应用，标点才接得在后面
             let committed = self.commit_highlighted() + &self.engine.take_held();

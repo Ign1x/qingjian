@@ -4,7 +4,7 @@ order: 7
 description: "Adding a few letters after the pinyin to narrow the candidates to the word you want: turning it on, how to use it, the trigger key, importing code tables, and showing codes on candidates."
 ---
 
-Paging through candidates to find a word is tedious. Auxiliary code lets you add a few letters after the pinyin to narrow the candidates straight down to the word you want. Supported on macOS and Windows.
+Paging through candidates to find a word is tedious. Auxiliary code lets you add a few letters after the pinyin to narrow the candidates straight down to the word you want. Supported on macOS, Windows and Linux.
 
 ## Turning it on
 
@@ -42,5 +42,5 @@ For how to write a code table file, and how to let a table that only covers sing
 
 ## Showing codes on candidates
 
-With 设置 → 输入 → 辅码 → 候选上显示码 (Settings → Input → Auxiliary code → Show codes on candidates) on, the code is shown in square brackets right after the candidate, for example `鹤[rbm] crane`.
+With 设置 → 输入 → 辅码 → 候选上显示码 (Settings → Input → Auxiliary code → Show codes on candidates) on, the code is shown in square brackets right after the candidate, for example `鹤[rbm] crane`. The Fcitx / IBus candidate panel of the Linux fcitx edition shows it the same way.
 You can see it without entering auxiliary code: while typing plain pinyin, each candidate carries its code so you can learn them as you go; in auxiliary code it shows the code that matches what you've typed.

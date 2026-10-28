@@ -63,6 +63,7 @@ impl View {
 /// 自绘时译词是右侧一列、更小更浅（见 `docs/design/candidate-ui.md` 的视觉层级），
 /// 而 IBus 的候选只能是一条 `IBusText`，分不了列也分不了字号。
 /// 两害相权：译词是青简的卖点，宁可挤在同一行也不能不显示。
+/// 开着「候选上显示码」时码用方括号紧跟在候选词后面（`开发[kf]`），与自绘候选窗同一个位置。
 fn candidate_labels(frame: &Frame) -> Vec<String> {
     frame
         .candidates
@@ -70,6 +71,12 @@ fn candidate_labels(frame: &Frame) -> Vec<String> {
         .iter()
         .map(|candidate| {
             let mut label = candidate.text.clone();
+            if frame.aux_code_show
+                && !candidate.text.is_empty()
+                && let Some(code) = &candidate.aux_code
+            {
+                label.push_str(&format!("[{code}]"));
+            }
             if let Some(reading) = &candidate.reading {
                 label.push_str("  ");
                 label.push_str(reading);
@@ -206,6 +213,23 @@ mod tests {
             View::from_frame(&frame).auxiliary.as_deref(),
             Some("⇥ 你好吗   1/2")
         );
+    }
+
+    /// 「候选上显示码」开着时码跟在候选词后面、译词前面；关着不显示。
+    #[test]
+    fn aux_codes_follow_the_word_when_switched_on() {
+        let mut coded = candidate("开发");
+        coded.aux_code = Some("kf".to_owned());
+        let shown = Frame {
+            aux_code_show: true,
+            ..frame_with(vec![coded.clone(), candidate("开放")])
+        };
+        assert_eq!(
+            View::from_frame(&shown).candidates,
+            vec!["开发[kf]", "开放"]
+        );
+        let hidden = frame_with(vec![coded]);
+        assert_eq!(View::from_frame(&hidden).candidates, vec!["开发"]);
     }
 
     /// 纠错段换成另一种样式（IBus 没有删除线）。

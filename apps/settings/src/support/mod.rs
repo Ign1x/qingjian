@@ -98,7 +98,7 @@ impl Feature {
     fn table(self) -> [Status; 3] {
         use Status::{NotApplicable as No, Planned as Todo, Supported as Yes};
         match self {
-            Self::AuxCode => [Yes, Yes, Todo],
+            Self::AuxCode => [Yes, Yes, Yes],
             Self::Schemes => [Yes, Yes, Todo],
             Self::SwitchKeys => [Yes, Yes, Yes],
             // macOS 只做了单击 Shift，Caps Lock 仍是系统那一套

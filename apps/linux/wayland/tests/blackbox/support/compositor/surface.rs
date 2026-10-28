@@ -1,4 +1,4 @@
-//! 一个 surface 上 commit 才生效的状态：缓冲、viewport 的目标尺寸、buffer scale。
+//! 一个 surface 上 commit 才生效的状态：缓冲、viewport 的目标尺寸、收鼠标的区域、buffer scale。
 
 use std::sync::{Mutex, PoisonError};
 
@@ -20,6 +20,10 @@ pub struct Surface {
     /// viewport 的目标尺寸（逻辑像素）；没设是 `None`。
     pub destination: Option<(i32, i32)>,
 
+    /// 收鼠标的区域（surface 逻辑像素的矩形），最近一次 set_input_region 的拷贝。
+    /// 协议上它要到 commit 才生效；这里设的时候记下就够（客户端设完马上 commit）。
+    pub input_region: Vec<(i32, i32, i32, i32)>,
+
     pub scale: i32,
 
     hold: bool,
@@ -33,6 +37,7 @@ impl Default for Surface {
             attached: None,
             picture: None,
             destination: None,
+            input_region: Vec::new(),
             scale: 1,
             hold: false,
             held: Vec::new(),

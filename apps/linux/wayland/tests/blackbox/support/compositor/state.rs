@@ -5,6 +5,7 @@ use std::os::fd::AsFd;
 
 use wayland_protocols_misc::zwp_input_method_v2::server::zwp_input_method_keyboard_grab_v2::ZwpInputMethodKeyboardGrabV2;
 use wayland_protocols_misc::zwp_input_method_v2::server::zwp_input_method_v2::ZwpInputMethodV2;
+use wayland_protocols_misc::zwp_input_method_v2::server::zwp_input_popup_surface_v2::ZwpInputPopupSurfaceV2;
 use wayland_server::protocol::wl_keyboard::{KeyState, KeymapFormat};
 use wayland_server::protocol::wl_pointer::WlPointer;
 use wayland_server::protocol::wl_surface::WlSurface;
@@ -29,6 +30,9 @@ pub struct State {
 
     /// 当了候选窗的那个 surface。
     pub popup: Option<WlSurface>,
+
+    /// 候选窗的 input-popup-surface 角色：合成器往客户端发光标位置（`text_input_rectangle`）用它。
+    pub input_popup: Option<ZwpInputPopupSurfaceV2>,
 
     /// 应用那边输入框现在的状态，每次 done 之前转给输入法。
     pub field: Field,
@@ -65,6 +69,7 @@ impl State {
             input_method: None,
             grab: None,
             popup: None,
+            input_popup: None,
             field: Field::default(),
             dones: 0,
             pointer: None,

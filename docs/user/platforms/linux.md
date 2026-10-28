@@ -134,7 +134,7 @@ apps/linux/scripts/install.sh --fcitx4
 
 ## Wayland 原生版
 
-Wayland 原生版不经过 Fcitx 或 IBus，候选窗口由青简绘制：主题、字体、字号、竖排与横排、过渡动画都与 macOS / Windows 相同，候选旁显示全部译词。
+Wayland 原生版不经过 Fcitx 或 IBus，候选窗口由青简绘制：主题、字体、字号、竖排与横排（横排时用上下方向键展开多行候选）、键位提示（双拼键位、五笔字根图）、过渡动画都与 macOS / Windows 相同，候选旁显示全部译词。
 已在 Hyprland 与 sway 上验证日常输入，各类应用里的表现尚未逐个验证。
 
 - 可用的桌面：Hyprland、sway（1.10 及以后）、niri、labwc、mango 等。

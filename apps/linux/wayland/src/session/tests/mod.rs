@@ -4,6 +4,7 @@ mod apps;
 mod focus;
 mod hint;
 mod integration;
+mod key_hint;
 mod keys;
 mod link;
 mod menu;

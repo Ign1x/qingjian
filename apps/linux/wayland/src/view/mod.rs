@@ -4,6 +4,7 @@
 
 mod bitmap;
 mod canvas;
+mod key_hint;
 mod look;
 mod menu;
 mod mode;
@@ -14,6 +15,7 @@ mod tests;
 
 pub use bitmap::{Placement, blit, paste};
 pub use canvas::Canvas;
+pub use key_hint::{Side, place};
 pub use menu::Menu;
 
 use std::path::{Path, PathBuf};
@@ -23,8 +25,8 @@ use std::time::Instant;
 use qingjian_platform::protocol::Frame;
 use qingjian_platform::{Appearance, GeneralConfig, display};
 use qingjian_render::{
-    FontLibrary, HitRegion, HitTarget, Layout, Mode, RenderError, Rendered, Renderer, Theme,
-    ThemeLibrary, UiFont, sample, system_fonts,
+    FontLibrary, HitRegion, HitTarget, Keyboard, Layout, Mode, RenderError, Rendered, Renderer,
+    Theme, ThemeLibrary, UiFont, sample, system_fonts,
 };
 
 use look::Look;
@@ -74,6 +76,13 @@ pub struct Painter {
     /// 画右键菜单的渲染器（`menu/paint.rs`）：第一次弹菜单时才建，建不成为 `Some(None)`。
     menu_renderer: Option<Option<Renderer>>,
 
+    /// 画键位提示键盘的渲染器（`key_hint/paint.rs`）：与候选窗共用会打断候选窗的过渡动画，
+    /// 所以单独一份。第一次用时才建，建不成为 `Some(None)`。
+    key_hint_renderer: Option<Option<Renderer>>,
+
+    /// 字根图换成的键盘：字形解析一次，同一张图留着复用。
+    roots: Option<Keyboard>,
+
     /// 输入模式（Server 回包上的），主题里的 `mode.*` 照它画；还没收到时是缺省（中文）。
     mode: Mode,
 }
@@ -110,6 +119,8 @@ impl Painter {
             desktop,
             appearance: Appearance::default(),
             menu_renderer: None,
+            key_hint_renderer: None,
+            roots: None,
             mode: Mode::default(),
         };
         painter
@@ -218,6 +229,9 @@ impl Painter {
         self.theme = self.look.theme(self.themes_dir.as_deref());
         self.renderer
             .load_theme_fonts(&self.theme, system_fonts::family_files);
+        if let Some(Some(renderer)) = &mut self.key_hint_renderer {
+            renderer.load_theme_fonts(&self.theme, system_fonts::family_files);
+        }
         if rebuilt {
             self.warm_up();
         }

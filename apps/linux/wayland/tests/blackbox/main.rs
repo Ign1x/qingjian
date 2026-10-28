@@ -5,6 +5,8 @@
 #![cfg(target_os = "linux")]
 
 mod forwarding;
+mod grid;
+mod key_hint;
 mod pointer;
 mod popup;
 mod privacy;

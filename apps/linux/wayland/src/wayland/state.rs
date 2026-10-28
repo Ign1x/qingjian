@@ -4,7 +4,7 @@ use std::collections::VecDeque;
 use std::time::Instant;
 
 use qingjian_platform::protocol::Frame;
-use qingjian_platform::protocol::linux::InputMode;
+use qingjian_platform::protocol::linux::{InputMode, KeyHintView};
 use qingjian_render::Rendered;
 use wayland_client::QueueHandle;
 use wayland_client::globals::GlobalList;
@@ -30,7 +30,7 @@ use super::xkb::Xkb;
 use crate::error::Error;
 use crate::session::Input;
 use crate::tray::Tray;
-use crate::view::{Canvas, Menu, Painter};
+use crate::view::{Canvas, Menu, Painter, Side};
 
 pub struct Wayland {
     pub qh: QueueHandle<Wayland>,
@@ -51,7 +51,8 @@ pub struct Wayland {
     /// grab 给的键位表；还没收到或编译不了是 `None`。
     pub xkb: Option<Xkb>,
 
-    pub keyboard: VirtualKeyboard,
+    /// 转给应用的键原样从这台虚拟键盘出去。
+    pub virtual_keyboard: VirtualKeyboard,
 
     pub popup: Popup,
 
@@ -93,8 +94,20 @@ pub struct Wayland {
     /// 贴在 popup 上的那一张：鼠标的落点按它认。
     pub canvas: Option<Canvas>,
 
+    /// Server 让显示的键位提示（回包上的 `key_hint`）；`None` 是收起。
+    pub key_hint: Option<KeyHintView>,
+
+    /// 画好的键位提示键盘（不透明度已乘进位图）：与候选窗合成进同一张 popup。
+    pub keyboard: Option<Rendered>,
+
+    /// 这段输入粘住的那一侧：同一段输入里键盘不随光标左右跳，收起时忘掉。
+    pub keyboard_side: Option<Side>,
+
     /// 最新画面还没拿到可写缓冲，等合成器归还后补贴。
     pub repaint: bool,
+
+    /// 光标矩形的翻转判断变了，下一次 tick 重排键盘与候选窗。
+    pub rekey: bool,
 
     /// 托盘；确定当得了输入法之后才起（缺协议、seat 被占的桌面上不闪一下图标）。
     pub tray: Option<Tray>,
@@ -169,7 +182,7 @@ impl Wayland {
             toplevels: Toplevels::default(),
             grab: None,
             xkb: None,
-            keyboard,
+            virtual_keyboard: keyboard,
             popup,
             buffers: Buffers::default(),
             painter,
@@ -184,7 +197,11 @@ impl Wayland {
             window: None,
             menu: None,
             canvas: None,
+            key_hint: None,
+            keyboard: None,
+            keyboard_side: None,
             repaint: false,
+            rekey: false,
             tray: None,
         })
     }

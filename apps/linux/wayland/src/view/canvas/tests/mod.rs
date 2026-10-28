@@ -1,5 +1,7 @@
 //! 合成位图的算术：surface 坐标认落点（裁边、缩放、菜单盖在上面）、收鼠标的区域、菜单的位置与叠图。
 
+mod keyboard;
+
 use qingjian_render::{HitRegion, HitTarget, Pixmap, Rendered};
 
 use super::Canvas;
@@ -7,10 +9,15 @@ use crate::session::Spot;
 use crate::view::paste;
 
 /// 一块点击区域：目标与它在内容区里的像素矩形 `(x, y, 宽, 高)`。
-type Hit = (HitTarget, (f32, f32, f32, f32));
+pub(super) type Hit = (HitTarget, (f32, f32, f32, f32));
 
 /// 一张假的渲染结果：位图大小、内容区 `(x, y, 宽, 高)`、倍数与点击区域（内容区像素）。
-fn rendered(size: (u32, u32), content: (u32, u32, u32, u32), scale: f32, hits: &[Hit]) -> Rendered {
+pub(super) fn rendered(
+    size: (u32, u32),
+    content: (u32, u32, u32, u32),
+    scale: f32,
+    hits: &[Hit],
+) -> Rendered {
     Rendered {
         pixmap: Pixmap::new(size.0, size.1).unwrap(),
         content_x: content.0,
@@ -33,7 +40,7 @@ fn rendered(size: (u32, u32), content: (u32, u32, u32, u32), scale: f32, hits: &
 }
 
 /// 两个候选的竖排候选窗，第一个候选右侧有一条译词（译词排在前面，先命中）。`scale` 倍，各尺寸按点给。
-fn window(scale: f32) -> Rendered {
+pub(super) fn window(scale: f32) -> Rendered {
     let px = |points: f32| points * scale;
     let size = |points: u32| (points as f32 * scale) as u32;
     rendered(
@@ -61,7 +68,7 @@ fn window(scale: f32) -> Rendered {
 }
 
 /// 两项的菜单，左上阴影 12 × 10。
-fn menu() -> Rendered {
+pub(super) fn menu() -> Rendered {
     rendered(
         (140, 100),
         (12, 10, 116, 80),
@@ -123,7 +130,7 @@ fn the_hint_has_no_pointer_targets_or_input_region() {
     assert!(hint.input_region().is_empty());
     assert!(hint.describe().is_empty());
     assert_eq!(
-        hint.compose(&rendered, None).as_ref(),
+        hint.compose(&rendered, None, None).as_ref(),
         rendered.pixmap.data()
     );
 }
@@ -181,13 +188,13 @@ fn compose_lays_the_menu_over_the_window() {
 
     let canvas = Canvas::new(&window, None, 1.0);
     assert!(matches!(
-        canvas.compose(&window, None),
+        canvas.compose(&window, None, None),
         std::borrow::Cow::Borrowed(_)
     ));
 
     let canvas = Canvas::new(&window, Some((&menu, (2.0, 1.0))), 1.0);
     assert_eq!(canvas.width(), 6);
-    let pixels = canvas.compose(&window, Some(&menu));
+    let pixels = canvas.compose(&window, Some(&menu), None);
     let at = |x: usize, y: usize| &pixels[(y * 6 + x) * 4..(y * 6 + x) * 4 + 4];
     assert_eq!(at(3, 2), [255, 0, 0, 255]);
     assert_eq!(at(4, 3), [255, 0, 0, 255]);
@@ -195,7 +202,7 @@ fn compose_lays_the_menu_over_the_window() {
 
     let canvas = Canvas::new(&window, Some((&menu, (4.0, 2.0))), 1.0);
     assert_eq!(canvas.width(), 7);
-    let pixels = canvas.compose(&window, Some(&menu));
+    let pixels = canvas.compose(&window, Some(&menu), None);
     assert_eq!(pixels.len(), 7 * 5 * 4);
     assert_eq!(
         &pixels[(4 * 7 + 6) * 4..(4 * 7 + 6) * 4 + 4],

@@ -30,9 +30,9 @@ use std::io::{Read, Write};
 use std::os::fd::AsRawFd;
 use std::os::unix::net::UnixStream;
 use std::path::Path;
-use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{self, Receiver, Sender};
+use std::sync::{Arc, Mutex, PoisonError};
 use std::thread::{self, JoinHandle};
 
 use wayland_protocols::wp::cursor_shape::v1::server::wp_cursor_shape_manager_v1::WpCursorShapeManagerV1;
@@ -177,6 +177,36 @@ impl Compositor {
     /// 发过几次 done。
     pub fn dones(&self) -> u32 {
         self.call(|state| state.dones)
+    }
+
+    /// 候选窗 surface 现在的收鼠标区域（surface 逻辑像素的矩形），即最近一次 `set_input_region` 设的那些。
+    /// 候选窗还没建时 panic。
+    pub fn input_region(&self) -> Vec<(i32, i32, i32, i32)> {
+        self.call(|state| {
+            let popup = state.popup.as_ref().expect("候选窗还没建");
+            popup
+                .data::<Mutex<Surface>>()
+                .expect("surface 状态")
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .input_region
+                .clone()
+        })
+    }
+
+    /// 合成器报光标相对候选窗的位置（input-popup-surface 的 `text_input_rectangle`），马上送出。
+    /// 候选窗还没建时 panic。
+    pub fn text_input_rectangle(&self, x: i32, y: i32, width: i32, height: i32) {
+        self.call(move |state| {
+            let popup = state.input_popup.as_ref().expect("候选窗还没建");
+            popup.text_input_rectangle(x, y, width, height);
+            popup
+                .handle()
+                .upgrade()
+                .expect("合成器仍在")
+                .flush(None)
+                .expect("把光标位置送出去");
+        });
     }
 
     /// 经 grab 按下一个键（evdev 键码），返回时间戳。

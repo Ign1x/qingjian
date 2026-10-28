@@ -93,6 +93,13 @@ impl<S: Server> Session<S> {
         {
             return;
         }
+        // 先换键盘再画新帧：旧键盘不会在新帧旁边多闪一帧。帧内容没变、只是版本号变新
+        // （Server 停顿一会儿后弹出键位提示）也走到这里；第一帧就带键位提示时先记下键盘，
+        // 紧接着的 show 会把它与候选窗一起贴出去。
+        if reply.key_hint != self.key_hint {
+            out.key_hint(reply.key_hint.as_ref());
+            self.key_hint.clone_from(&reply.key_hint);
+        }
         if remode
             || self
                 .drawn
@@ -124,6 +131,8 @@ impl<S: Server> Session<S> {
         self.shown = None;
         self.identity = None;
         self.menu = None;
+        // 键盘画在候选窗那一个 popup 里，收起候选窗就跟着没了
+        self.key_hint = None;
     }
 
     pub(super) fn poll(&mut self, out: &mut impl Output, now: Instant) {

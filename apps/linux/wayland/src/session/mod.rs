@@ -32,7 +32,7 @@ pub use server::Server;
 use std::time::{Duration, Instant};
 
 use qingjian_platform::protocol::Frame;
-use qingjian_platform::protocol::linux::{AppSurrounding, DisplayIdentity, InputMode};
+use qingjian_platform::protocol::linux::{AppSurrounding, DisplayIdentity, InputMode, KeyHintView};
 
 use keys::Keys;
 use mouse::Menu;
@@ -112,6 +112,9 @@ pub struct Session<S> {
 
     /// 候选窗的位置上亮着中 / 英提示，到这个时刻收起；没亮着是 `None`。
     hint_until: Option<Instant>,
+
+    /// 候选窗旁画着的键位提示（Server 回包上的 `key_hint`）；没画是 `None`。
+    key_hint: Option<KeyHintView>,
 }
 
 impl<S: Server> Session<S> {
@@ -136,6 +139,7 @@ impl<S: Server> Session<S> {
             menu: None,
             mode: None,
             hint_until: None,
+            key_hint: None,
         }
     }
 

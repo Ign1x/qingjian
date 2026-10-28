@@ -3,6 +3,7 @@
 
 mod context;
 mod grab;
+mod key_hint;
 mod keyboard;
 mod memfd;
 mod menu;

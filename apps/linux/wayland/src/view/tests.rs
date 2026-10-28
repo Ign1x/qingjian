@@ -10,6 +10,7 @@ use qingjian_platform::protocol::{Frame, PreeditKind, PreeditSegment};
 use qingjian_platform::{Appearance, FontSize, GeneralConfig};
 use qingjian_render::{HitRegion, HitTarget, Pixmap, Rendered, TextSizes};
 
+use super::bitmap::fade;
 use super::look::Look;
 use super::{Painter, Placement, blit, renumber_senses, senses};
 use crate::portal::{Desktop, Setting};
@@ -467,4 +468,18 @@ fn reload_follows_the_desktop() {
     assert!(painter.reload(), "减少动态效果开了");
     assert!(!painter.reload());
     let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// 不透明度乘到预乘位图上：四个通道一起乘、四舍五入（alpha 也乘），不小于 1 时原样不动。
+#[test]
+fn fade_scales_premultiplied_channels() {
+    let mut pixels = [255, 100, 40, 200, 1, 2, 3, 4].to_vec();
+    fade(&mut pixels, 0.5);
+    assert_eq!(pixels, [128, 50, 20, 100, 1, 1, 2, 2]);
+    fade(&mut pixels, 1.0);
+    assert_eq!(pixels, [128, 50, 20, 100, 1, 1, 2, 2], "不透明度 100% 不动");
+    fade(&mut pixels, 2.0);
+    assert_eq!(pixels, [128, 50, 20, 100, 1, 1, 2, 2], "超过 1 也按 1 算");
+    fade(&mut pixels, 0.0);
+    assert_eq!(pixels, [0; 8]);
 }

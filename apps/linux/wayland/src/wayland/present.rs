@@ -51,6 +51,10 @@ impl Wayland {
         self.drop_clicks();
         self.animate_at = None;
         self.repaint = false;
+        // 键盘画在候选窗那一个 popup 里，一起收起；侧边的粘性只在这一段输入里有效
+        self.key_hint = None;
+        self.keyboard = None;
+        self.keyboard_side = None;
         if let Some(painter) = &mut self.painter {
             painter.forget();
         }
@@ -76,6 +80,12 @@ impl Wayland {
         if redraw {
             self.redraw();
         }
+        // 光标矩形跨过了 y = 0：合成器把 popup 翻到了另一边，键盘要换到另一侧。
+        // 粘住的那一侧是按翻之前选的，先忘掉，按翻转后的顺序重选。
+        if std::mem::take(&mut self.rekey) && self.keyboard.is_some() {
+            self.keyboard_side = None;
+            self.paint();
+        }
         if self.repaint {
             self.paint();
         }
@@ -88,9 +98,10 @@ impl Wayland {
             .min()
     }
 
-    /// 按现在的缩放与外观重画候选或中 / 英提示；弹着的菜单也重画，摆回原处。
+    /// 按现在的缩放与外观重画候选或中 / 英提示；弹着的菜单、画着的键盘也重画，摆回原处。
     fn redraw(&mut self) {
         let scale = self.popup.scale() as f32;
+        let hint = self.key_hint.clone();
         let Some(painter) = self.painter.as_mut() else {
             return;
         };
@@ -107,11 +118,17 @@ impl Wayland {
         {
             menu.rendered = again;
         }
+        // 缩放或主题变了，键盘按新的倍数、新的深浅重画
+        if let Some(hint) = &hint
+            && let Some(keyboard) = painter.render_key_hint(hint, scale)
+        {
+            self.keyboard = Some(keyboard);
+        }
         self.window = Some(rendered);
         self.paint();
     }
 
-    /// 把候选窗（连同右键菜单）或中 / 英提示贴到 popup 上，鼠标只按贴上去的那一张认落点。
+    /// 把候选窗（连同右键菜单、键位提示）或中 / 英提示贴到 popup 上，鼠标只按贴上去的那一张认落点。
     pub(super) fn paint(&mut self) {
         let Some(window) = &self.window else {
             return;
@@ -120,9 +137,19 @@ impl Wayland {
         let canvas = if self.hinted.is_some() {
             Canvas::hint(window, self.popup.scale())
         } else {
-            Canvas::new(window, menu, self.popup.scale())
+            let mut canvas = Canvas::new(window, menu, self.popup.scale());
+            if let Some(keyboard) = &self.keyboard {
+                let side =
+                    canvas.place_key_hint(keyboard, self.popup.flipped(), self.keyboard_side);
+                self.keyboard_side = Some(side);
+            }
+            canvas
         };
-        let pixels = canvas.compose(window, menu.map(|(rendered, _)| rendered));
+        let pixels = canvas.compose(
+            window,
+            menu.map(|(rendered, _)| rendered),
+            self.keyboard.as_ref(),
+        );
         let placement = canvas.placement;
         let Some((buffer_pixels, buffer)) =
             self.buffers

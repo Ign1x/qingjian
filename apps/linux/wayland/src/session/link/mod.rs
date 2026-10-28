@@ -12,7 +12,7 @@ use std::time::{Duration, Instant};
 
 use qingjian_platform::protocol::linux::client::{ClientError, Connection, Reply};
 use qingjian_platform::protocol::linux::{
-    AppSurrounding, Capabilities, DisplayIdentity, MenuItem, ModeCommand,
+    AppSurrounding, Capabilities, DisplayIdentity, Features, MenuItem, ModeCommand,
 };
 use qingjian_platform::protocol::{KeyEvent, SessionId};
 
@@ -104,7 +104,13 @@ impl Link {
     /// 当前应用的会话编号：没连着就先连，会话没开就先开。
     fn session(&mut self) -> Result<SessionId, ClientError> {
         if self.connection.is_none() {
-            self.connection = Some(Connection::connect_at(&self.socket)?);
+            // 自己画候选窗：横排矩阵与键位提示都画得了，握手的 LinuxHello 里报给 Server
+            self.connection = Some(
+                Connection::connect_at(&self.socket)?.with_features(Features {
+                    grid: true,
+                    key_hint: true,
+                }),
+            );
             let session = self.open()?;
             tracing::info!(socket = %self.socket.display(), "连上 Server");
             self.retry_at = None;

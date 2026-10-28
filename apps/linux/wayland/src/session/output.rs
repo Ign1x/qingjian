@@ -1,6 +1,7 @@
 //! [`super::Session`] 对合成器那一侧要做的事。真实现在 `crate::wayland`，测试里换成记录器。
 
 use qingjian_platform::protocol::Frame;
+use qingjian_platform::protocol::linux::InputMode;
 
 use super::{Field, Modifiers, Preedit};
 
@@ -43,4 +44,10 @@ pub trait Output {
 
     /// 收起右键菜单，候选窗照旧。
     fn close_menu(&mut self);
+
+    /// 输入模式变了（`None` 是不知道了：与 Server 断开）。之后画的候选窗按它显示主题里的 `mode.*`。
+    fn mode(&mut self, mode: Option<&InputMode>);
+
+    /// 在候选窗的位置画出中 / 英提示（换掉候选窗上的东西，[`Self::hide`] 收起）；画不出来（没有字体）时返回 `false`。
+    fn hint(&mut self, mode: &InputMode) -> bool;
 }

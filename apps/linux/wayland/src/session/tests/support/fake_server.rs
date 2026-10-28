@@ -3,9 +3,11 @@
 use super::{Answer, Call, identity};
 use crate::session::Server;
 use qingjian_platform::protocol::linux::client::{ClientError, Reply};
-use qingjian_platform::protocol::linux::{AppSurrounding, Capabilities, DisplayIdentity, MenuItem};
+use qingjian_platform::protocol::linux::{
+    AppSurrounding, Capabilities, DisplayIdentity, InputMode, MenuItem, ModeCommand,
+};
 use qingjian_platform::protocol::{Frame, KeyEvent, KeyOutcome};
-use std::collections::VecDeque;
+use std::collections::{HashMap, VecDeque};
 use std::time::{Duration, Instant};
 
 /// 照脚本回话的 Server：按下按 `presses` 依次答；抬起与轮询照真 Server 的样子回当前帧。
@@ -23,6 +25,9 @@ pub struct FakeServer {
 
     /// Server 挂了：所有请求都失败。
     pub down: bool,
+
+    /// 各应用的会话模式；没写的应用回包不带模式，模拟老 Server。
+    pub modes: HashMap<Option<String>, InputMode>,
 
     /// 下一个报了能读选区的按下回「要选区」（选区翻译快捷键），带这个请求编号；那一键的答复等回了选区再按 `presses` 给。
     pub selection_request: Option<u64>,
@@ -63,6 +68,7 @@ impl FakeServer {
             identity: Some(identity(self.revision)),
             english,
             translation_pending: self.pending,
+            mode: self.modes.get(&self.app).cloned(),
             ..Reply::default()
         }
     }
@@ -208,6 +214,36 @@ impl Server for FakeServer {
         };
         reply.outcome = KeyOutcome::Passthrough;
         Ok(reply)
+    }
+
+    /// 照真 Server：切当前应用那份模式；切中 / 英时组句原文上屏、帧清空，回包带 `english`。
+    fn indicator(&mut self, command: ModeCommand) -> Result<Reply, ClientError> {
+        self.calls.push(Call::Indicator(command));
+        self.check()?;
+        let mut english = None;
+        if let Some(mode) = self.modes.get_mut(&self.app) {
+            match command {
+                ModeCommand::ToggleEnglish => {
+                    mode.english = !mode.english;
+                    english = Some(mode.english);
+                }
+                ModeCommand::TogglePunctuation => mode.full_width = !mode.full_width,
+                ModeCommand::ToggleTraditional => mode.traditional = !mode.traditional,
+            }
+        }
+        let mut commit = None;
+        if command == ModeCommand::ToggleEnglish {
+            let raw: String = self
+                .frame
+                .preedit
+                .iter()
+                .map(|segment| segment.text.as_str())
+                .collect();
+            commit = (!raw.is_empty()).then_some(raw);
+            self.frame = Frame::default();
+            self.pending = false;
+        }
+        Ok(self.reply(KeyOutcome::Consumed, commit, english))
     }
 
     fn acknowledge(

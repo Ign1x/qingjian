@@ -4,6 +4,7 @@ use std::collections::VecDeque;
 use std::time::Instant;
 
 use qingjian_platform::protocol::Frame;
+use qingjian_platform::protocol::linux::InputMode;
 use qingjian_render::Rendered;
 use wayland_client::QueueHandle;
 use wayland_client::globals::GlobalList;
@@ -28,6 +29,7 @@ use super::toplevel::Toplevels;
 use super::xkb::Xkb;
 use crate::error::Error;
 use crate::session::Input;
+use crate::tray::Tray;
 use crate::view::{Canvas, Menu, Painter};
 
 pub struct Wayland {
@@ -61,6 +63,9 @@ pub struct Wayland {
     /// 候选窗上的那一帧：缩放变了、主题改了要重画它。
     pub shown: Option<Frame>,
 
+    /// popup 上的中 / 英提示：缩放、主题变了要重画它，与 `shown` 互斥。
+    pub hinted: Option<InputMode>,
+
     /// 动画的下一帧什么时候画。
     pub animate_at: Option<Instant>,
 
@@ -90,6 +95,9 @@ pub struct Wayland {
 
     /// 最新画面还没拿到可写缓冲，等合成器归还后补贴。
     pub repaint: bool,
+
+    /// 托盘；确定当得了输入法之后才起（缺协议、seat 被占的桌面上不闪一下图标）。
+    pub tray: Option<Tray>,
 }
 
 impl Wayland {
@@ -166,6 +174,7 @@ impl Wayland {
             buffers: Buffers::default(),
             painter,
             shown: None,
+            hinted: None,
             animate_at: None,
             reload_at: Instant::now(),
             inbox: VecDeque::new(),
@@ -176,6 +185,7 @@ impl Wayland {
             menu: None,
             canvas: None,
             repaint: false,
+            tray: None,
         })
     }
 }

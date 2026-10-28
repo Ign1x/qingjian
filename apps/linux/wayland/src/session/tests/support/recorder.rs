@@ -3,6 +3,7 @@
 use super::Out;
 use crate::session::{Field, Modifiers, Output, Preedit};
 use qingjian_platform::protocol::Frame;
+use qingjian_platform::protocol::linux::InputMode;
 
 /// 记录输出的假合成器。`sync` 时可以假装焦点换了。
 #[derive(Default)]
@@ -67,6 +68,15 @@ impl Output for Recorder {
 
     fn hide(&mut self) {
         self.log.push(Out::Hide);
+    }
+
+    fn mode(&mut self, mode: Option<&InputMode>) {
+        self.log.push(Out::Mode(mode.cloned()));
+    }
+
+    fn hint(&mut self, mode: &InputMode) -> bool {
+        self.log.push(Out::Hint(mode.clone()));
+        true
     }
 
     fn open_menu(&mut self, items: &[String]) -> bool {

@@ -1,6 +1,6 @@
 //! 会话测试的请求记录。
 
-use qingjian_platform::protocol::linux::Capabilities;
+use qingjian_platform::protocol::linux::{Capabilities, ModeCommand};
 
 /// 假 Server 收到的请求。
 #[derive(Debug, Clone, PartialEq)]
@@ -24,6 +24,8 @@ pub enum Call {
     Selection(u64, String),
     Poll,
     Acknowledge(u64),
+    /// 托盘请求切换当前会话的模式。
+    Indicator(ModeCommand),
     /// 点了第几个候选，带的展示身份的版本号。
     Candidate(usize, u64),
     /// 翻页：是不是下一页。

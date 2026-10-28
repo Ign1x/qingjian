@@ -6,6 +6,8 @@ mod bitmap;
 mod canvas;
 mod look;
 mod menu;
+mod mode;
+mod status;
 
 #[cfg(test)]
 mod tests;
@@ -71,6 +73,9 @@ pub struct Painter {
 
     /// 画右键菜单的渲染器（`menu/paint.rs`）：第一次弹菜单时才建，建不成为 `Some(None)`。
     menu_renderer: Option<Option<Renderer>>,
+
+    /// 输入模式（Server 回包上的），主题里的 `mode.*` 照它画；还没收到时是缺省（中文）。
+    mode: Mode,
 }
 
 impl Painter {
@@ -105,6 +110,7 @@ impl Painter {
             desktop,
             appearance: Appearance::default(),
             menu_renderer: None,
+            mode: Mode::default(),
         };
         painter
             .renderer
@@ -129,7 +135,7 @@ impl Painter {
         let mut rendered = self
             .renderer
             .render(
-                &display::render_frame(frame, Mode::default()),
+                &display::render_frame(frame, self.mode.clone()),
                 display::layout(frame.layout),
                 &self.theme.with_dark(dark),
                 scale,

@@ -326,6 +326,7 @@ Fcitx5 / Fcitx4 插件写死 3、不用跟着改；一个会话只能发它握�
 Ctrl 键本身 `0x11`、Super 与 Hyper（Mod3）都算 `win`；`mapping.rs` 的测试逐条读 `mapping.cpp` 对照，那边加了键这边就挂）。`client` 与 `key` 只在 Linux 上编（要 `SO_PEERCRED`）。
 `display`（`render` 特性）是自绘候选窗的壳共用的「协议帧 → `qingjian_render::Frame`」：候选折成行（读音、全部义项、词性开关、假名注音、生词 `Tone::Fresh`、云标、辅码）、
 拼音行按 `preedit_mode` 决定画不画（带调拼音另给的 `window_preedit` 优先）、`usize::MAX` 不高亮、多页才画 `1/6`、矩阵只标高亮那一行的序号；
+`render_mode` 把 Linux 回包上的 `InputMode` 换成渲染器的 `Mode`（方案名用 `scheme_name`，单开全拼也写「全拼」）；
 照 Windows Server 的 `ui/candidates/{row,render_data}.rs` 写，Linux Wayland 前端在用，Windows 与 macOS 待改用。TSF DLL 不开这个特性，依赖树不变。
 
 ## crates/qingjian-render
@@ -670,6 +671,9 @@ Wayland 原生版的前端（设计见 `docs/design/linux-wayland.md`）：自�
   （候选窗上那一帧最近一次回包的展示身份，`present` 里跟着回包换，抬键的回包帧没变也换）；回包不带身份就是 Server 回了 `Ignored`，什么都不做，别的走 `apply`。
   右键菜单（`mouse/menu.rs` 只记右键的那一格与各项编号）开着时 `apply` 不排轮询，收起时 `resume_polling` 接上；Esc 只收菜单（按下记成既不转发也不报，抬起一起吞掉），
   别的键先收菜单再照常处理；点菜单外只收菜单；换了帧（`present` 重画）与 `hide` 时会话这边的菜单一起清掉，`Output::show` / `hide` 那边也一并收起。
+  托盘操作在查询模式前先收候选右键菜单，避免查询或切换推进展示身份后仍使用旧菜单；没有输入框时的回包也先同步合成器并核对输入目标代次，查询期间激活了输入框就取消切换。
+  回包上的输入模式（`mode`，焦点的回包也带）变了才经 `Output::mode` 交给显示面，候选窗开着时模式变了帧没变也重画（主题的 `mode.*`）；往返失败交 `None`（Server 那边的会话连同模式都没了）。
+  回包带 `english`（切了中 / 英）且候选窗空着时 `Output::hint` 在 popup 里亮提示，`HINT`（0.9 秒）后收起；提示亮着时空帧不收它（组合切换键抬起另几个键的回包也是空帧），非空帧换成候选，失焦与断开时跟候选窗一起收。
 - `wayland/`：`method/` 是 input-method-v2 的双缓冲（`done` 计数即 commit 的 serial，激活 / 失活各给焦点代次加一，又激活一次先当失活）；
   `toplevel/` 跟踪 `zwlr_foreign_toplevel_manager_v1` 报的顶层窗口（按协议对象编号记，`done` 时生效，几个激活着取最后激活的，空 app_id 当没有，标题不读），
   活动窗口的应用变了才排一件 `Input::App`；合成器没有这个全局对象时启动记一句 info，之后什么都不报，所有输入框共用不知道哪个应用的那一个会话；
@@ -684,12 +688,15 @@ Wayland 原生版的前端（设计见 `docs/design/linux-wayland.md`）：自�
   缓冲耗尽时 `repaint` 留住最新画面，归还缓冲唤醒主循环后补贴，再恢复命中区域；渲染失败则清旧位图与动画，保留新帧供后续重画。
   `wheel.rs` 把 `axis_value120`（第 5–7 版 `axis_discrete`）、`axis` 与 `axis_stop` 按帧折成翻页（一格 120、触摸板 50 逻辑像素一页，一帧最多一页，第 5 版之前没有 `frame` 时每个事件自成一帧）；
   进来时有 `wp_cursor_shape_manager_v1` 就设 `default` 形状；`menu.rs` 把会话要弹的菜单画好（锚点是最近一次按下的位置换成候选窗内容区里的点）、跟着指针换悬停项重画；
-  `shm.rs` 三块缓冲轮换；`context.rs` 实现 `Output`；`present.rs` 留着候选窗的 `Rendered`（菜单要与它合成，动画帧换掉它），每次贴图后换上新的 `Canvas`，
-  可点的地方变了在 debug 日志记一行「候选窗上能点的地方」（各候选与菜单项中心的 surface 坐标）；`mod.rs` 是主循环（`poll` 等合成器事件或下一个到点的事，SIGINT / SIGTERM 退出前替按着的键补抬起）。
-- `view/`：`Painter`（字体库、渲染器、主题，配置与主题目录每秒查一次戳；外观「跟随系统」按 `portal::Desktop` 取深浅，桌面的偏好变得影响到画着的那一帧时 `reload` 也返回 `true`）、
+  `shm.rs` 三块缓冲轮换；`context.rs` 实现 `Output`；`present.rs` 留着当前候选或提示的 `Rendered`（菜单与候选合成，动画帧换掉候选），每次贴图后换上新的 `Canvas`，
+  可点的地方变了在 debug 日志记一行「候选窗上能点的地方」（各候选与菜单项中心的 surface 坐标）。`status.rs` 把模式交给 `Painter` 与托盘，
+  提示也走同一套 `window` / `paint` / `repaint`；`shown` 与 `hinted` 分别留着候选帧与提示模式，缩放或主题变化时重画当前显示内容，换成提示时清旧菜单、点击与动画。
+  `mod.rs` 是主循环（`poll` 等合成器事件、托盘唤醒 fd 或下一个到点的事，SIGINT / SIGTERM 退出前替按着的键补抬起）。
+- `view/`：`Painter`（字体库、渲染器、主题，配置与主题目录每秒查一次戳；外观「跟随系统」按 `portal::Desktop` 取深浅，桌面的偏好变得影响到画着的那一帧时 `reload` 也返回 `true`；
+  `set_mode` 经 `qingjian_platform::display::render_mode` 记下 Server 模式，画帧时交给主题；`render_status` 用同一个渲染器画一格提示，`status_text` 为「英」、「中」或「中 · 方案名」，深浅跟上一帧的外观设置），
   `bitmap.rs`（位图左上的阴影边裁到 4 点、补齐到整逻辑像素、RGBA → ARGB8888，`paste` 按预乘 source-over 叠图）、`senses`（从点击区域取画出的义项回执）；
   `canvas/` 是贴在 popup 上的那一张：候选窗在左上原点，菜单的卡片左上角摆在锚点（候选窗内容区里的点），伸出右下时合成位图变大，裁边仍按候选窗的阴影；
-  `spot` 把 surface 坐标乘「缓冲 ÷ 逻辑尺寸」、加回裁边，菜单在上先认，译词算它那个候选；`input_region` 是两块卡片；
+  `spot` 把 surface 坐标乘「缓冲 ÷ 逻辑尺寸」、加回裁边，菜单在上先认，译词算它那个候选；`input_region` 是两块卡片；提示用 `Canvas::hint` 沿用裁边与缩放，但没有命中目标或输入区域，整个 surface 穿透；
   `menu/` 是菜单画的那一侧（各项的字、悬停项、锚点与位图），`Painter::render_menu` 用单独一个渲染器（第一次弹菜单时才 `FontLibrary::system` 建，建不成不再试），深浅取候选窗那一帧的。
 - `portal/`：外观跟随系统。`watch()` 起后台线程 `qingjian-portal`，里面一个单线程 tokio 运行时跑 zbus
   （不开 zbus 的 blocking-api：它的阻塞调用另起一个按核数开线程的运行时；zbus 连 Unix socket 时借 tokio 的阻塞线程池开一个线程，闲 10 秒自己退掉）。
@@ -698,6 +705,14 @@ Wayland 原生版的前端（设计见 `docs/design/linux-wayland.md`）：自�
   等它上线再读（为什么不拉起见设计文档「显示」）；方法调用 25 秒超时。`Desktop` 是三个原子量，`Preference` 是某一刻的值，
   `Preference::redraws` 定画着的帧要不要重画（只有「跟随系统」的帧跟着换深浅；减少动态效果变了总要重画，循环动画要停下或接着播）。
   测试：`tests/values.rs` 不连 D-Bus；`tests/bus.rs` 起私有 dbus-daemon（自带配置，服务目录里只有一个记下「被拉起过」的假服务）挂假 portal，缺省不跑。
+- `tray/`：StatusNotifierItem（`/StatusNotifierItem`）与 DBusMenu（`/MenuBar`），总线名 `org.kde.StatusNotifierItem-<pid>-1`；
+  `spawn` 在独立单线程 tokio 运行时挂对象、向 `org.kde.StatusNotifierWatcher` 登记（25 秒超时、`NoAutoStart`），先订 owner 变化，宿主后上线 / 重启时再登记。
+  `Tray` 用 watch 接收 Server 回包的模式，`Clicks` 把菜单目标排队并写非阻塞 socket 叫醒主循环；后台退出后读到 EOF 就移除 fd，避免 `POLLHUP` 空转。
+  `session/tray.rs` 选当前输入框的会话；未激活则选活动应用，没有活动应用保留最近会话；先 poll 再按 `ModeTarget` 判断需不需要发 indicator。
+  两次请求沿用同一个输入目标代次；查询中目标变化则取消，未激活时也先同步、只更新模式，不落地文字与候选。图标发 `NewIcon` / `NewToolTip`，菜单发 `LayoutUpdated`，勾选态始终照回包。
+  图标源 `assets/icon/linux/tray-{zh,en}.svg` 在启动时栅格成 16 / 22 / 24 / 32 / 48 / 64 像素，不知道模式时用同目录 hicolor 的青简 PNG；
+  `IconPixmap` 为不预乘的 ARGB 网络字节序。`settings::Launcher` 优先拉起同目录设置程序，其次 PATH，托盘拉起的子进程未退出前不重复开。
+  `tests/bus/` 对着私有总线的假宿主测注册、属性、点击与信号，含后上线和重启；`testing::Bus` 与 portal 共用，所有 D-Bus 集成测试均为 `#[ignore]`。
 - 黑盒测试 `tests/blackbox/`：真的二进制对着测试进程里的假合成器与假 Server 跑，CI 上没有合成器也走一遍真的 Wayland 协议与 Server 协议。
   假合成器用 `wayland-server`（开发依赖）在自己的线程上听沙箱（每个测试一个临时目录，当 `XDG_RUNTIME_DIR`）里的私有 socket，
   提供 wl_compositor / wl_shm / wl_seat（键盘与指针）/ input-method-v2 / 虚拟键盘 / viewporter / 分数缩放 / cursor-shape；应用那边的输入框只演它报给合成器的状态
@@ -709,13 +724,14 @@ Wayland 原生版的前端（设计见 `docs/design/linux-wayland.md`）：自�
   cursor-shape 设的形状记成 `Request::CursorShape`；点哪儿按被测进程 debug 日志里「候选窗上能点的地方」那行找（`support/targets.rs` 读成名字 → 中心）。
   假 Server 照 `protocol::linux::client` 测试的写法（4 字节小端长度 + JSON），按下与允许的点候选、翻页、点菜单项按排好的 `Answer` 答，别的照真 Server 的壳回、带展示身份与 `translation_pending`；
   鼠标的那几种像真 Server 一样先核对当前会话的展示身份，对不上回 `Ignored`，问菜单回固定的两项（`MENU`）、不推进身份。
-  `Server::allow_pointer` 由测试逐种允许 `Candidate` / `Page` / `Menu` / `MenuPick`，未列出的鼠标事件仍是违规；`pointer_events` 按名字取鼠标记录，内部 `events` 解出完整的 Linux 事件。
-  `server/tests.rs` 验允许范围、跨会话与过期身份、选区与鼠标共用脚本；`selection/pointer.rs` 黑盒验点译文上屏，以及点选回包期间选区或隐私变化时旧译文不落地。
+  `Server::allow` 由测试逐种允许 `Candidate` / `Page` / `Menu` / `MenuPick` / `Indicator`，未列出的鼠标或托盘事件仍是违规；`pointer_events` 按名字取操作记录，内部 `events` 解出完整的 Linux 事件。
+  `server/tests.rs` 验允许范围、跨会话与过期身份、选区与鼠标共用脚本，以及单独放行 Indicator 不扩大鼠标权限；`selection/pointer.rs` 黑盒验点译文上屏，以及点选回包期间选区或隐私变化时旧译文不落地。
+  `Answer::switched` 带切换的 `english` 与新 `mode`，后续回包沿用该会话的模式；`status.rs` 黑盒验提示换成候选与右键菜单，以及缓冲归还后补贴提示、不恢复旧候选或落点。
   `Answer::select` 演选区翻译快捷键：先回 `RequestSelection`，前端回了选区照真 Server 的规矩答（空串或超过 500 字放行，不然吃掉、换上「翻译中…」），
-  `Server::translated` 之后的下一次轮询换上译文。没想到的消息不回空包：握手不合规矩、报能力之前的事件、未允许的鼠标操作、托盘、
+  `Server::translated` 之后的下一次轮询换上译文。没想到的消息不回空包：握手不合规矩、报能力之前的事件、未允许的鼠标或托盘操作、
   没要过的选区回话、认不出的消息都记成违规并断开连接（与真 Server 一样不再往下答）。
   被测进程的 `WAYLAND_DISPLAY`、`QINGJIAN_SOCKET`、`HOME` 与 XDG 各目录都指进沙箱（去掉继承来的 `WAYLAND_SOCKET`，碰不到真会话；
-  也去掉 `DBUS_SESSION_BUS_ADDRESS`，不连宿主的会话总线读深浅，本地与 CI 一样按浅色画），
+  `DBUS_SESSION_BUS_ADDRESS` 显式设成不可达地址，禁止回退到宿主总线读深浅或注册托盘，本地与 CI 一样按浅色画），
   `--stderr` 的日志收下来：就绪看「输入法就绪」那行（此时已装好 SIGTERM 的处理），测试失败时整份打出来。
   「某个请求没发」靠同步点判断：把修饰键原样再发一次，等它经虚拟键盘转出来，前面的事件就都处理完了；按个数等（这次 grab 上发过的修饰键全转出来才算），
   跟着修饰键按下抬起发的那些可能还在路上，等「下一条」会早退。被测进程处理完一件事、却不向合成器与 Server 发任何东西时（一上来就是密码框），等它的 debug 日志。

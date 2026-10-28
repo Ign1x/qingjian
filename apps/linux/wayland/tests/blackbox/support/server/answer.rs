@@ -1,6 +1,7 @@
 //! 假 Server 对一次按下的答复。
 
 use qingjian_core::{Candidate, CandidateKind, CandidateList};
+use qingjian_platform::protocol::linux::InputMode;
 use qingjian_platform::protocol::{Frame, KeyOutcome, PreeditKind, PreeditSegment};
 
 #[derive(Debug, Clone)]
@@ -15,6 +16,10 @@ pub struct Answer {
     /// 要选区（选区翻译快捷键）：回 `RequestSelection`，带这个请求编号；这一键的结果等前端回了选区再定，
     /// 照真 Server 的规矩：回的是空串（或超过 500 字）就放行，不然吃掉、开始翻译。
     pub select: Option<u64>,
+
+    pub english: Option<bool>,
+
+    pub mode: Option<InputMode>,
 }
 
 impl Answer {
@@ -25,6 +30,8 @@ impl Answer {
             commit: None,
             frame: Some(composing(preedit, candidates)),
             select: None,
+            english: None,
+            mode: None,
         }
     }
 
@@ -35,6 +42,8 @@ impl Answer {
             commit: Some(text.to_owned()),
             frame: Some(Frame::default()),
             select: None,
+            english: None,
+            mode: None,
         }
     }
 
@@ -45,6 +54,8 @@ impl Answer {
             commit: None,
             frame: None,
             select: None,
+            english: None,
+            mode: None,
         }
     }
 
@@ -62,6 +73,13 @@ impl Answer {
             frame.page = page;
             frame.page_count = count;
         }
+        self
+    }
+
+    /// 切换的回包同时带新模式与 `english`，之后的回包只带模式。
+    pub fn switched(mut self, mode: InputMode) -> Self {
+        self.english = Some(mode.english);
+        self.mode = Some(mode);
         self
     }
 }

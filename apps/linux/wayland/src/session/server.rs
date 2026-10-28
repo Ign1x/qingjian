@@ -4,7 +4,9 @@ use std::time::Instant;
 
 use qingjian_platform::protocol::KeyEvent;
 use qingjian_platform::protocol::linux::client::{ClientError, Reply};
-use qingjian_platform::protocol::linux::{AppSurrounding, Capabilities, DisplayIdentity, MenuItem};
+use qingjian_platform::protocol::linux::{
+    AppSurrounding, Capabilities, DisplayIdentity, MenuItem, ModeCommand,
+};
 
 pub trait Server {
     /// 接下来的请求发给哪个应用的会话：一个应用一个会话，`[apps]` 按应用的设置与中 / 英状态都跟着会话走。
@@ -42,6 +44,9 @@ pub trait Server {
 
     /// 组句期间取最新的帧。
     fn poll(&mut self) -> Result<Reply, ClientError>;
+
+    /// 托盘上的切换（中 / 英、全角标点、简繁）。回包像按键那样落地：切中 / 英时组句原样上屏、带 `english`。
+    fn indicator(&mut self, command: ModeCommand) -> Result<Reply, ClientError>;
 
     /// 回报画出来的译词义项。
     fn acknowledge(

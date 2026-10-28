@@ -1,7 +1,7 @@
 //! 一条连接上的对话：照真 Server（`apps/linux/server/src/ipc/connection.rs`）的壳回包，按下与测试允许的鼠标操作照脚本答。
 //!
 //! 没想到的消息不回个空包糊弄过去：真 Server 会断开连接的（握手不合规矩、报能力之前发事件、轮询没开的会话），
-//! 与这些测试里前端不该发的（未允许的鼠标操作、托盘、没要过的选区回话、认不出的消息），都当违规交给调用方，
+//! 与这些测试里前端不该发的（未允许的鼠标或托盘操作、没要过的选区回话、认不出的消息），都当违规交给调用方，
 //! 调用方记下来、断开连接，测试结束时报出来。
 
 use std::collections::HashMap;
@@ -85,6 +85,7 @@ impl Conversation {
         let fresh = Opened {
             context: None,
             capabilities: None,
+            mode: None,
         };
         if self.sessions.insert(session, fresh).is_some() {
             return Err(format!("会话 {session} 开了两次"));
@@ -142,6 +143,10 @@ impl Conversation {
         if let Some(reply) = self.panel(&event, session, script)? {
             return Ok(reply);
         }
+        if matches!(event, LinuxEvent::Indicator(_)) && !script.allowed_events.contains("Indicator")
+        {
+            return Err(format!("这个测试没允许 Indicator：{event:?}"));
+        }
         let selection_supported = matches!(
             event,
             LinuxEvent::Key {
@@ -150,11 +155,13 @@ impl Conversation {
                 ..
             }
         );
+        let mut english = None;
         let (outcome, commit) = match event {
             LinuxEvent::Key { release: false, .. }
             | LinuxEvent::Candidate { .. }
             | LinuxEvent::Page { .. }
-            | LinuxEvent::MenuPick { .. } => {
+            | LinuxEvent::MenuPick { .. }
+            | LinuxEvent::Indicator(_) => {
                 let answer = script
                     .presses
                     .pop_front()
@@ -172,6 +179,10 @@ impl Conversation {
                     self.frame = frame;
                     self.pending = false;
                 }
+                if let Some(mode) = answer.mode {
+                    self.sessions.get_mut(&session).expect("已核对会话").mode = Some(mode);
+                }
+                english = answer.english;
                 (answer.outcome, answer.commit)
             }
             LinuxEvent::Key { release: true, .. } | LinuxEvent::Focus { focused: true } => {
@@ -197,7 +208,9 @@ impl Conversation {
             }
             other => return Err(format!("这些测试里前端不该发 {other:?}")),
         };
-        Ok(self.result(session, outcome, commit))
+        let mut reply = self.result(session, outcome, commit);
+        reply["KeyResult"]["english"] = json!(english);
+        Ok(reply)
     }
 
     /// 轮询：帧没变时版本号不动；选区翻译在等、测试交出了译文，就换上译文那一帧。
@@ -279,6 +292,13 @@ impl Conversation {
             "revision": self.revision,
         });
         body["frame"]["translation_pending"] = json!(self.pending);
+        if let Some(mode) = self
+            .sessions
+            .get(&session)
+            .and_then(|opened| opened.mode.as_ref())
+        {
+            body["mode"] = json!(mode);
+        }
     }
 
     /// 候选窗上的鼠标操作（点候选、翻页、问菜单、点菜单项）像真 Server 那样先核对展示身份：对不上当前帧回 `Ignored`；
@@ -296,7 +316,7 @@ impl Conversation {
             LinuxEvent::MenuPick { identity, .. } => ("MenuPick", identity),
             _ => return Ok(None),
         };
-        if !script.pointer_events.contains(name) {
+        if !script.allowed_events.contains(name) {
             return Err(format!("这个测试没允许 {name}：{event:?}"));
         }
         let current = DisplayIdentity {

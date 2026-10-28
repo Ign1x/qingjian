@@ -10,6 +10,7 @@ mod popup;
 mod privacy;
 mod selection;
 mod startup;
+mod status;
 mod support;
 mod surrounding;
 mod typing;

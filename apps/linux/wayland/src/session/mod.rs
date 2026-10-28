@@ -9,6 +9,7 @@ mod input;
 mod keyboard;
 mod keys;
 mod link;
+mod mode;
 mod mouse;
 mod output;
 mod preedit;
@@ -16,12 +17,13 @@ mod repeat;
 mod reply;
 mod selection;
 mod server;
+mod tray;
 mod unsent;
 
 #[cfg(test)]
 mod tests;
 
-pub use input::{Click, Field, Input, Key, Modifiers, Spot, Surrounding};
+pub use input::{Click, Field, Input, Key, ModeTarget, Modifiers, Spot, Surrounding};
 pub use link::Link;
 pub use output::Output;
 pub use preedit::Preedit;
@@ -30,7 +32,7 @@ pub use server::Server;
 use std::time::{Duration, Instant};
 
 use qingjian_platform::protocol::Frame;
-use qingjian_platform::protocol::linux::{AppSurrounding, DisplayIdentity};
+use qingjian_platform::protocol::linux::{AppSurrounding, DisplayIdentity, InputMode};
 
 use keys::Keys;
 use mouse::Menu;
@@ -48,6 +50,9 @@ const SETTLE: Duration = Duration::from_millis(80);
 /// 输入框激活着时活动窗口换了应用，等多久再跟过去换 Server 上的会话。切换窗口时合成器报活动窗口与输入框失活、激活的先后不定，
 /// 中间常有一瞬间没有激活着的窗口；等这一会儿，紧接着的失活、激活直接用上新应用，不用白换几次。
 const FOLLOW: Duration = Duration::from_millis(200);
+
+/// 切了中 / 英之后提示亮多久，与 macOS 右上角的提示一样。
+const HINT: Duration = Duration::from_millis(900);
 
 /// 一个输入法实例在一个 seat 上的状态。
 pub struct Session<S> {
@@ -101,6 +106,12 @@ pub struct Session<S> {
 
     /// 弹着的候选右键菜单；收着是 `None`。
     menu: Option<Menu>,
+
+    /// Server 上当前那个应用的会话现在的输入模式（回包上的 `mode`）；还没收到过、或与 Server 断了是 `None`。
+    mode: Option<InputMode>,
+
+    /// 候选窗的位置上亮着中 / 英提示，到这个时刻收起；没亮着是 `None`。
+    hint_until: Option<Instant>,
 }
 
 impl<S: Server> Session<S> {
@@ -123,6 +134,8 @@ impl<S: Server> Session<S> {
             follow_at: None,
             identity: None,
             menu: None,
+            mode: None,
+            hint_until: None,
         }
     }
 
@@ -139,10 +152,11 @@ impl<S: Server> Session<S> {
             Input::App(app) => self.switch_app(app, now),
             Input::Click(click) => self.click(click, out, now),
             Input::Scroll { next, epoch } => self.scroll(next, epoch, out, now),
+            Input::Tray(target) => self.tray(target, out, now),
         }
     }
 
-    /// 到点的事：按键重复、组句轮询、跟着活动窗口换会话、Server 断开后的重连；最后看看键盘该不该交还。
+    /// 到点的事：按键重复、组句轮询、跟着活动窗口换会话、中 / 英提示收起、Server 断开后的重连；最后看看键盘该不该交还。
     /// 主循环每处理完一批事件调一次。
     pub fn tick(&mut self, out: &mut impl Output, now: Instant) {
         if self.settle_at.is_some_and(|at| at <= now) {
@@ -162,6 +176,9 @@ impl<S: Server> Session<S> {
             self.follow_at = None;
             self.follow(out, now);
         }
+        if self.hint_until.is_some_and(|at| at <= now) {
+            self.unflash(out);
+        }
         if self.reconnect_at().is_some_and(|at| at <= now) {
             self.connect(out);
         }
@@ -177,6 +194,7 @@ impl<S: Server> Session<S> {
             self.reconnect_at(),
             settle,
             self.follow_at,
+            self.hint_until,
         ]
         .into_iter()
         .flatten()

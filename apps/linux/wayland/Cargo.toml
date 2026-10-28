@@ -37,11 +37,13 @@ wayland-protocols = { version = "0.32.13", features = ["client", "staging"] }
 wayland-protocols-misc = { version = "0.3.12", features = ["client"] }
 wayland-protocols-wlr = { version = "0.3.12", features = ["client"] }
 xkbcommon-dl = "0.4.2"
-# 外观跟随系统：后台线程上一个单线程 tokio 运行时跑 zbus，读 xdg-desktop-portal 的 Settings、跟着 SettingChanged。
-# 不开 zbus 的 blocking-api：它的阻塞调用另起一个按核数开线程的运行时
+# 外观跟随系统与托盘：各自一个后台线程，上面一个单线程 tokio 运行时跑 zbus（读 xdg-desktop-portal 的 Settings；挂 StatusNotifierItem 与 dbusmenu）。
+# 不开 zbus 的 blocking-api：它的阻塞调用另起一个按核数开线程的运行时。托盘线程收主线程的模式用 tokio 的 watch
 futures-util.workspace = true
-tokio.workspace = true
+tokio = { workspace = true, features = ["sync"] }
 zbus.workspace = true
+# 托盘图标：SVG 栅格成几种尺寸、解 PNG（渲染器已经带着它，不多编东西）
+bamboo-slip.workspace = true
 
 # 黑盒测试（tests/blackbox）：假合成器用 wayland-server 搭，协议对象要 server 那一侧；假 Server 收发 JSON
 [target.'cfg(target_os = "linux")'.dev-dependencies]

@@ -11,7 +11,7 @@ fn translated() -> Option<(Rig, Targets)> {
         skip("这台机器上没有界面字体，候选窗画不出来");
         return None;
     }
-    rig.server.allow_pointer(&["Candidate"]);
+    rig.server.allow(&["Candidate"]);
     rig.focus_with(Field::text("我喜欢苹果。", 15, 9));
     let mark = rig.frontend.mark();
     press_translate(&rig, Answer::select(7));

@@ -108,14 +108,13 @@ impl Server {
         lock(&self.script).presses.push_back(answer);
     }
 
-    /// 只允许当前测试会发的鼠标事件；别的鼠标操作仍算违规。
-    pub fn allow_pointer(&self, events: &[&'static str]) {
-        assert!(
-            events
-                .iter()
-                .all(|event| matches!(*event, "Candidate" | "Page" | "Menu" | "MenuPick"))
-        );
-        lock(&self.script).pointer_events.extend(events);
+    /// 只允许当前测试会发的鼠标或托盘事件；未列出的操作仍算违规。
+    pub fn allow(&self, events: &[&'static str]) {
+        assert!(events.iter().all(|event| matches!(
+            *event,
+            "Candidate" | "Page" | "Menu" | "MenuPick" | "Indicator"
+        )));
+        lock(&self.script).allowed_events.extend(events);
     }
 
     /// 选区翻译的译文到了：下一次轮询换上它（还在等译文时才换）。

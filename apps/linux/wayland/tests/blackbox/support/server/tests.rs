@@ -3,7 +3,7 @@
 use qingjian_platform::protocol::PROTOCOL_VERSION;
 use qingjian_platform::protocol::linux::key::to_key_event;
 use qingjian_platform::protocol::linux::{
-    Capabilities, DisplayIdentity, LINUX_UI_PROTOCOL, LinuxEvent, ModeCommand,
+    Capabilities, DisplayIdentity, InputMode, LINUX_UI_PROTOCOL, LinuxEvent, ModeCommand,
 };
 use serde_json::{Value, json};
 
@@ -65,7 +65,7 @@ fn pointer_permissions_do_not_allow_other_events() {
     ] {
         assert!(conversation.reply(&event(1, denied), &mut script).is_err());
     }
-    script.pointer_events.insert("Menu");
+    script.allowed_events.insert("Menu");
     for denied in [
         LinuxEvent::Candidate {
             identity: identity.clone(),
@@ -90,6 +90,44 @@ fn pointer_permissions_do_not_allow_other_events() {
     );
 }
 
+/// 托盘请求要单独允许，回包带切换结果，之后的轮询沿用该会话的新模式。
+#[test]
+fn an_allowed_indicator_keeps_its_mode_without_allowing_pointer_requests() {
+    let mut conversation = Conversation::default();
+    let mut script = Script::default();
+    let identity = open(&mut conversation, &mut script, 1, "wayland");
+    let mode = InputMode {
+        english: true,
+        ..InputMode::default()
+    };
+    script.allowed_events.insert("Indicator");
+    script
+        .presses
+        .push_back(Answer::commit("n").switched(mode.clone()));
+    let reply = conversation
+        .reply(
+            &event(1, LinuxEvent::Indicator(ModeCommand::ToggleEnglish)),
+            &mut script,
+        )
+        .expect("已允许托盘切换")
+        .expect("切换回包");
+    assert_eq!(reply["KeyResult"]["english"], true);
+    assert_eq!(reply["KeyResult"]["mode"], json!(mode));
+    let reply = conversation
+        .reply(&json!({"Poll": {"session": 1}}), &mut script)
+        .expect("轮询")
+        .expect("轮询回包");
+    assert_eq!(reply["Update"]["mode"], json!(mode));
+    assert!(
+        conversation
+            .reply(
+                &event(1, LinuxEvent::Candidate { identity, index: 0 }),
+                &mut script
+            )
+            .is_err()
+    );
+}
+
 #[test]
 fn stale_pointer_identities_do_not_consume_answers() {
     let mut conversation = Conversation::default();
@@ -97,7 +135,7 @@ fn stale_pointer_identities_do_not_consume_answers() {
     let mut identity = open(&mut conversation, &mut script, 1, "first");
     let second = open(&mut conversation, &mut script, 2, "second");
     identity.revision = second.revision;
-    script.pointer_events.extend(["Candidate", "Menu"]);
+    script.allowed_events.extend(["Candidate", "Menu"]);
     script.presses.push_back(Answer::commit("正确候选"));
     for stale in [
         DisplayIdentity {
@@ -150,7 +188,7 @@ fn a_translation_can_be_committed_by_a_pointer_answer() {
     let mut conversation = Conversation::default();
     let mut script = Script::default();
     open(&mut conversation, &mut script, 1, "wayland");
-    script.pointer_events.insert("Candidate");
+    script.allowed_events.insert("Candidate");
     script
         .presses
         .extend([Answer::select(7), Answer::commit("apple")]);

@@ -10,8 +10,8 @@ pub struct Script {
     /// 按下与允许的鼠标操作的答复，按先后用掉；没排到的放行、帧不变。
     pub presses: VecDeque<Answer>,
 
-    /// 当前测试允许的鼠标事件名；未列出的操作仍记成违规。
-    pub pointer_events: HashSet<&'static str>,
+    /// 当前测试允许的鼠标或托盘事件名；未列出的操作仍记成违规。
+    pub allowed_events: HashSet<&'static str>,
 
     /// 选区翻译等着的译文：下一次轮询时交出去（换上译文那一帧、不再 `translation_pending`）。
     pub translation: Option<String>,

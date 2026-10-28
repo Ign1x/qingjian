@@ -2,11 +2,15 @@
 
 mod apps;
 mod focus;
+mod hint;
+mod integration;
 mod keys;
 mod link;
 mod menu;
+mod mode;
 mod mouse;
 mod selection;
 mod support;
+mod tray;
 mod typing;
 mod wire;

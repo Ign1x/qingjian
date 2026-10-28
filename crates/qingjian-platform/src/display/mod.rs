@@ -5,12 +5,14 @@
 //! 这一步各个自绘的壳本来各写一份（见 `docs/design/core-internals.md`「还是各写一份的地方」），
 //! 这里是 Linux Wayland 前端用的那份，照 Windows Server 的 `ui/candidates/{row,render_data}.rs` 写；Windows 与 macOS 以后改用它。
 
+mod mode;
 mod preedit;
 mod row;
 
 #[cfg(test)]
 mod tests;
 
+pub use mode::render_mode;
 pub use preedit::window_preedit;
 pub use row::from_candidate;
 
@@ -19,7 +21,8 @@ use qingjian_render::{Layout, Mode};
 use crate::LayoutMode;
 use crate::protocol::Frame;
 
-/// 一帧要画的全部内容。`mode` 是输入状态（中 / 英、简 / 繁、方案），主题拿它显示状态；协议帧里没有，由壳给。
+/// 一帧要画的全部内容。`mode` 是输入状态（中 / 英、简 / 繁、方案），主题拿它显示状态；协议帧里没有，由壳给
+/// （Linux Server 在回包上另附 `mode`，用 [`render_mode`] 换）。
 pub fn render_frame(frame: &Frame, mode: Mode) -> qingjian_render::Frame {
     let grid = frame.columns > 0;
     // 矩阵里序号只标在高亮所在那一行（数字键选的就是它），空位什么都不画；单行照旧全标

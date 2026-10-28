@@ -26,7 +26,11 @@ impl<S: Server> Session<S> {
             out,
             now,
         );
-        self.present(&reply, out);
+        let remode = self.adopt(reply.mode.as_ref(), out);
+        self.present(&reply, remode, out);
+        if let Some(english) = reply.english {
+            self.flash(english, out, now);
+        }
         // 右键菜单开着时不轮询（见 `mouse`），菜单收起时再接上
         self.poll_at = (self.menu.is_none()
             && (!reply.frame.is_empty() || reply.translation_pending))
@@ -72,27 +76,34 @@ impl<S: Server> Session<S> {
     }
 
     /// 候选窗：空帧收起；版本号没变（轮询回来帧没变）不理；帧内容没变（抬键的回包）不重画，
-    /// 但回执照发——展示身份换了，Server 认的是新身份，点选与右键菜单也带它。
-    fn present(&mut self, reply: &Reply, out: &mut impl Output) {
+    /// 但回执照发——展示身份换了，Server 认的是新身份，点选与右键菜单也带它。`remode` 是模式变了：帧没变也重画。
+    /// 中 / 英提示亮着时空帧不收它（切换键是组合键时，抬起另几个键的回包也是空帧），有了候选就换成候选。
+    fn present(&mut self, reply: &Reply, remode: bool, out: &mut impl Output) {
         if reply.frame.is_empty() {
-            self.hide(out);
+            if self.drawn.is_some() {
+                self.hide(out);
+            }
+            self.shown = None;
             return;
         }
         let revision = reply.revision();
         if let (Some(revision), Some(shown)) = (revision, self.shown)
             && revision <= shown
+            && !remode
         {
             return;
         }
-        if self
-            .drawn
-            .as_ref()
-            .is_none_or(|(frame, _)| *frame != reply.frame)
+        if remode
+            || self
+                .drawn
+                .as_ref()
+                .is_none_or(|(frame, _)| *frame != reply.frame)
         {
             // 换了一帧：右键菜单对不上了，随新帧一并收起
             self.menu = None;
             let senses = out.show(&reply.frame);
             self.drawn = Some((reply.frame.clone(), senses));
+            self.hint_until = None;
         }
         self.shown = revision;
         self.identity.clone_from(&reply.identity);
@@ -104,8 +115,10 @@ impl<S: Server> Session<S> {
         }
     }
 
+    /// 收起候选窗，连同亮着的中 / 英提示。
     pub(super) fn hide(&mut self, out: &mut impl Output) {
-        if self.drawn.take().is_some() {
+        let hinted = self.hint_until.take().is_some();
+        if self.drawn.take().is_some() || hinted {
             out.hide();
         }
         self.shown = None;
@@ -133,5 +146,6 @@ impl<S: Server> Session<S> {
         tracing::warn!(%error, "与 Server 的往返失败，组句作废，键先原样交给应用");
         self.repeat.stop();
         self.clear(out);
+        self.forget_mode(out);
     }
 }

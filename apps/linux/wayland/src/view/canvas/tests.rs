@@ -112,6 +112,22 @@ fn spots_follow_the_hits_at_one_and_a_half() {
     );
 }
 
+/// 提示与候选沿用同一套裁边、缩放；即使渲染结果带命中区域，提示也不收鼠标。
+#[test]
+fn the_hint_has_no_pointer_targets_or_input_region() {
+    let rendered = window(1.5);
+    let hint = Canvas::hint(&rendered, 1.5);
+    let candidate = Canvas::new(&rendered, None, 1.5);
+    assert_eq!(hint.placement, candidate.placement);
+    assert_eq!(hint.spot(20.0, 40.0), None);
+    assert!(hint.input_region().is_empty());
+    assert!(hint.describe().is_empty());
+    assert_eq!(
+        hint.compose(&rendered, None).as_ref(),
+        rendered.pixmap.data()
+    );
+}
+
 /// 菜单的卡片左上角摆在右键按下的地方，盖在候选窗上面、先认它；伸出候选窗的部分让合成位图变大，裁边不变，候选窗不挪。
 #[test]
 fn the_menu_lies_over_the_window() {

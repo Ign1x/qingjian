@@ -20,7 +20,7 @@ description: "Entering English mode, changing or turning off the Chinese/English
   The hint shares Fcitx5's "Show Input Method Information when switch input method" setting with the input method switching popup; turn that off and it no longer appears.
 
 On Windows, the Chinese/English mode is **shared by all apps** by default: switch to English in one app and other apps, including newly opened ones, are in English too. On Linux, **each window keeps its own**, and new windows start in Chinese.
-The Linux Wayland native edition is the exception: all windows share one mode, switching shows no indicator, and 默认英文模式 (Start in English mode) only decides the mode Qingjian starts in.
+The Linux Wayland native edition keeps one mode per app: windows of the same app share it, and newly opened apps start in the default mode. When you switch, Qingjian itself briefly shows 中 or 英 where the candidate window appears; the Fcitx5 setting above doesn't affect it.
 
 ## Changing or turning off the Chinese / English switch
 
@@ -75,7 +75,6 @@ English words you've committed as typed with `Enter` (like `gist` or `python`) a
   and single-key shortcuts in software like Photoshop, Illustrator and Blender (such as Photoshop's `W` `H` `V`) work directly.
 - 只在写字的应用里给 (Only in writing apps) in 设置 → 中英文 (Settings → Chinese/English) controls this list; untick it to get candidates everywhere. To add or remove specific apps, see [Editing the configuration file](../advanced/config-file.md).
 - Turning off 英文模式也给候选 (Candidates in English mode) means English mode shows no candidates at all, just as if no input method were in use.
-- The Linux Wayland native edition can't tell which app you're in yet, so English mode only shows candidates after you untick 只在写字的应用里给 (Only in writing apps).
 
 ## Typing English in Chinese mode
 

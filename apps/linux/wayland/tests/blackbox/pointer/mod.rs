@@ -22,7 +22,7 @@ pub(super) fn composing(answer: Answer, events: &[&'static str]) -> Option<(Rig,
         skip("这台机器上没有界面字体，候选窗画不出来");
         return None;
     }
-    rig.server.allow_pointer(events);
+    rig.server.allow(events);
     rig.focus();
     rig.server.answer(answer);
     let mark = rig.frontend.mark();

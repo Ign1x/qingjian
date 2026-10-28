@@ -58,9 +58,12 @@ impl Frontend {
             .env("NO_COLOR", "1")
             // 有 WAYLAND_SOCKET 时客户端不看 WAYLAND_DISPLAY，会连到继承下来的真会话上
             .env_remove("WAYLAND_SOCKET")
-            // 也不连宿主的会话总线去读桌面的深浅：本地与 CI 一样按浅色画（portal 的往来另有对着私有总线的测试）
-            .env_remove("DBUS_SESSION_BUS_ADDRESS")
             .env_remove("WAYLAND_DEBUG")
+            // 禁止回退到宿主总线读外观或登记托盘；D-Bus 往来另对私有总线测。
+            .env(
+                "DBUS_SESSION_BUS_ADDRESS",
+                "unix:path=/nonexistent/qingjian-test-bus",
+            )
             .stdin(Stdio::null())
             .stdout(Stdio::null())
             .stderr(Stdio::piped())

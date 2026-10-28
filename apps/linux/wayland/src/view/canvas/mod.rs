@@ -1,4 +1,4 @@
-//! 贴在 popup 上的那一张：候选窗，右键菜单弹着时把菜单叠在上面。input-method-v2 只有一个 popup、位置由合成器定，
+//! 贴在 popup 上的那一张：候选窗或中 / 英提示，右键菜单弹着时把菜单叠在候选上面。input-method-v2 只有一个 popup、位置由合成器定，
 //! 菜单只能和候选窗画进同一张位图，popup 跟着变大。这里记下两块各在合成位图的哪儿：
 //! 从 surface 坐标认出鼠标落在什么上、算出收鼠标的区域。只做算术，不碰 Wayland 对象。
 
@@ -33,6 +33,9 @@ pub struct Canvas {
 
     /// 画位图用的倍数（点 → 像素）。
     scale: f32,
+
+    /// 中 / 英提示不收鼠标，整个 surface 穿透。
+    interactive: bool,
 }
 
 impl Canvas {
@@ -55,6 +58,15 @@ impl Canvas {
             window: window_part,
             menu,
             scale: window.scale,
+            interactive: true,
+        }
+    }
+
+    /// 中 / 英提示沿用候选的裁边、缩放与贴图，鼠标完全穿透。
+    pub fn hint(rendered: &Rendered, scale: f64) -> Self {
+        Self {
+            interactive: false,
+            ..Self::new(rendered, None, scale)
         }
     }
 
@@ -92,6 +104,9 @@ impl Canvas {
     /// surface 上一点（逻辑像素）落在什么上。菜单盖在候选窗上面，先看菜单；候选右侧的译词也算那个候选；
     /// 落在卡片上别处、卡片外（阴影、补的边）都是 `None`。
     pub fn spot(&self, x: f64, y: f64) -> Option<Spot> {
+        if !self.interactive {
+            return None;
+        }
         let (x, y) = self.pixel(x, y);
         if let Some(menu) = &self.menu
             && let Some((x, y)) = menu.local(x, y)
@@ -123,6 +138,9 @@ impl Canvas {
     /// 收鼠标的区域，surface 逻辑像素的矩形 `(x, y, 宽, 高)`：候选窗与菜单的卡片。
     /// 阴影与补的边不收，鼠标穿过去落到下面的应用里。
     pub fn input_region(&self) -> Vec<(i32, i32, i32, i32)> {
+        if !self.interactive {
+            return Vec::new();
+        }
         std::iter::once(&self.window)
             .chain(&self.menu)
             .filter_map(|part| self.logical(part))
@@ -132,6 +150,9 @@ impl Canvas {
     /// 能点的候选与菜单项各自的中心（surface 逻辑像素），一项一段：`candidate0@32,41 item1@60,90`。
     /// 记进调试日志，排查点不中时对照合成器给的坐标；黑盒测试也按它点。
     pub fn describe(&self) -> String {
+        if !self.interactive {
+            return String::new();
+        }
         let window = self
             .window
             .centers()

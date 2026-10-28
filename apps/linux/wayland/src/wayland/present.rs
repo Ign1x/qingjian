@@ -17,6 +17,7 @@ impl Wayland {
         self.menu = None;
         self.drop_clicks();
         self.shown = Some(frame.clone());
+        self.hinted = None;
         let scale = self.popup.scale();
         let Some(rendered) = self
             .painter
@@ -43,6 +44,7 @@ impl Wayland {
     pub(super) fn hide(&mut self) {
         self.popup.hide();
         self.shown = None;
+        self.hinted = None;
         self.window = None;
         self.menu = None;
         self.canvas = None;
@@ -86,16 +88,18 @@ impl Wayland {
             .min()
     }
 
-    /// 按现在的缩放与外观重画同一帧；弹着的菜单也重画，摆回原处。
+    /// 按现在的缩放与外观重画候选或中 / 英提示；弹着的菜单也重画，摆回原处。
     fn redraw(&mut self) {
-        let Some(frame) = self.shown.clone() else {
-            return;
-        };
         let scale = self.popup.scale() as f32;
         let Some(painter) = self.painter.as_mut() else {
             return;
         };
-        let Some(rendered) = painter.render(&frame, scale) else {
+        let rendered = match (&self.shown, &self.hinted) {
+            (Some(frame), _) => painter.render(frame, scale),
+            (_, Some(mode)) => painter.render_status(mode, scale),
+            _ => return,
+        };
+        let Some(rendered) = rendered else {
             return;
         };
         if let Some(menu) = &mut self.menu
@@ -107,13 +111,17 @@ impl Wayland {
         self.paint();
     }
 
-    /// 把候选窗（右键菜单弹着时连同菜单）合成、贴到 popup 上，记下贴上去的那一张给鼠标认落点。
+    /// 把候选窗（连同右键菜单）或中 / 英提示贴到 popup 上，鼠标只按贴上去的那一张认落点。
     pub(super) fn paint(&mut self) {
         let Some(window) = &self.window else {
             return;
         };
         let menu = self.menu.as_ref().map(|menu| (&menu.rendered, menu.anchor));
-        let canvas = Canvas::new(window, menu, self.popup.scale());
+        let canvas = if self.hinted.is_some() {
+            Canvas::hint(window, self.popup.scale())
+        } else {
+            Canvas::new(window, menu, self.popup.scale())
+        };
         let pixels = canvas.compose(window, menu.map(|(rendered, _)| rendered));
         let placement = canvas.placement;
         let Some((buffer_pixels, buffer)) =

@@ -14,6 +14,11 @@
 - 应用走 Wayland 的 text-input：`GTK_IM_MODULE` / `QT_IM_MODULE` 不要设成 `fcitx` / `ibus`（Qt 6.7 起设 `wayland` 或不设）；
   Chromium / Electron 加 `--enable-wayland-ime`，只认 text-input-v3 的合成器上再加 `--wayland-text-input-version=3`。XWayland 应用没有输入法。
 
+## 中 / 英提示与托盘
+
+切中 / 英时在候选窗口的位置显示短暂提示；主题里的模式也随当前会话更新。状态栏有托盘（如 waybar 的 tray 模块）时，图标显示中 / 英，左键切换，右键可选中文、英文、全角标点、繁体输出或打开设置。
+没有输入框时切换作用于活动窗口的应用；没有活动窗口时作用于最近使用的会话。没有托盘或会话总线仍可输入；托盘宿主稍后启动或重启会自动重新登记。
+
 ## 安装
 
 与 fcitx 版同一个脚本，装到 `~/.local`（用户怎么装、各合成器的自启写法见用户文档 [Linux](../../../docs/user/platforms/linux.md) 的「Wayland 原生版」一节）：
@@ -71,14 +76,14 @@ LD_LIBRARY_PATH=$(nix-build '<nixpkgs>' -A libxkbcommon --no-out-link)/lib targe
 cargo test -p qingjian-linux-wayland
 ```
 
-会话规则（按键转发、抬起跟着按下走、过期回包、上屏切块、重复、Server 断开重连、按应用分会话、选区翻译、鼠标点选与右键菜单）、input-method-v2 的状态机、活动窗口的跟踪、
+会话规则（按键转发、抬起跟着按下走、过期回包、上屏切块、重复、Server 断开重连、按应用分会话、选区翻译、鼠标点选与右键菜单、模式回包与提示、托盘目标切换）、input-method-v2 的状态机、活动窗口的跟踪、
 位图裁边与缩放、鼠标落点与菜单合成、滚轮折成翻页都是纯逻辑，不要合成器；
 与 Server 的连接（一个应用一个会话、关最久没用的、重连补开、选区与鼠标请求）对着走真 socket 的假 Server 测。
 
 `tests/blackbox/` 是黑盒测试：真的二进制连测试进程里的假合成器（wayland-server）与假 Server，过一遍起不来的两种退出、SIGTERM、
 接管键盘、行内拼音与上屏、放行的键经虚拟键盘转出、失活时还按着的键、候选窗贴图与分数缩放、密码框与敏感框、前后文、组句中应用改了文字、选区翻译的一整轮，
-以及鼠标（点候选上屏、滚轮翻页、右键菜单与点项、Esc 收菜单、旧落点竞态与缓冲背压）；
-每个测试结束时查被测进程以 0 退出、交还了键盘、没留下按着的键。鼠标测试逐种允许对应请求，假 Server 收到未允许或不合规矩的消息仍算失败。怎么搭的见 crate-notes。
+以及鼠标（点候选上屏、滚轮翻页、右键菜单与点项、Esc 收菜单、旧落点竞态与缓冲背压）、提示与候选 / 菜单切换、缓冲归还后补贴提示；
+每个测试结束时查被测进程以 0 退出、交还了键盘、没留下按着的键。鼠标与托盘请求由测试逐种允许，假 Server 收到未允许或不合规矩的消息仍算失败。怎么搭的见 crate-notes。
 二进制运行时 dlopen libxkbcommon，加载不了时这些测试打印「跳过 …」后通过（CI 里 ubuntu:22.04 那个裸容器就是这样）。
 设了 `QINGJIAN_BLACKBOX_REQUIRED=1` 时改成失败，不许跳过：CI 的 Linux job 装好 libxkbcommon 与 libwayland-client 后就这样跑；本地不设，行为不变。NixOS 上：
 
@@ -88,7 +93,14 @@ LD_LIBRARY_PATH=$(nix-build '<nixpkgs>' -A libxkbcommon --no-out-link)/lib cargo
 
 与整个 workspace 一起跑（`cargo test --workspace`）时前端改成 dlopen libwayland-client，`LD_LIBRARY_PATH` 里还要加上
 `$(nix-build '<nixpkgs>' -A wayland --no-out-link)/lib`，不然同样跳过。
-真会话里要过的一遍见设计文档的「验证」一节。
+托盘与 portal 的 D-Bus 测试各自启动私有 dbus-daemon，不连接宿主会话总线。安装 dbus-daemon 后显式运行：
+
+```bash
+cargo test -p qingjian-linux-wayland -- --ignored --nocapture
+```
+
+应看到 5 个 D-Bus 测试实际通过，没有「dbus-daemon 起不来…跳过」。黑盒子进程也使用不可达的 D-Bus 地址，避免在宿主状态栏登记图标。
+真会话里要过的一遍见设计文档的「验证」一节。中 / 英提示、主题模式与托盘目前只有自动化验证，尚待嵌套合成器或真会话验证。
 
 ## 验证记录
 

@@ -33,16 +33,21 @@ impl<S: Server> Session<S> {
     }
 
     /// 告诉 Server 焦点到了，成功就把键盘接过来。连不上就先不接管，过一会儿 tick 再试。
+    /// 回包带着这个应用的会话现在的模式（换应用时中 / 英跟着变）。
     pub(super) fn connect(&mut self, out: &mut impl Output) {
         match self.server.focus(true) {
-            Ok(_) => {
+            Ok(reply) => {
+                self.adopt(reply.mode.as_ref(), out);
                 if !self.grabbed {
                     out.grab(true);
                     self.grabbed = true;
                 }
             }
             // Server 没起时每次退避到点都会走到这里，不用 warn 刷屏；断开的那一下 Link 已经记过
-            Err(error) => tracing::debug!(%error, "连不上 Server，这个输入框先不接管键盘"),
+            Err(error) => {
+                tracing::debug!(%error, "连不上 Server，这个输入框先不接管键盘");
+                self.forget_mode(out);
+            }
         }
     }
 

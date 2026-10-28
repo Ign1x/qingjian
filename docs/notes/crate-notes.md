@@ -603,6 +603,7 @@ Windows 可选的 `[shortcut] toggle_punctuation` 经 `InputSettings` 下发，�
 Unix socket 用共享长度前缀与 Frame（当前公共版本 9，与 `PROTOCOL_VERSION` 同步，Fcitx5 插件里写死在 `qingjian.cpp` 的 OpenSession）；插件复用一条连接，每个上下文独立会话。Linux 扩展逐会话握手（收 v3 与 v4，版本规则见 crates/qingjian-platform 一节）、确认 Sensitive/Password/Disable 后接受按下/释放、焦点和点击事实。
 候选回报绑定连接代次、上下文和服务端帧序号，仅当前聚焦页的有效释义进入 `note_displayed`，不把生成帧算作已展示。
 Linux 回包由 `dispatch/display/annotation` 给释义添加可选 `annotation`（词性与汉字段假名，`[general] translation_pos` 关掉时不带词性），Fcitx5 面板优先显示它；原始译文和快捷键提交不变，旧 Server 缺该字段时插件回退到 `text`。
+拼音行显示声调（`[general] show_tones`，启动与热加载都设）同 Windows：`dispatch/composed` 的 `window_parts` 按高亮候选的带调读音另给 `Frame::window_preedit`，与行内拼音相同时不给；Wayland 前端经 `display::window_preedit` 画在候选窗里，行内拼音仍是 `preedit`。
 每个 `KeyResult` / `Update` 另附这个会话的 `mode`（`dispatch/mode.rs`：`english` / `traditional` / `full_width` 取当前中英那一份 / `scheme`），方案名按 `scheme_label(config.scheme, None, None)` 算：
 Linux 还不装用户双拼与形码方案（没有 `SchemeSlot`），引擎按全拼跑的那些方案名也按全拼（空串）。插件不读它。
 v4 的两样给 Rust 前端：候选右键菜单（`dispatch/menu.rs`，与 Windows 的 `dispatch/key/menu.rs` 同用 `qingjian_platform::candidate_menu`）问菜单不推进展示身份，

@@ -97,6 +97,7 @@ impl Router {
             .set_shuangpin_raw_preedit(config.general.shuangpin_raw_preedit);
         self.engine
             .set_hold_selections(config.general.hold_selections);
+        self.engine.set_show_tones(config.general.show_tones);
         self.engine
             .set_context_memory(config.model.context_memory_seconds);
         self.engine.set_zhuyin_mode(config.general.is_zhuyin());

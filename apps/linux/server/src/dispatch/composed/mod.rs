@@ -2,8 +2,12 @@
 
 mod state;
 
+#[cfg(test)]
+mod tests;
+
 use qingjian_core::{
-    Candidate, CandidateKind, CandidateLayout, CandidateList, CloudWord, Query, SurroundingText,
+    Candidate, CandidateKind, CandidateLayout, CandidateList, CloudWord, Engine, Query,
+    SurroundingText,
 };
 use qingjian_platform::protocol::{Frame, KeyEvent, KeyModifiers, PreeditKind, PreeditSegment};
 
@@ -263,13 +267,21 @@ impl Router {
                 let highlight = self.highlight.min(layout.len().saturating_sub(1));
                 // 高亮候选的读音切法与首选不同（`ganga` 的 尴尬 / 刚啊）：拼音行按它重切
                 let candidate = layout.candidate(highlight);
-                let (preedit, cursor) = if spelling.spelling_of(candidate) == spelling.spelled {
-                    (preedit.clone(), *cursor)
-                } else {
+                let followed = (spelling.spelling_of(candidate) != spelling.spelled).then(|| {
                     let mut followed = (**spelling).clone();
                     followed.follow(candidate);
-                    marked_parts(&followed)
+                    followed
+                });
+                let (preedit, cursor) = match &followed {
+                    Some(followed) => marked_parts(followed),
+                    None => (preedit.clone(), *cursor),
                 };
+                let window_preedit = window_parts(
+                    &self.engine,
+                    followed.as_ref().unwrap_or(spelling),
+                    candidate,
+                    &preedit,
+                );
                 let page = highlight / page_size;
                 let items: Vec<Candidate> = layout
                     .page(page)
@@ -291,7 +303,7 @@ impl Router {
                 Frame {
                     preedit,
                     cursor,
-                    window_preedit: None,
+                    window_preedit,
                     preedit_mode: self.config.preedit,
                     candidates,
                     highlight: highlight - page * page_size,
@@ -310,6 +322,19 @@ impl Router {
             }
         }
     }
+}
+
+/// 候选窗口里的拼音行：带调拼音开着、高亮候选读得出声调时换成它的读音，与行内拼音相同时不另给（同 Windows Server）。
+fn window_parts(
+    engine: &Engine,
+    query: &Query,
+    candidate: Option<&Candidate>,
+    preedit: &[PreeditSegment],
+) -> Option<Box<(Vec<PreeditSegment>, usize)>> {
+    let toned = engine.toned_syllables(candidate?)?;
+    let (segments, cursor) = query.window_segments(Some(&toned));
+    let segments: Vec<PreeditSegment> = segments.iter().map(Into::into).collect();
+    (segments != preedit).then(|| Box::new((segments, cursor)))
 }
 
 /// 一次查询的拼音行分段与光标。光标用 Core 的映射：自动补的 `'` 会让显示串比敲的长。

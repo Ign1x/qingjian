@@ -98,8 +98,8 @@ impl Feature {
     fn table(self) -> [Status; 3] {
         use Status::{NotApplicable as No, Planned as Todo, Supported as Yes};
         match self {
-            Self::AuxCode => [Yes, Yes, Todo],
-            Self::Schemes => [Yes, Yes, Todo],
+            Self::AuxCode => [Yes, Yes, Yes],
+            Self::Schemes => [Yes, Yes, Yes],
             Self::SwitchKeys => [Yes, Yes, Yes],
             // macOS 只做了单击 Shift，Caps Lock 仍是系统那一套
             Self::SwitchKeyCombos => [No, Yes, Yes],
@@ -123,8 +123,7 @@ impl Feature {
             Self::VocabularyTranslation => [Yes, Yes, Yes],
             Self::KeyHint => [Yes, Yes, Todo],
             Self::ShowTones => [Yes, Yes, Yes],
-            // Windows、Linux 的服务进程还没接知意；没有 GPU 时 CPU 上打分要发烫，先只开 macOS（Metal）
-            Self::ExperimentalModels => [Yes, Yes, Todo],
+            Self::ExperimentalModels => [Yes, Yes, Yes],
             Self::NumpadDigit => [Todo, Yes, Yes],
         }
     }

@@ -63,6 +63,10 @@ The local sentence model (Hanzhang Tongbian) is bundled. To use a model you've t
 - **Windows**: `%APPDATA%\Qingjian\models\hanzhang-tongbian\`
 - **Linux**: `~/.local/share/qingjian/models/hanzhang-tongbian/`
 
-- Hanzhang Zhiwei (`hanzhang-zhiwei-small.qjm`, in `models/hanzhang-zhiwei/`) is no longer bundled. Download it under 设置 → 实验功能 (Settings → Experimental features), or put it in that folder yourself and turn it on there (`[model] name = "zhiwei"`); it uses the few dozen characters before the cursor to reorder candidates. Zhiyi is downloaded to `models/zhiyi/` (`models/zhiyi-onnx/` on Windows).
+- Hanzhang Zhiwei (`hanzhang-zhiwei-small.qjm`, in `models/hanzhang-zhiwei/`) is no longer bundled. Download it under 设置 → 实验功能 (Settings → Experimental features), or put it in that folder yourself and turn it on there (`[model] name = "zhiwei"`); it uses the few dozen characters before the cursor to reorder candidates. Zhiyi is downloaded to `models/zhiyi/` (`models/zhiyi-onnx/` on Windows and Linux).
 - The `model-p2c/` and `model/` folders used by older versions can still be read; for the same model, the new folder takes priority.
 - The three files exported directly, `model.safetensors`, `config.json` and `vocab.json`, are recognized too; if a folder has both kinds, `.qjm` is used first.
+
+### Zhiyi runtime on Linux
+
+Zhiyi needs ONNX Runtime 1.24 or newer. Put the `lib` folder from its official Linux CPU package under `models/onnxruntime/` in the data folder, then restart Qingjian, or use a system installation. Missing models or runtime libraries fall back to Hanzhang.

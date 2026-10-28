@@ -16,9 +16,9 @@ The macOS and Windows versions are in beta with nearly the same features; keys f
 | 9-key keypad | — | — | — | ✓ |
 | Double pinyin, fuzzy pinyin | ✓ | ✓ | ✓ | ✓ |
 | Dachen Zhuyin | — | ✓ | ✓ | ✓ |
-| Wubi, Wubi–pinyin mixed input | ✓ | ✓ | — | ✓ |
-| Custom double pinyin / shape-based schemes | ✓ | ✓ | — | — |
-| Auxiliary code | ✓ | ✓ | — | — |
+| Wubi, Wubi–pinyin mixed input | ✓ | ✓ | ✓ | ✓ |
+| Custom double pinyin / shape-based schemes | ✓ | ✓ | ✓ | — |
+| Auxiliary code | ✓ | ✓ | ✓ | — |
 | Key hints and radical chart | ✓ | ✓ | — | — |
 | Local sentence model | ✓ | ✓ | ✓ | — |
 | English mode and English completion | ✓ | ✓ | ✓ | ✓ (English keyboard) |
@@ -32,7 +32,7 @@ The macOS and Windows versions are in beta with nearly the same features; keys f
 | Custom phrases | ✓ | ✓ | ✓ | ✓ (saved phrases) |
 | System text replacements | ✓ | — | — | — |
 | Importing pinyin dictionaries | ✓ | ✓ | ✓ | ✓ |
-| Importing Wubi dictionaries | ✓ | ✓ | — | — |
+| Importing Wubi dictionaries | ✓ | ✓ | ✓ | — |
 | Voice input, swipe typing, clipboard | — | — | — | ✓ |
 
 ## Learning languages

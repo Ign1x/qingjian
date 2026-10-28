@@ -269,7 +269,7 @@ impl Router {
                 columns: 0,
                 column_ems: Vec::new(),
                 appearance: self.config.appearance,
-                aux_code_show: false,
+                aux_code_show: self.config.aux_code_show,
                 translation_pos: self.config.translation_pos,
                 sentence: None,
                 notice: self.notice.clone(),
@@ -344,7 +344,7 @@ impl Router {
                         Vec::new()
                     },
                     appearance: self.config.appearance,
-                    aux_code_show: false,
+                    aux_code_show: self.config.aux_code_show,
                     translation_pos: self.config.translation_pos,
                     sentence: self.sentence.clone(),
                     notice: self.notice.clone(),

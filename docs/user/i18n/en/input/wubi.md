@@ -4,11 +4,12 @@ order: 6
 description: "Typing with shape-based codes such as Wubi (86 edition): turning it on, short codes and automatic commit, commit-on-next-code, the radical chart, and mixed input with Wubi and pinyin on together."
 ---
 
-Shape-based input is supported on macOS and Windows (Android has its own Wubi keyboard); not yet on Linux.
+Shape-based input is supported on macOS, Windows and Linux (Android has its own Wubi keyboard).
 
 ## Turning it on
 
 Under 设置 → 输入 → 形码 (Settings → Input → Shape-based), choose 五笔（86） (Wubi 86). Only Wubi 86 is bundled; you can also add your own shape-based scheme, see [Custom schemes and code tables](../advanced/custom-schemes.md#Custom-shape-based-schemes).
+On Linux, changing schemes or editing a code table updates candidates in the current input field and in other fields when you return to them.
 
 - **Wubi only**: set 拼音 (Pinyin) on the same page to 关 (Off).
 - **Wubi–pinyin mixed input**: leave the pinyin scheme on; see [Mixed input](#Mixed-input) below.
@@ -33,7 +34,7 @@ The first two can be turned off: when Pinyin is 关 (Off), 设置 → 输入 (Se
 ### Radical chart
 
 With 五笔（86） (Wubi 86) selected as the shape-based scheme, 设置 → 输入 (Settings → Input) also has 键位提示 (Key hints): the Wubi 86 radical chart appears next to the candidate window, with all the radicals of each key on it and the key name and zone number on the bottom row.
-When it appears, its size and its opacity are the same settings as the double pinyin key hints; see [Key hints](fuzzy-and-shuangpin.md#Key-hints). Shape-based schemes you add yourself have no radical chart.
+When it appears, its size and its opacity are the same settings as the double pinyin key hints; see [Key hints](fuzzy-and-shuangpin.md#Key-hints). Shape-based schemes you add yourself have no radical chart. The radical chart is supported on macOS and Windows, not yet on Linux.
 
 ## Mixed input
 

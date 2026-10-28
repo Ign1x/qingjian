@@ -1,7 +1,7 @@
 ---
 title: Custom schemes and code tables
 order: 4
-description: "Writing your own double pinyin, shape-based and auxiliary code schemes, and the file format of auxiliary code tables. Supported on macOS and Windows."
+description: "Writing your own double pinyin, shape-based and auxiliary code schemes, and the file format of auxiliary code tables. Supported on macOS, Windows and Linux."
 ---
 
 Custom schemes go in the `schemes` folder of the [data folder](data-files.md#Data-files), one subfolder per scheme. The folder name is the scheme's identifier: only lowercase letters, digits, `-` and `_`, and it can't be the same as a built-in scheme name (such as `xiaohe` or `pinyin`).
@@ -15,7 +15,7 @@ description = "A sentence or two about what this scheme is"
 license = "CC-BY-4.0"
 ```
 
-Supported on macOS and Windows; not yet on Linux.
+Supported on macOS, Windows and Linux.
 
 ## Custom double pinyin schemes
 

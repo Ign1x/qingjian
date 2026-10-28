@@ -10,6 +10,7 @@ use std::time::Instant;
 use qingjian_core::{EmojiTable, Engine, Language};
 use qingjian_dictionary::{Dictionary, WordList};
 use qingjian_learning::{FrequencyLearner, InputLog, PanelUsage, UsageStats, VocabularyBook};
+use qingjian_platform::code_tables::AuxCodeSources;
 use qingjian_platform::{Config, extra_dictionaries};
 use qingjian_translate::{Glossary, LayeredTranslator, LevelTable, PersonalGlossary};
 
@@ -59,6 +60,13 @@ pub fn assemble(spec: &AssemblySpec) -> Result<Engine, ServerError> {
         user_dicts_dir(spec.user_dir.as_deref()).as_deref(),
         &spec.dictionaries,
     ));
+    let aux_sources = AuxCodeSources {
+        bundled_codes: spec.bundled_codes_dir.clone(),
+        user_codes: user_codes_dir(spec.user_dir.as_deref()),
+        bundled_schemes: spec.bundled_schemes_dir.clone(),
+        user_dir: spec.user_dir.clone(),
+    };
+    engine.set_aux_codes(aux_sources.load(&spec.aux_code));
     if let Some(path) = &spec.english_glossary {
         match Glossary::from_path(Language::Chinese, path) {
             Ok(glossary) => {
@@ -94,6 +102,13 @@ pub fn assemble(spec: &AssemblySpec) -> Result<Engine, ServerError> {
 /// 用户导入词库目录 `dicts/`，不存在则创建；建不了当没有。
 fn user_dicts_dir(user_dir: Option<&Path>) -> Option<std::path::PathBuf> {
     let dir = user_dir?.join("dicts");
+    std::fs::create_dir_all(&dir).ok()?;
+    Some(dir)
+}
+
+/// 用户导入码表目录 `codes/`，不存在则创建；建不了当没有。
+fn user_codes_dir(user_dir: Option<&Path>) -> Option<PathBuf> {
+    let dir = user_dir?.join("codes");
     std::fs::create_dir_all(&dir).ok()?;
     Some(dir)
 }

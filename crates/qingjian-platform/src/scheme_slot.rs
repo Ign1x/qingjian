@@ -31,20 +31,28 @@ impl SchemeSlot {
     /// 选了的方案找不到或读不了时警告并退回拼音（配置说五笔、引擎一个字都打不出更糟）；用户双拼找不到退回全拼。
     /// 每次都重新找方案（用户可能刚换了方案、刚放进新方案），但找到的形码方案与装着的是同一套、码表文件也没动时不重读，
     /// 只改规则。`bundled` 是随包的 `schemes` 目录。
+    /// 返回键位、码表或拼音侧开关是否实际变化，壳据此决定要不要重查当前组句。
     pub fn apply(
         &mut self,
         engine: &mut Engine,
         config: &Config,
         user_dir: Option<&Path>,
         bundled: Option<&Path>,
-    ) {
+    ) -> bool {
+        let previous_shuangpin = engine.shuangpin().cloned();
+        let previous_zhuyin = engine.is_zhuyin_mode();
+        let previous_phonetic = engine.is_phonetic();
         let pinyin = config.general.scheme();
         let shuangpin = config.general.custom_shuangpin();
         self.apply_shuangpin(engine, pinyin, shuangpin.as_deref(), user_dir, bundled);
         engine.set_zhuyin_mode(pinyin == Scheme::Zhuyin);
-        self.apply_code(engine, config, user_dir, bundled);
+        let code_changed = self.apply_code(engine, config, user_dir, bundled);
         // 拼音侧关掉且形码装上了才是「只用形码」；两边都没有时留拼音兜底（否则一个候选都没有）
         engine.set_phonetic(pinyin.is_on() || self.code.is_none());
+        code_changed
+            || previous_shuangpin.as_ref() != engine.shuangpin()
+            || previous_zhuyin != engine.is_zhuyin_mode()
+            || previous_phonetic != engine.is_phonetic()
     }
 
     fn apply_shuangpin(
@@ -84,7 +92,7 @@ impl SchemeSlot {
         config: &Config,
         user_dir: Option<&Path>,
         bundled: Option<&Path>,
-    ) {
+    ) -> bool {
         let entry = config.general.code().and_then(|id| {
             let found = code_schemes::find(&id, user_dir, bundled);
             if found.is_none() {
@@ -108,8 +116,9 @@ impl SchemeSlot {
         {
             engine.set_code_rules(entry.auto_commit, entry.top);
             self.code = wanted;
-            return;
+            return false;
         }
+        let mut changed = engine.code_scheme().is_some();
         self.code = wanted.and_then(|(entry, stamp)| match entry.load() {
             Ok(scheme) => {
                 tracing::info!(
@@ -120,6 +129,7 @@ impl SchemeSlot {
                     "形码方案已载入"
                 );
                 engine.set_code_scheme(Some(scheme));
+                changed = true;
                 Some((entry, stamp))
             }
             Err(error) => {
@@ -130,6 +140,7 @@ impl SchemeSlot {
         if self.code.is_none() {
             engine.set_code_scheme(None);
         }
+        changed
     }
 
     /// 装上的用户双拼方案的名字。

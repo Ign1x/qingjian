@@ -23,6 +23,7 @@ mod polyphone;
 mod privacy;
 mod raw;
 mod reading;
+mod session;
 mod shuangpin;
 mod spacing;
 mod spelling;

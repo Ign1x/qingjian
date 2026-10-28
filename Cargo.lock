@@ -3953,6 +3953,7 @@ dependencies = [
  "libc",
  "qingjian-core",
  "qingjian-dictionary",
+ "qingjian-neural",
  "qingjian-predict",
  "qingjian-render",
  "serde",

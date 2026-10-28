@@ -62,6 +62,9 @@ FocusOut 的行内预编辑由框架或声明 ClientUnfocusCommit 的客户端�
 Server 在 Linux 回包的释义上补充显示字段 `annotation`：词性缩写与 `Sense::furigana` 生成的分段假名；
 Fcitx5 用它绘制候选注释，旧 Server 没有该字段时仍显示 `text`。这是 Linux v3 的可选字段，旧插件忽略它，不改公共协议。
 原始 `text` / `reading` 不变，Alt+数字仍由 Engine 上屏原始译文，生词标记与展示回报保持原样。
+插件握手报 v3，Server 发给它的帧另降一级（`dispatch/display/legacy.rs`）：v3 之后才有的拼音行分段（辅码码段 `AuxCode`）当普通拼音段，
+不是字符串的候选种类（自定义短语的 `{"Custom": n}`）改报 `Chinese`——插件用 `value("kind", "Local")` 按字符串取，碰到对象会抛异常、断开整条连接；
+开着「候选上显示码」时码拼在候选文字后面（`开发[kf]`）。只改发出去的 JSON，展示回报核对的仍是原帧。
 隐藏、失焦、私密、无候选与过期回报不产生有效展示记录；Server 只凭已生成帧不记展示。
 
 组句期间插件每 80 ms 发一次 `Poll`（与 Windows DLL 的轮询间隔相同），Server 先 tick 再回当前帧。

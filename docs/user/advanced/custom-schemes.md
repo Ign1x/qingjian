@@ -1,7 +1,7 @@
 ---
 title: 自制方案与码表
 order: 4
-description: 自己写双拼方案、形码方案与辅码方案，以及辅码码表的文件格式。macOS 与 Windows 支持。
+description: 自己写双拼方案、形码方案与辅码方案，以及辅码码表的文件格式。macOS、Windows 与 Linux 支持。
 ---
 
 自制方案放在[数据文件夹](data-files.md#数据文件)的 `schemes` 文件夹里，每个方案一个子文件夹，文件夹名就是方案的标识：只能用小写字母、数字、`-` 与 `_`，不能与内置方案的写法（如 `xiaohe`、`pinyin`）重名。
@@ -15,7 +15,7 @@ description = "一两句话说这套方案是什么"
 license = "CC-BY-4.0"
 ```
 
-macOS 与 Windows 支持，Linux 暂不支持。
+macOS、Windows 与 Linux 支持。
 
 ## 自制双拼方案
 

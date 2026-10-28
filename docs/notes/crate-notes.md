@@ -103,14 +103,14 @@ mac 存在 `Session::spelling`（`Host::follow_highlight`）、Windows / Linux �
   纠正之间比较时换位减 `TypoCosts::correction_transpose_discount`（1 nat，CLI `--tune correction-transpose=`），与原样比不减；
   2026-09-15 回放 283 词 / 23 句：词首选 89.0%、整句 82.6%，与改前持平（折扣若也用在与原样比，`zhongwne` 会误纠成 中文，整句掉一条）。
 
-`EngineSession` 保存可挂起的组句、标点、历史与学习链，`Engine::swap_session` 在同一个引擎里交换输入状态，共用词库与落盘服务。切换上下文时清除查询及异步预测缓存，并由平台恢复各自私密状态。
+`EngineSession` 保存可挂起的组句（连同先选好还没上屏的词 `held` 与辅码码段 `aux_code`）、标点、历史与学习链，`Engine::swap_session` 在同一个引擎里交换输入状态，共用词库与落盘服务。切换上下文时清除查询及异步预测缓存，并由平台恢复各自私密状态。
 
 异步预测按请求序号保存待处理状态：组句请求与翻译请求分别只保留最新一条，可同时等待结果；同类旧请求与清空输入后的结果都会丢弃。
 
 `Engine::raw_preedit()`（`engine/raw/`）只读返回 `RawPreedit { text, cursor_bytes }`：完整未上屏组合及 UTF-8 字节光标，与随后 `take_raw()` 共用文本生成，保留大小写、显式分隔符及光标后的剩余内容，不包含待处理辅码；不运行候选查询、不学习、不记日志、统计、历史或展示回报。
 注音继续输出符号；光标按解码单元内按键前缀产生的符号数映射到完整单元的同序字符边界，轻声先敲时采用逻辑位置，一声空格不占显示字符。未知键仍按原解码规则聚到尾串，其光标跟随输出位置而可能不单调；首位固定 0，末位固定完整文本长度。`take_raw()` 的提交和清理顺序不变。
 
-`Engine::discard_input` / `EngineSession::discard_input` 用于隐私能力变化时无痕清理输入，包括透传缓冲、学习链和暂存词汇曝光；`set_private` 只切换写入开关，保留已输入的组句。
+`Engine::discard_input` / `EngineSession::discard_input` 用于隐私能力变化时无痕清理输入，包括先选好的词、辅码码段、透传缓冲、学习链和暂存词汇曝光；`set_private` 只切换写入开关，保留已输入的组句。
 
 语音（`voice/`、`engine/voice.rs`）：`Transcriber` 是云端与本地离线识别的接口（非阻塞，`start` / `feed` 单声道 16 位 PCM / `finish` / `cancel`，`poll` 取 `TranscriptEvent`），现在只有 `NoTranscriber`；系统识别器留在各平台壳里。不论哪种识别方式，结果都经 `Engine::commit_voice` 上屏：繁体输出开着时转繁体，记输入历史、例句、输入日志（`InputSource::Voice`）与输入统计（词数按语言模型切，不算选词、不计键数时长），不记词频。设计见 `docs/design/voice-and-swipe.md`。
 
@@ -270,6 +270,9 @@ P2C 自由生成实验：`--eval-text <集> --eval-generate data/models/hanzhang
 短语层不当 token 统计（分词时摘掉、统计完按成分合成一元 / 二元，短语得分等于原来两个词的路径，见 `bigram.rs` 模块注释），品牌词按给定次数写进一元与句首二元。
 
 ## crates/qingjian-platform
+
+可选 feature `models` 提供本地模型装配（`models::{ModelDirs, ModelFiles, ModelLoader, LoadedModel}`），只有 Server 开；默认配置 / 协议构建不带 neural / ONNX 依赖。
+从 Windows 的 `dispatch/rescore/{models,loader}` 提取目录选择与后台预热：每次加载现找用户下载，知意 int8 ONNX 用 CPU 两线程，缺模型或运行库沿用含章回退次序；Windows 的调用方留待后续迁移。
 
 输入方案是**两条独立的轴**：`Scheme`（拼音侧：全拼 / 双拼九套 / 用户双拼 `Scheme::Custom` / 大千注音 / 关，`[general] scheme`；
 认不出的写法能当方案 id 就是 `Custom`，id 由 `GeneralConfig::custom_shuangpin` 给，找不到时壳按全拼跑）
@@ -614,13 +617,29 @@ Fcitx5 / Fcitx4 插件经 `apps/linux/preedit.h` 取面板拼音行那一串（`
 IBus 的 preedit 在失焦时可能被框架原样提交，始终保留 `preedit`；`window_preedit` 另放面板辅助行，避免显示用读音被上屏，也不依赖内嵌编辑的开关。
 键位提示（`[general] key_hint` / `key_hint_opacity` / `key_hint_size`）照 Windows Server 的 `dispatch/key_hint` 算：挂着 86 五笔给字根图标识，否则给双拼键位；`auto` 敲完 700 毫秒没再敲（`KeyHintState`，`tick` 推进）或敲出配不成音节的键才给，这一段组句里给过就一直给。
 只对握手报了 `features.key_hint` 的会话由 `dispatch/display` 附在回包的 `key_hint` 上，换了焦点会话、原文提交或隐私边界清空输入后重新计时，失焦回包不附键盘；轮询时帧与键位提示都没变才沿用展示身份，停顿到点弹出的那一次换新，前端才会重画。
-每个 `KeyResult` / `Update` 另附这个会话的 `mode`（`dispatch/mode.rs`：`english` / `traditional` / `full_width` 取当前中英那一份 / `scheme`），方案名按 `scheme_label(config.scheme, None, None)` 算：
-Linux 还不装用户双拼与形码方案（没有 `SchemeSlot`），引擎按全拼跑的那些方案名也按全拼（空串）。插件不读它。
+每个 `KeyResult` / `Update` 另附这个会话的 `mode`（`dispatch/mode.rs`：`english` / `traditional` / `full_width` 取当前中英那一份 / `scheme`），
+方案名是 `SchemeSlot::scheme_label`：装上的用户双拼与形码方案都算在内，用户双拼找不到、引擎按全拼跑时也按全拼（空串）。插件不读它。
+输入方案照 Windows Server 的 `dispatch/schemes.rs` 接（`dispatch/schemes.rs`）：拼音侧（全拼 / 内置与用户双拼 / 注音）与形码侧（随包 `assets/schemes` 的 86 五笔、用户 `schemes/` 里的形码方案、用户 `code_dicts/` 导入的五笔词）
+由 `SchemeSlot` 一起装配，启动时 `configure_schemes` 装一次并记输入日志的会话信息（里面有方案，回放照它装配），热加载每次按配置重装（码表没变不重读），用户 `schemes/` 或 `code_dicts/` 的文件变了不等配置改动也重装；`SchemeSlot::apply` 返回键位、码表或拼音侧开关是否实际变化，变化时才重查当前组句，否则保留已移动的高亮与矩阵视口；
+形码的按键规则（满码唯一自动上屏、顶字、单用形码时标点先上屏、空码清除）在 `dispatch/key/input.rs`，与 Windows 同一套。随包方案目录由 `scripts/files.py` 随资源一起装（`assets/schemes`，deb / rpm 与预编译包同一份）。
 v4 的两样给 Rust 前端：候选右键菜单（`dispatch/menu.rs`，与 Windows 的 `dispatch/key/menu.rs` 同用 `qingjian_platform::candidate_menu`）问菜单不推进展示身份，
 点中时再核一遍这一格此刻还给不给这一项，置顶写配置后当场 `set_custom_phrases`，提示随帧的 `notice` 下发、下一次按键清；
 托盘切换（`Indicator`）的中 / 英与切换键同一条路（组句原样上屏、回包带 `english`，`english_mode` 关着不切），全角标点切当前模式那一份、简繁在简体与上次用的繁体之间切（同 Windows 的简繁快捷键），
 后两样当场改内存并写回配置（`[general] full_width_punctuation` / `english_full_width_punctuation` / `traditional_variant` / `last_traditional`），热加载读回来的是同一个值。
 `[general] preedit` 使用已有 `both` / `inline` / `window`；没有新增 Linux 自绘配置。详见 [linux-fcitx5.md](linux-fcitx5.md)。
+辅码照 Windows Server 接：启动按 `[aux_code]` 用 `code_tables::AuxCodeSources` 在随包 `data/generated/codes`、用户 `codes/` 与两处 `schemes/` 里挑一套装上（`assembly::assemble`），
+触发键、候选上显示码、码删空后留在辅码按 `[general]` 设给 Engine；热加载看用户 `codes/` 与 `schemes/` 的逐文件快照与 `[aux_code]` 的变化重装（`reload_aux_codes`，组句中当场按新表重查）。
+按键与 Windows 的 `dispatch/key/input.rs` 同一套（字母进码段、触发键进辅码且再敲幂等、筛空时空格 / 标点 / 数字都吞掉、Esc 只清码段、辅码态敲标点先上屏高亮候选）；
+码段与先选好的词随 `EngineSession` 跟着会话走，一个输入框里敲到一半切到另一个不串。
+方案或码表热加载时退出旧辅码态、重查当前组句；挂起会话通过 `SessionInfo::needs_refresh` 在恢复焦点时重查，旧展示身份当场失效，不沿用旧表的候选。`aux_code_show` 或触发键变化也刷新当前与挂起会话的显示。
+发给握手 v3 的会话（Fcitx5 / Fcitx4 插件）的帧在 `dispatch/display/legacy.rs` 降级：码段当普通拼音段，候选种类不是字符串的（自定义短语的 `{"Custom": n}`）改报 `Chinese`——
+Fcitx5 插件用 `value("kind", "Local")` 按字符串取，碰到对象抛 `type_error` 断开整条连接；`aux_code_show` 开着时码拼在候选文字后面（面板只有文字与注记两栏，选词按下标回 Server，上屏的仍是原词）。
+会话握手的版本由 ipc 层随 `DisplayReporting` 的 `version` 交给 Router（`SessionInfo::linux_ui`）。IBus 前端是 Rust、与 Server 同一次编译，帧原样收，码由 `ibus/view.rs` 自己拼在候选后面。
+
+实验模型：`[model] name`（`tongbian` / `zhiwei` / `zhiyi`）、`enabled` 与 `zhiyi_tier` 接到 `dispatch/rescore`，设置页在 Linux 与 Windows 一样下载 `models/zhiyi-onnx/`（int8 ONNX），知微在 `models/hanzhang-zhiwei/`。
+模型名称 / 开关变了丢弃旧加载接收端、卸掉整句与选词模型，重新通过 `qingjian_platform::models` 找文件并加载；只换档不重载。后台接上时若还在第一页且没移动高亮，为当前组句补一次停键重排。
+Linux 的知意沿用 Windows 的 CPU 两线程，不探测 GPU、不退到大模型 CPU safetensors。运行库由 `paths::onnx_runtime` 找：显式 `ORT_DYLIB_PATH`、用户 `models/onnxruntime/lib`、随包根 `lib`、`LD_LIBRARY_PATH` 与系统库目录，认 `libonnxruntime.so` / `.so.1`；需要 API 24（ONNX Runtime 1.24+），安装运行库后重启 Server。
+无模型 / 无运行库回退含章；加载错误只记日志、按词库输入。前文优先用前端随按键给的应用光标前文，应用不报时用本会话的上屏历史；私密输入不带应用前文。
 
 线上类型（`LinuxEvent` / `Capabilities` / `DisplayIdentity` / `DisplayAcknowledged` / `InputMode` / `ModeCommand` / `MenuReply` / `LINUX_UI_PROTOCOL` / `socket_path`）
 在 `qingjian_platform::protocol::linux`，不在 Server crate 里——与 Windows 的 TSF DLL 同一条理由：

@@ -1,82 +1,78 @@
 //! 本地整句模型（与 Windows Server 的 `dispatch/rescore` 对齐）：后台加载、停键后请求重排、结果到了重建当前布局。
 //!
-//! 按键回调里永远只跑词级模型；模型的意见在停键 80 毫秒后请求、几十毫秒后到，只换候选里的整句候选，
+//! 按键回调里永远只跑词级模型；模型的意见在停键 80 毫秒后请求、几十毫秒后到，更新候选顺序，
 //! 用户翻过页或动过高亮就不打扰。前文优先用前端随按键带来的应用光标前文（`linux.rs` 里交给 `set_rescoring_context`），应用不报时用本会话最近上屏的字。
 //! 节拍由主循环驱动：[`Router::next_tick`] 说下次多久来一次 [`Router::tick`]；插件组句期间每 80 毫秒的 `Poll` 也顺带 tick。
-//! 模型在后台接上时用户正在组句，这一轮也补一次重排。加载在 [`loader`]，进行态在 [`state`]。
+//! 模型在后台接上时用户正在组句，这一轮也补一次重排。目录解析与加载在 [`qingjian_platform::models`]，进行态在 [`state`]。
 
-mod loader;
 mod state;
 
-use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 use qingjian_core::CandidateLayout;
 use qingjian_core::sentence::SentenceScorer;
 use qingjian_platform::LocalModelConfig;
 
-use self::loader::Loaded;
-pub(crate) use self::loader::ModelLoader;
 pub(crate) use self::state::RescoreState;
 use super::Router;
 use super::composed::{Composed, marked_parts};
+use qingjian_platform::models::{Loaded, LoadedModel, ModelDirs, ModelLoader};
 
 /// 空闲时主循环多久醒一次：到点落盘学习数据。
 const IDLE_TICK: Duration = Duration::from_secs(1);
 
-/// P2C 优先，同类模型里用户目录优先；没有 P2C 才回退字级模型。
-pub fn find_model(user_dir: Option<&Path>, bundled_root: &Path) -> Option<PathBuf> {
-    let candidates = [
-        user_dir.map(|dir| dir.join("models/hanzhang-tongbian")),
-        user_dir.map(|dir| dir.join("model-p2c")),
-        Some(bundled_root.join("data/models/hanzhang-tongbian")),
-        user_dir.map(|dir| dir.join("models/hanzhang-zhiwei")),
-        user_dir.map(|dir| dir.join("model")),
-        Some(bundled_root.join("data/models/hanzhang-zhiwei")),
-    ];
-    candidates
-        .into_iter()
-        .flatten()
-        .find_map(|dir| qingjian_neural::find_model(&dir))
-}
-
 impl Router {
-    /// 启动时：记下模型文件，按 `[model] enabled` 决定要不要加载。
-    pub fn configure_local_model(
-        &mut self,
-        model_path: Option<PathBuf>,
-        config: &LocalModelConfig,
-    ) {
-        self.model_path = model_path;
+    /// 启动时：记下去哪找模型，按 `[model] enabled` 决定要不要加载。
+    pub fn configure_local_model(&mut self, dirs: ModelDirs, config: &LocalModelConfig) {
+        self.model_dirs = dirs;
+        self.applied_model = config.clone();
+        self.apply_choice_tier();
         if config.enabled {
             self.load_local_model();
-        } else {
-            tracing::info!("本地整句模型已关（[model] enabled = false）");
         }
     }
 
-    /// 热加载时 `[model]` 变了：开就后台加载，关就卸掉。
+    /// 热加载：开关或选的模型变了才重载 / 卸载，档位每次都套。
     pub(super) fn apply_model_config(&mut self, config: &LocalModelConfig) {
-        if config.enabled {
-            self.load_local_model();
-        } else {
-            self.model_loader = None;
-            self.engine.set_async_sentence_scorer(None);
-            self.rescore.stop();
-            tracing::info!("本地整句模型已卸载（[model] enabled = false）");
-        }
-    }
-
-    /// 在后台线程加载模型；没有模型文件就什么都不做。
-    fn load_local_model(&mut self) {
-        if self.model_loader.is_some() || self.engine.has_sentence_scorer() {
+        let changed =
+            (config.enabled, config.name) != (self.applied_model.enabled, self.applied_model.name);
+        self.applied_model = config.clone();
+        self.apply_choice_tier();
+        if !changed {
             return;
         }
-        let Some(path) = &self.model_path else {
-            tracing::info!("没有本地整句模型文件，不重排");
+        self.unload_local_model();
+        if config.enabled {
+            self.load_local_model();
+        }
+    }
+
+    fn apply_choice_tier(&mut self) {
+        self.engine
+            .set_choice_tier(self.applied_model.zhiyi_tier.choice_tier());
+    }
+
+    /// 在后台线程加载选的模型；没有模型文件就什么都不做。
+    fn load_local_model(&mut self) {
+        if self.model_loader.is_some()
+            || self.engine.has_sentence_scorer()
+            || self.engine.has_choice_model()
+        {
+            return;
+        }
+        let Some(files) = self.model_dirs.resolve(self.applied_model.name) else {
+            tracing::info!("没有本地模型文件，不重排");
             return;
         };
-        self.model_loader = ModelLoader::spawn(path);
+        self.model_loader = ModelLoader::spawn(files);
+    }
+
+    /// 卸掉模型（配置关掉或换了模型）。
+    fn unload_local_model(&mut self) {
+        self.model_loader = None;
+        self.engine.set_async_sentence_scorer(None);
+        self.engine.set_choice_model(None);
+        self.rescore.stop();
     }
 
     /// 加载线程有结果了就接到 Engine 上；每次按键 / tick 顺手看一眼，不阻塞。
@@ -87,14 +83,23 @@ impl Router {
         match loader.poll() {
             Loaded::Pending => {}
             Loaded::Done(result) => {
-                match result {
-                    Ok(scorer) => self.attach_sentence_scorer(scorer),
-                    Err(error) => tracing::warn!(%error, "本地整句模型加载失败，不重排"),
-                }
                 self.model_loader = None;
+                match result {
+                    Ok(model) => self.attach_model(model),
+                    Err(error) => tracing::warn!(%error, "本地模型加载失败，不重排"),
+                }
             }
             Loaded::Gone => self.model_loader = None,
         }
+    }
+
+    fn attach_model(&mut self, model: LoadedModel) {
+        match model {
+            LoadedModel::Sentence(scorer) => self.engine.set_async_sentence_scorer(Some(scorer)),
+            LoadedModel::Choice(model) => self.engine.set_choice_model(Some(model)),
+        }
+        self.engine.log_session(env!("CARGO_PKG_VERSION"), "linux");
+        self.rescore_current_round();
     }
 
     /// 打分器接到 Engine 上（后台加载完成，或测试直接注入）：日志补一条会话信息，正在组句就补这一轮的重排。
@@ -203,42 +208,4 @@ impl Router {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::find_model;
-
-    #[test]
-    fn p2c_precedes_old_model_and_user_precedes_bundled() {
-        let root =
-            std::env::temp_dir().join(format!("qingjian-model-choice-{}", std::process::id()));
-        let user = root.join("user");
-        let bundled = root.join("bundled");
-        let _ = std::fs::remove_dir_all(&root);
-
-        let old = bundled.join("data/models/hanzhang-zhiwei/model.qjm");
-        std::fs::create_dir_all(old.parent().unwrap()).unwrap();
-        std::fs::write(&old, b"").unwrap();
-        assert_eq!(find_model(Some(&user), &bundled), Some(old));
-
-        let user_old = user.join("models/hanzhang-zhiwei/model.qjm");
-        std::fs::create_dir_all(user_old.parent().unwrap()).unwrap();
-        std::fs::write(&user_old, b"").unwrap();
-        assert_eq!(find_model(Some(&user), &bundled), Some(user_old));
-
-        let bundled_p2c = bundled.join("data/models/hanzhang-tongbian/model.qjm");
-        std::fs::create_dir_all(bundled_p2c.parent().unwrap()).unwrap();
-        std::fs::write(&bundled_p2c, b"").unwrap();
-        assert_eq!(find_model(Some(&user), &bundled), Some(bundled_p2c));
-
-        let user_p2c = user.join("models/hanzhang-tongbian/model.qjm");
-        std::fs::create_dir_all(user_p2c.parent().unwrap()).unwrap();
-        std::fs::write(&user_p2c, b"").unwrap();
-        assert_eq!(find_model(Some(&user), &bundled), Some(user_p2c.clone()));
-        let legacy_p2c = user.join("model-p2c/model.qjm");
-        std::fs::create_dir_all(legacy_p2c.parent().unwrap()).unwrap();
-        std::fs::write(&legacy_p2c, b"").unwrap();
-        assert_eq!(find_model(Some(&user), &bundled), Some(user_p2c.clone()));
-        std::fs::remove_file(&user_p2c).unwrap();
-        assert_eq!(find_model(Some(&user), &bundled), Some(legacy_p2c));
-        std::fs::remove_dir_all(&root).unwrap();
-    }
-}
+mod tests;

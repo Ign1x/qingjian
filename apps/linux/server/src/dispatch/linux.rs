@@ -318,6 +318,7 @@ impl Router {
         info.display_frame = None;
         info.last_frame = None;
         info.composed = None;
+        info.needs_refresh = false;
         info.highlight = 0;
         info.navigated = false;
         info.focus = Focus::default();

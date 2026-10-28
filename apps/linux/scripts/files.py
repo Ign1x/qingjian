@@ -24,7 +24,7 @@ def digest_stream(stream):
 
 def parse_args():
     parser = argparse.ArgumentParser(add_help=False)
-    # resources：只把随包资源（样例 / 释义 / 等级 / emoji + 校验过的产品数据）拷进给定目录，发行包打包用
+    # resources：只把随包资源（样例 / 释义 / 等级 / emoji / 输入方案 + 校验过的产品数据）拷进给定目录，发行包打包用
     parser.add_argument('action', choices=('install', 'uninstall', 'resources'))
     parser.add_argument('prefix')
     parser.add_argument('--root', help='仓库根，install 时必给')
@@ -82,7 +82,7 @@ def product_data(root, resources, files):
 def resource_files(root, resources, sample):
     """随包资源：目标路径 → 源文件。布局与 Server 的 paths::resource_root 对应（其下 assets/ 与 data/generated/）。"""
     files = {}
-    for kind in ('sample', 'glossary', 'levels', 'emoji'):
+    for kind in ('sample', 'glossary', 'levels', 'emoji', 'schemes'):
         for source in (root / 'assets' / kind).rglob('*'):
             if source.is_file():
                 files[resources / source.relative_to(root)] = source

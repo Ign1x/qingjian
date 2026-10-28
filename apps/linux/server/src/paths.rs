@@ -39,3 +39,58 @@ pub fn generated(root: &Path, name: &str) -> Option<PathBuf> {
 pub fn asset(root: &Path, name: &str) -> Option<PathBuf> {
     existing(root.join("assets").join(name))
 }
+
+/// 知意用系统或手动安装的 CPU 运行库；不下载、不探测 GPU。
+pub fn onnx_runtime(user: &Path, root: &Path) -> Option<PathBuf> {
+    if let Some(path) = std::env::var_os("ORT_DYLIB_PATH") {
+        // 显式路径错误时也不偷换成别处的运行库，方便定位版本问题。
+        return existing(path.into());
+    }
+    let dirs = [user.join("models/onnxruntime/lib"), root.join("lib")]
+        .into_iter()
+        .chain(
+            std::env::var_os("LD_LIBRARY_PATH")
+                .map(|paths| std::env::split_paths(&paths).collect::<Vec<_>>())
+                .unwrap_or_default()
+                .into_iter()
+                .filter(|path| path.is_absolute()),
+        )
+        .chain(
+            [
+                "/usr/local/lib",
+                "/usr/lib",
+                "/usr/lib64",
+                "/usr/lib/x86_64-linux-gnu",
+                "/usr/lib/aarch64-linux-gnu",
+            ]
+            .map(PathBuf::from),
+        );
+    find_runtime(dirs)
+}
+
+fn find_runtime(dirs: impl IntoIterator<Item = PathBuf>) -> Option<PathBuf> {
+    dirs.into_iter().find_map(|dir| {
+        ["libonnxruntime.so", "libonnxruntime.so.1"]
+            .into_iter()
+            .find_map(|name| existing(dir.join(name)))
+    })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::find_runtime;
+
+    #[test]
+    fn runtime_search_preserves_directory_priority_and_accepts_soname() {
+        let root = std::env::temp_dir().join(format!("qj-runtime-paths-{}", std::process::id()));
+        let user = root.join("user");
+        let system = root.join("system");
+        std::fs::create_dir_all(&user).unwrap();
+        std::fs::create_dir_all(&system).unwrap();
+        let soname = user.join("libonnxruntime.so.1");
+        std::fs::write(&soname, b"").unwrap();
+        std::fs::write(system.join("libonnxruntime.so"), b"").unwrap();
+        assert_eq!(find_runtime([user, system]), Some(soname));
+        std::fs::remove_dir_all(root).unwrap();
+    }
+}

@@ -1,6 +1,7 @@
 //! 配置热加载：空闲时看 `config.toml` 的 mtime，改了就重读并应用（与 Windows Server 的 `dispatch/reload` 对齐）。
-//! 只重设启动时会应用的那些项；便宜的无条件重设，本地模型 / 释义表 / 附加词库按配置变化重建，
-//! 用户 `dicts/` 目录的文件增删也跟着重装。拼音显示位置在会话握手时交给插件，改了要重启服务。
+//! 只重设启动时会应用的那些项；便宜的无条件重设，本地模型 / 释义表 / 附加词库 / 辅码码表按配置变化重建，
+//! 输入方案每次按配置重新装配（码表没变不重读），用户 `dicts/`、`codes/`、`schemes/` 与 `code_dicts/` 目录的文件增删也跟着重装。
+//! 拼音显示位置在会话握手时交给插件，改了要重启服务。
 
 mod cloud;
 mod display;
@@ -49,8 +50,13 @@ impl Router {
             applied_model: config.model.clone(),
             applied_predict: config.predict.clone(),
             applied_language: assembly::learning_language(config),
+            applied_aux_code: config.aux_code.clone(),
+            code_files: Vec::new(),
+            code_word_files: Vec::new(),
         };
         reload.dictionary_files = reload.dict_snapshot();
+        reload.code_files = reload.code_snapshot();
+        reload.code_word_files = reload.code_word_snapshot();
         self.reload = Some(reload);
     }
 
@@ -76,8 +82,25 @@ impl Router {
                 .set_extra_dictionaries(reload.load_dictionaries());
             reload.dictionary_files = files;
         }
+        // 用户 `codes/` 或 `schemes/` 下的文件增删或更新（设置页刚导入 / 移除一张码表、改了辅码方案）：不必等配置改动
+        let codes_changed = reload.code_snapshot() != reload.code_files;
+        if codes_changed {
+            self.reload_aux_codes();
+        }
+        let Some(reload) = &mut self.reload else {
+            return;
+        };
+        let words = reload.code_word_snapshot();
+        let words_changed = words != reload.code_word_files;
+        reload.code_word_files = words;
         let current = mtime(&reload.config_path);
         if current == reload.last_mtime {
+            // schemes/ 同时存双拼、形码与辅码方案，不能只重装辅码。
+            if (codes_changed || words_changed)
+                && let Ok(config) = Config::load(&reload.config_path)
+            {
+                self.reload_schemes(&config);
+            }
             return;
         }
         reload.last_mtime = current;
@@ -92,8 +115,11 @@ impl Router {
 
     /// 应用新配置，项目与 `main.rs` 启动时设的一致。
     fn apply_config(&mut self, config: &Config) {
+        let aux_view_changed = self.config.aux_code_show != config.general.aux_code_show
+            || self.engine.aux_code_key() != config.general.aux_code_key();
         self.engine.set_fuzzy(config.fuzzy);
-        self.engine.set_shuangpin(config.general.shuangpin());
+        // 拼音侧与形码侧一起装配（双拼 / 用户双拼 / 注音 / 形码与混输都在里面）
+        self.reload_schemes(config);
         self.engine
             .set_shuangpin_raw_preedit(config.general.shuangpin_raw_preedit);
         self.engine
@@ -101,7 +127,6 @@ impl Router {
         self.engine.set_show_tones(config.general.show_tones);
         self.engine
             .set_context_memory(config.model.context_memory_seconds);
-        self.engine.set_zhuyin_mode(config.general.is_zhuyin());
         self.engine
             .set_shift_letter_compose(config.general.shift_letter.compose());
         self.engine.set_learning(config.general.learning);
@@ -121,6 +146,12 @@ impl Router {
         self.engine.set_traditional(config.general.traditional());
         self.engine.set_mode_keys(config.shortcut.mode);
         self.engine.set_auto_space(config.general.auto_space);
+        self.engine
+            .set_aux_code_key(config.general.aux_code_key(), config.general.page_keys());
+        self.engine
+            .set_aux_keep_empty(config.general.aux_code_keep_empty);
+        self.engine.set_aux_enabled(config.aux_code.enabled);
+        self.engine.set_aux_show(config.general.aux_code_show);
         if let Err(error) = self
             .engine
             .set_custom_phrases(config.custom_phrases.clone())
@@ -157,7 +188,27 @@ impl Router {
             self.engine
                 .set_extra_dictionaries(reload.load_dictionaries());
         }
+        let aux_changed = config.aux_code != reload.applied_aux_code;
+        reload.applied_aux_code = config.aux_code.clone();
         self.reload = Some(reload);
+        if aux_changed {
+            self.reload_aux_codes();
+        } else if aux_view_changed {
+            self.refresh_input(false);
+        }
+    }
+
+    /// 按已应用的 `[aux_code]` 重装辅码码表：`[aux_code]` 变了或用户 `codes/` / `schemes/` 下的文件变了都走这里。
+    /// Core 换表时退出辅码态，组句中就按新表重查一次，免得回包的帧还是旧表筛出来的。
+    fn reload_aux_codes(&mut self) {
+        let Some(reload) = &mut self.reload else {
+            return;
+        };
+        let tables = reload.aux_sources().load(&reload.applied_aux_code);
+        reload.code_files = reload.code_snapshot();
+        tracing::info!(count = tables.len(), "辅码码表已重装");
+        self.engine.set_aux_codes(tables);
+        self.refresh_input(true);
     }
 
     /// 学习语言变了就换释义表：关是不翻译；没有这门语言的表或装不上就保持原样。换成功（或关掉）返回 true。

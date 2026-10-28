@@ -4,7 +4,7 @@ order: 7
 description: "Adding a few letters after the pinyin to narrow the candidates to the word you want: turning it on, how to use it, the trigger key, importing code tables, and showing codes on candidates."
 ---
 
-Paging through candidates to find a word is tedious. Auxiliary code lets you add a few letters after the pinyin to narrow the candidates straight down to the word you want. Supported on macOS and Windows.
+Paging through candidates to find a word is tedious. Auxiliary code lets you add a few letters after the pinyin to narrow the candidates straight down to the word you want. Supported on macOS, Windows and Linux.
 
 ## Turning it on
 
@@ -37,10 +37,11 @@ The bundled stroke code: horizontal `h`, vertical `s`, left-falling `p`, dot and
 
 Other code tables have to be obtained yourself and imported: 设置 → 输入 → 码表 → 导入码表 (Settings → Input → Code tables → Import code table) accepts Rime code table files (`.dict.yaml`) and Qingjian `.qj` files.
 When the import finishes, it shows how many entries were read, had codes, had no codes and were skipped, and switches to the table you just imported; to switch back, choose it under 辅码方案 (Auxiliary code scheme). Imported tables are listed in the 码表 (Code tables) group and can be removed.
+On Linux, replacing or editing a code table keeps the pinyin you are typing and clears the auxiliary code. Returning to another input field also shows candidates from the new table.
 
 For how to write a code table file, and how to let a table that only covers single characters filter words too, see [Custom schemes and code tables](../advanced/custom-schemes.md#Auxiliary-code-tables).
 
 ## Showing codes on candidates
 
-With 设置 → 输入 → 辅码 → 候选上显示码 (Settings → Input → Auxiliary code → Show codes on candidates) on, the code is shown in square brackets right after the candidate, for example `鹤[rbm] crane`.
+With 设置 → 输入 → 辅码 → 候选上显示码 (Settings → Input → Auxiliary code → Show codes on candidates) on, the code is shown in square brackets right after the candidate, for example `鹤[rbm] crane`. The Fcitx / IBus candidate panel of the Linux fcitx edition shows it the same way.
 You can see it without entering auxiliary code: while typing plain pinyin, each candidate carries its code so you can learn them as you go; in auxiliary code it shows the code that matches what you've typed.

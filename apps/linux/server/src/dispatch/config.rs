@@ -102,6 +102,9 @@ pub struct RouterConfig {
 
     /// 按应用记住中英模式（`[general] remember_mode_per_app`），缺省所有会话共用一份。
     pub remember_mode_per_app: bool,
+
+    /// 候选上显示辅码（`[general] aux_code_show`），随帧下发。
+    pub aux_code_show: bool,
 }
 
 impl RouterConfig {
@@ -185,6 +188,7 @@ impl From<&Config> for RouterConfig {
                 .toggle_traditional
                 .filter(|key| *key != config.shortcut.translate_selection),
             remember_mode_per_app: config.general.remember_mode_per_app,
+            aux_code_show: config.general.aux_code_show,
         }
     }
 }

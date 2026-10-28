@@ -13,6 +13,7 @@ mod message;
 mod mode;
 mod reload;
 mod rescore;
+mod schemes;
 mod session;
 mod translate;
 
@@ -21,13 +22,15 @@ use self::composed::Composed;
 pub use self::config::RouterConfig;
 use self::key_hint::KeyHintState;
 use self::reload::ConfigReload;
-pub use self::rescore::find_model;
-use self::rescore::{ModelLoader, RescoreState};
+use self::rescore::RescoreState;
+pub use self::schemes::find_bundled_schemes;
 use self::session::SessionInfo;
 use self::translate::Translation;
 use qingjian_core::candidate::arrows::Focus;
 use qingjian_core::{Engine, Grid};
+use qingjian_platform::models::{ModelDirs, ModelLoader};
 use qingjian_platform::protocol::{ClientMessage, ServerMessage, SessionId};
+use qingjian_platform::{LocalModelConfig, SchemeSlot};
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
@@ -78,8 +81,10 @@ pub struct Router {
     /// 最近一次学习落盘的时刻。
     last_flush: Instant,
 
-    /// 本地整句模型（`.qjm` 或三件套目录）；没有模型文件为 `None`。
-    model_path: Option<PathBuf>,
+    /// 每次加载时现找，设置页下载完后切换模型即可使用。
+    model_dirs: ModelDirs,
+
+    applied_model: LocalModelConfig,
 
     /// 进行中的模型加载；加载完接到 Engine 上就清掉。
     model_loader: Option<ModelLoader>,
@@ -104,6 +109,15 @@ pub struct Router {
 
     /// 按应用记中英时，应用名（小写）到中英模式；会话关了仍留着，Server 重启才清。
     app_modes: HashMap<String, bool>,
+
+    /// 装着的用户双拼与形码方案（名字给回包的 `mode.scheme`），配置没动它时不重读码表。
+    scheme_slot: SchemeSlot,
+
+    /// 用户数据目录，用户方案在它的 `schemes/` 下；没配（测试）为 `None`。
+    schemes_user_dir: Option<PathBuf>,
+
+    /// 随包的方案目录（见 [`find_bundled_schemes`]）；没有为 `None`。
+    bundled_schemes: Option<PathBuf>,
 }
 
 impl Router {
@@ -128,7 +142,8 @@ impl Router {
             notice: None,
             display_revision: 0,
             last_flush: Instant::now(),
-            model_path: None,
+            model_dirs: ModelDirs::default(),
+            applied_model: LocalModelConfig::default(),
             model_loader: None,
             rescore: RescoreState::default(),
             reload: None,
@@ -137,6 +152,9 @@ impl Router {
             grid: None,
             english,
             app_modes: HashMap::new(),
+            scheme_slot: SchemeSlot::default(),
+            schemes_user_dir: None,
+            bundled_schemes: None,
         }
     }
     /// 一条客户端消息；无需答复的通知返回 None。

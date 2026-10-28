@@ -54,7 +54,7 @@
 - [ ] 快捷短语（`i` 前缀）：编码 → 短语表，用户可增删
 - [ ] 问字模式离线版：拆字表（IDS 数据）按部件查字，云端版已有
 - [ ] 双拼收尾：菜单栏增加方案切换
-- [x] 双拼方案数据化：用户在 `schemes/<id>/scheme.toml` 写 `type = "shuangpin"` 就是一套方案，可拿内置方案当底子只改几个键（2026-10-20，Linux 未接）
+- [x] 双拼方案数据化：用户在 `schemes/<id>/scheme.toml` 写 `type = "shuangpin"` 就是一套方案，可拿内置方案当底子只改几个键（2026-10-20，Linux 2026-10-28 接上）
 - [ ] 双拼解码支持同码出多个读音——小浪的 `lk`（lai / lia）、`nm`（niang / nen）、`dk`（dai / dia）、`un`（en / eng）现在只解第一个，做完去掉 `every_syllable_round_trips` 里小浪的四个例外（#129）
 - [ ] 辅码（issue #8，设计见 [docs/design/aux-code.md](../design/aux-code.md)）：触发键（缺省 `;`，与「非拼音键进直输段 / 全角标点」排优先级）与逐键即筛、词级过滤、辅码态隐藏无码词；码表走 Rime yaml 导入（`columns` 必须解析、`import_tables` 跨文件合表、「有词无码」行要报警）；码表存**独立码索引**（两段式查询，别复用词库 Slot）；
   原生表只带笔画（CNS11643 笔顺 + 大陆序覆盖表 `dict-convert stroke`，艹 3 / 辶 3 / 阝 2）；设置界面加「辅码」页（macOS 偏好设置 / Windows 设置程序：触发键、显示码、码表列表、导入）；第三方形码表（小鹤形 / 自然码形）不随包，走引导导入
@@ -157,21 +157,19 @@
   Windows 点带读音候选的译词可能点错义项（没验）；Wayland 前端在 `view::renumber_senses` 里先换回 Core 的编号（不然回执整份被 Server 拒掉），上游修了就删
 - [ ] 候选 → 渲染帧的换算收口：共享的 `qingjian_platform::display` 已有（Linux Wayland 前端在用），Windows Server（`ui/candidates/{row,render_data}.rs`）与 macOS（`candidates/row.rs` + `bitmap/convert.rs`）各自单独提 PR 改用它，改完删掉自己那份
 - [ ] 键位提示的键盘换算收口：`qingjian_platform::display::{shuangpin_keyboard, root_keyboard}` 已有（照 Windows 移植，Linux 线上的键位提示经 `key_hint_keyboard` 用它），Windows Server（`ui/candidates/key_hint/keyboard.rs`）与 macOS（`host/presenting/key_hint/mod.rs` 的 `keyboard` / `root_keyboard`）改用共用的，改完删掉自己那份
+- [ ] Windows Server 的模型目录解析与后台加载改用 `qingjian_platform::models`（Linux 已接）；迁移后删掉 Windows 的同份逻辑，保持 CPU 两线程与缺模型回退规则。
 - [ ] 设置项的平台缺口（设置程序 `apps/settings/src/support/` 表里标「待实现」的项，输入法接上之前设置里不显示；测试逐条对照这里）：
-  - [ ] 辅码：Linux
-  - [ ] 形码与自定义方案：Linux
   - [ ] 默认英文模式：macOS
   - [ ] 按应用记住中英模式：macOS
   - [ ] 横排时 ↑ / ↓ 展开成多行：Linux
   - [ ] Ctrl + Shift + F 切换简繁输出：macOS
   - [ ] 双拼键位提示：Linux
-  - [ ] 实验功能（知意、含章·知微）：Linux
   - [ ] 小键盘数字：macOS
 
 ## 四、其他输入方案
 
 - [ ] 五笔（86 版）：方案与分期见 [wubi.md](wubi.md)，第一期 Core + CLI + Windows；
   `[general] scheme` 收敛与配置迁移一起做（顺带解掉〇里的「配置文件版本迁移」）
-- [ ] 自定义形码方案：Core / 平台 / CLI / Windows / macOS / 新版设置程序已做（2026-10-20，见 [wubi.md](wubi.md) 五之三），
-  剩 Windows 与 macOS 真机验顶字和满码自动上屏、Linux 壳接形码
+- [ ] 自定义形码方案：Core / 平台 / CLI / Windows / macOS / 新版设置程序已做（2026-10-20，见 [wubi.md](wubi.md) 五之三），Linux Server 2026-10-28 接上；
+  剩 Windows、macOS 与 Linux 真机验顶字和满码自动上屏
 - [ ] 复杂方案收尾（与上一条共用「输入方案」抽象）：注音只在 Core 与 Windows 接了，macOS 侧还没接；双拼的方案切换要等 `[general] scheme`

@@ -28,7 +28,7 @@
 | 9 | 统计 | 柱状图 | 输入量、词汇 | 统计 |
 | 10 | 生词本 | 卡片 | 时间线、词表、导出 | 新加 |
 | 11 | 高级 | 齿轮 | 配置文件、日志、学习数据 | 高级、关于 |
-| 12 | 实验功能 | 烧瓶 | 下载、启用知意与含章·知微（macOS、Windows） | 新加 |
+| 12 | 实验功能 | 烧瓶 | 下载、启用知意与含章·知微（macOS、Windows、Linux） | 新加 |
 | 13 | 关于 | 竹简 | 版本、更新、许可、数据来源、隐私 | 关于 |
 
 ## 各页
@@ -59,7 +59,7 @@
 | 码表 | 列表：每行勾选 + 名称 + 条数 + 移除；底下「导入码表…」 | `aux_code.disabled` | |
 
 辅码关着时下面几行变灰。码表列表单独一组「码表」：随包的（没有「移除」）、导入的，末尾一行导入。
-**整个辅码只在 Windows 显示**：现在只有 Windows 的输入法加载码表，macOS、Linux 的输入法接上码表之前不显示，免得开了没用。
+整个辅码按 support 表显示：macOS、Windows 与 Linux 的输入法都加载码表（Linux 的 Fcitx / IBus 面板画不了码，「候选上显示码」时码拼在候选文字后面）。
 
 ### 2 候选
 
@@ -251,8 +251,8 @@ Windows 和 Linux 以前没有这一页，这次都有了。
 
 知意开着时多一行「档位」（分段：省电 / 均衡 / 准确，`model.zhiyi_tier`）。
 下载同时问 Gitee 与 GitHub 要清单、先答的那边先下，某块失败换另一边（模型仓库 `qingjian-team/qingjian-models` 的 Release，标签写死在 `jobs/model_download/pack.rs`），
-逐块核对 SHA-256 再核对整个压缩包，解到临时目录后换进用户目录的 `models/zhiyi/`（Windows 是 int8 ONNX 版 `models/zhiyi-onnx/`）、`models/hanzhang-zhiwei/`。关掉窗口下载就停，下次从头下。
-Linux 的输入法还没接，support 表登记「待实现」，侧栏不出这一页。
+逐块核对 SHA-256 再核对整个压缩包，解到临时目录后换进用户目录的 `models/zhiyi/`（Windows 与 Linux 是 int8 ONNX 版 `models/zhiyi-onnx/`）、`models/hanzhang-zhiwei/`。关掉窗口下载就停，下次从头下。
+macOS、Windows 与 Linux 都已接上实验模型，support 表登记「支持」，侧栏显示这一页。Linux 的知意用 CPU 两线程，需用户安装 ONNX Runtime 1.24+；运行库定位与回退规则见 [crate 实现记录](../notes/crate-notes.md#appslinux)。
 
 ### 13 关于
 

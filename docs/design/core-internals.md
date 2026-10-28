@@ -16,8 +16,8 @@
 | **数据** | `dictionary`、`extra_dictionaries`、`companion_words`（编进 Core 的符号 / emoji 名字，词库里没有）、`english`、`emoji`、`kaomoji`、`symbols`、`custom_phrases`、`code`（五笔码表）、`aux_codes`（辅码表）、`opencc` | 装配时给，热加载时整张换 |
 | **注入口** | `translator`、`english_translator`、`learner`、`logger`、`predictor`、`language_model`、`sentence_scorer`、`rescorer`、`meter`、`vocabulary`、`gloss_filler` | trait 对象，全有 `No*` 空实现；`learner` / `logger` 外面各罩一层 `MutedLearner` / `MutedLogger`，私密输入时吞掉写入 |
 | **配置** | `modes`、`fuzzy`、`shuangpin`、`shuangpin_raw_preedit`、`zhuyin`、`phonetic`、`full_width_punctuation`、`chinese_first`、`english_in_chinese`、`english_max_in_chinese` / `english_min_position`、`auto_space`、`emoji_limit` / `kaomoji_limit` / `symbol_limit`、`shift_letter_compose`、`interpolation`、`typo_costs`、`neural_weight` / `neural_margin` / `neural_context`、`aux_enabled` / `aux_show` / `aux_code_key` / `aux_keep_empty`、`traditional` | 壳用 `set_*`（`engine/setup.rs`）推进来；影响排序的顺手清缓存 |
-| **会话状态** | `composition`、`english_mode`、`punctuation`、`history`、`chain`、`recent_commits`、`recording`、`retype_snapshot`、`passthrough_pending`、`page_turns`、`composition_started`、`application`、`committed_since_break`、`displayed` | 每键变；正好是 `EngineSession` 的 14 个字段，可以整组换出（见下） |
-| **引擎级状态** | `private`、`aux_code`（码段）、`panel`（打开着的符号面板）、`rescoring_before`、`log_sequence`、`prediction_sequence`、`pending_predictions`（在飞的请求按序号记种类与作用域） | 每键变，但不随会话换 |
+| **会话状态** | `composition`、`held`（先选好、还没上屏的词）、`aux_code`（码段）、`english_mode`、`punctuation`、`history`、`chain`、`recent_commits`、`recording`、`retype_snapshot`、`passthrough_pending`、`page_turns`、`composition_started`、`typing`（本轮打字计时）、`application`、`committed_since_break`、`displayed`、`examples`（等待句子完成的例句） | 每键变；正好是 `EngineSession` 的 18 个字段，可以整组换出（见下） |
+| **引擎级状态** | `private`、`panel`（打开着的符号面板）、`rescoring_before`、`log_sequence`、`prediction_sequence`、`pending_predictions`（在飞的请求按序号记种类与作用域） | 每键变，但不随会话换 |
 | **内部可变** | `span_cache`、`correction_cache`、`neural_cache`、`last_rescored`、`last_query`、`traditional_map` | `RefCell` / `Cell`：`query(&self)` 只读借用也要能往里写 |
 
 `sentence_scorer` 是同步打分器（CLI 评测用），`rescorer` 是把它挪到后台线程的 `RescoreWorker`（壳用，`set_async_sentence_scorer` 装）。
@@ -37,11 +37,9 @@
   | Linux | Server 主线程上的 Router | 每条 socket 连接一条线程，经 `mpsc::sync_channel(128)` 交给 Router |
 
   任何新壳都照这个形状来：别想着给 Engine 加锁多线程共享，查询路径上的缓存都假定只有一个人在用。
-- **会话状态可以整组换出。** `EngineSession`（`engine/session.rs`）就是会话状态那 14 个字段；`swap_session` 与它整组互换，
+- **会话状态可以整组换出。** `EngineSession`（`engine/session.rs`）就是会话状态那 18 个字段；`swap_session` 与它整组互换，
   顺手取消在飞的联想、清掉查询缓存，词库、学习数据与配置始终只有一份。Linux Server 靠它给每个输入上下文一份独立的会话状态
-  （组句、中英模式、标点配对、上屏前文互不串）；macOS 与 Windows 目前不用它。`discard_input` 用在隐私边界：清掉组句，不写日志、不学习。
-  **缺口**：辅码码段 `aux_code` 不在 `EngineSession` 里，切会话不跟着走、`discard_input` 也不清它。
-  Linux Server 还没接辅码所以暂时碰不到，接之前先把它挪进会话。
+  （组句、先选好的词、辅码码段、中英模式、标点配对、上屏前文互不串）；macOS 与 Windows 目前不用它。`discard_input` 用在隐私边界：清掉组句（连同先选好的词与码段），不写日志、不学习。
 
 ## 二、一次按键的数据流
 
@@ -163,8 +161,7 @@ commit(candidate)
   判定在壳：Windows 看 TSF 的输入范围，Linux 看前端报来的能力位（密码 / 敏感）；
   macOS 在 Secure Input 下不组句，所以壳不调 `set_private`，只额外挡掉云联想、神经重排的前文与翻译快捷键。
 - **退格撤销**：`recent_commits` 留最近 4 次上屏，壳把组句外的退格用 `note_backspace()` 告诉 Engine，
-  删光再重打同一段拼音换了个词，就走上面的 `apply_retraction`。**目前只有 macOS 调了 `note_backspace`**，
-  Windows 与 Linux 的 Server 都没调，这两个平台上撤销不会发生。
+  删光再重打同一段拼音换了个词，就走上面的 `apply_retraction`。macOS、Windows 与 Linux 都已接上组句外的退格通知。
 
 ## 五、缓存与内部可变状态
 

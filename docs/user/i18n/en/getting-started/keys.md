@@ -42,13 +42,13 @@ On Windows and Linux, the Chinese / English switch can also be a tap of `Ctrl` o
 | Move the cursor by syllable | `⌥ + ←` / `⌥ + →` | — | — |
 | Move the cursor to the start / end | `⌘ + ←` / `⌘ + →`, or `Home` / `End` | `Home` / `End` | `Home` / `End` |
 | Open the symbol panel | `↑` while the first candidate is highlighted (in horizontal layout with highlight keys set to `←` / `→`, press `↑` once to move into the pinyin, then again) | Same | — |
-| Enter auxiliary code | `;` | `;` | — |
+| Enter auxiliary code | `;` | `;` | `;` |
 | Expand to several rows in horizontal layout (enable in Settings) | `↑` / `↓` | `↑` / `↓` | — |
 
 On Windows and Linux, numpad digits also pick candidates by default. Set 小键盘数字 (Numpad digits) under 设置 → 候选 (Settings → Candidates) to 直接输入数字 (Type digits) and numpad digits typed while composing are appended to the letters and committed with them (`wenti`, then numpad `5` and `Space`, gives `wenti5`); the main keyboard digits still pick candidates. Num Lock must be on.
 
 When the cursor is in the middle of the pinyin, candidates are based only on the pinyin before the cursor (`ni|hao` gives 你); after committing, the rest of the pinyin stays and the cursor moves to the end.
-A few keys differ with Dachen Zhuyin and Wubi; see [Pinyin schemes and fuzzy pinyin](../input/fuzzy-and-shuangpin.md#Dachen-Zhuyin) and [Wubi and mixed input](../input/wubi.md).
+Linux also supports Wubi automatic commit for a unique full code, commit-on-next-code and clearing codes with no matches. A few keys differ with Dachen Zhuyin and Wubi; see [Pinyin schemes and fuzzy pinyin](../input/fuzzy-and-shuangpin.md#Dachen-Zhuyin) and [Wubi and mixed input](../input/wubi.md).
 
 Linux also supports additional paging keys and using `←` / `→` to move the highlight; see [Key settings](../personalize/keys-settings.md). In English candidates, pressing `=` on the last page commits the typed letters and `=` when it is configured as a paging key. Selection translation takes precedence over conflicting punctuation or simplified/traditional toggle shortcuts.
 

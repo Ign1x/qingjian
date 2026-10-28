@@ -48,4 +48,4 @@ Each line of a Wubi dictionary is "word, code, frequency", separated by tabs; th
 - Imported words are used together with the bundled Wubi code table; you don't need to replace the whole table. Words with the same code are ranked by frequency, so give your words a higher frequency if you want them first.
 - The dictionary belongs to the scheme selected under 设置 → 输入 → 形码 (Settings → Input → Shape-based) when you import it (Wubi, if shape-based input is off). It's inactive under other shape-based schemes and works again when you switch back.
 - The list shows the scheme name after the dictionary name, for example 我的五笔词（五笔（86））, and it can be turned on, off and removed like a pinyin dictionary.
-- Supported on macOS and Windows; Linux and Android can't import Wubi dictionaries yet.
+- Supported on macOS, Windows and Linux; Android can't import Wubi dictionaries yet.

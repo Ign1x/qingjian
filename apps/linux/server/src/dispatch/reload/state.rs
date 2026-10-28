@@ -5,8 +5,13 @@ use std::time::{Instant, SystemTime};
 
 use qingjian_core::Language;
 use qingjian_dictionary::Dictionary;
-use qingjian_platform::{DictionariesConfig, LocalModelConfig, extra_dictionaries};
+use qingjian_platform::code_tables::AuxCodeSources;
+use qingjian_platform::{
+    AuxCodeConfig, DictionariesConfig, LocalModelConfig, code_schemes, extra_dictionaries,
+};
 use qingjian_predict::PredictConfig;
+
+use crate::dispatch::find_bundled_schemes;
 
 /// 热加载状态。
 pub(crate) struct ConfigReload {
@@ -39,6 +44,15 @@ pub(crate) struct ConfigReload {
 
     /// 已应用的学习语言（`None` 为关）。
     pub(super) applied_language: Option<Language>,
+
+    /// 已应用的 `[aux_code]`。
+    pub(super) applied_aux_code: AuxCodeConfig,
+
+    /// 上次看到的用户 `codes/` 与 `schemes/` 快照：设置页刚导入一张码表、改了辅码方案，下一拍就重装辅码。
+    pub(super) code_files: Vec<(PathBuf, Option<SystemTime>, u64)>,
+
+    /// 上次看到的用户 `code_dicts/`（导入的五笔词库）快照：变了按当前配置重装形码方案。
+    pub(super) code_word_files: Vec<(PathBuf, Option<SystemTime>, u64)>,
 }
 
 impl ConfigReload {
@@ -49,6 +63,26 @@ impl ConfigReload {
     /// 用户 `dicts/` 的逐文件快照。
     pub(super) fn dict_snapshot(&self) -> Vec<(PathBuf, Option<SystemTime>, u64)> {
         extra_dictionaries::snapshot(&self.user_dicts())
+    }
+
+    /// 辅码码表从哪几处找，与启动装配（`main.rs` 的 `AssemblySpec`）同一批目录。
+    pub(super) fn aux_sources(&self) -> AuxCodeSources {
+        AuxCodeSources {
+            bundled_codes: Some(self.root.join("data/generated/codes")),
+            user_codes: Some(self.user_dir.join("codes")),
+            bundled_schemes: find_bundled_schemes(&self.root),
+            user_dir: Some(self.user_dir.clone()),
+        }
+    }
+
+    /// 用户 `codes/` 与 `schemes/` 的逐文件快照。
+    pub(super) fn code_snapshot(&self) -> Vec<(PathBuf, Option<SystemTime>, u64)> {
+        self.aux_sources().snapshot()
+    }
+
+    /// 用户 `code_dicts/` 的逐文件快照。
+    pub(super) fn code_word_snapshot(&self) -> Vec<(PathBuf, Option<SystemTime>, u64)> {
+        code_schemes::words_snapshot(&code_schemes::user_words_dir(&self.user_dir))
     }
 
     /// 按已应用的 `[dictionaries]` 装配附加词库，目录与启动装配同款。

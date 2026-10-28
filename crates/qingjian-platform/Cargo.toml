@@ -21,9 +21,12 @@ toml_edit.workspace = true
 tracing.workspace = true
 # 自绘候选窗的壳共用的帧换算（`display` 模块）；不画候选的（TSF DLL）不开
 qingjian-render = { workspace = true, optional = true }
+qingjian-neural = { workspace = true, features = ["zhiyi-onnx"], optional = true }
 
 [features]
 render = ["dep:qingjian-render"]
+# 本地模型的目录解析与后台加载；纯配置 / 协议调用方不带推理依赖
+models = ["dep:qingjian-neural"]
 
 # Linux 的 socket 路径按 euid 隔离私有临时目录、前端客户端核对对端 uid（SO_PEERCRED）；
 # keysym → Unicode 给 Linux 前端共用的键表

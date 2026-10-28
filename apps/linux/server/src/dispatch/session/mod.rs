@@ -1,5 +1,6 @@
 //! 上下文挂起与恢复；其他会话的通知不会清空当前输入。
 mod info;
+mod reload;
 pub(super) use self::info::SessionInfo;
 use super::Router;
 use crate::dispatch::key_hint::KeyHintState;
@@ -47,12 +48,15 @@ impl Router {
         self.navigated = next.navigated;
         self.focus = next.focus;
         self.grid = next.grid.take();
+        let needs_refresh = std::mem::take(&mut next.needs_refresh);
         self.engine.set_application(next.app.clone());
         self.engine.set_private(next.private);
         self.notice = None;
         self.sentence = None;
         self.focused = Some(session);
-        if next.active && !next.private {
+        if needs_refresh {
+            self.recompose(None);
+        } else if next.active && !next.private {
             self.request_current_prediction();
         }
     }
@@ -75,6 +79,7 @@ impl Router {
             identity.revision = self.display_revision;
         }
         info.composed = None;
+        info.needs_refresh = false;
         info.highlight = 0;
         info.navigated = false;
         info.focus = Focus::default();

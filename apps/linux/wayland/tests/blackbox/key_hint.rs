@@ -33,7 +33,7 @@ fn handshake_reports_grid_and_key_hint() {
     assert_eq!(features["key_hint"].as_bool(), Some(true), "{hello}");
 }
 
-/// 带键位提示的帧：键盘先放候选窗右边（窗口变宽、高度取两者较大、收鼠标的区域不变）；
+/// 带键位提示的帧：键盘先放候选窗右边（窗口变宽、高度取两者较大、只有候选窗卡片收鼠标）；
 /// 合成器报光标在候选窗上方（y ≥ 0）之后改放上方（高度加上键盘的高）；报回去又回到右边；
 /// 组句结束的下一帧不带提示，键盘收起。
 #[test]
@@ -64,10 +64,12 @@ fn the_keyboard_follows_the_compositor_flip() {
         right.1 >= h0,
         "高度取候选窗与键盘中较大的那个：{right:?}，候选窗 {h0}"
     );
+    let with_keyboard = rig.compositor.input_region();
+    assert_eq!(with_keyboard.len(), 1, "键盘那块不收鼠标");
     assert_eq!(
-        rig.compositor.input_region(),
-        region,
-        "键盘那块不收鼠标，收鼠标的区域仍只有候选窗卡片"
+        (with_keyboard[0].2, with_keyboard[0].3),
+        (region[0].2, region[0].3),
+        "保留键盘左上阴影可能平移卡片，卡片的点击范围大小不变"
     );
 
     // 合成器报光标在候选窗上方（y ≥ 0）：键盘改放候选窗上方，窗口变高

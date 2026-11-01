@@ -27,7 +27,7 @@ pub struct Canvas {
 
     height: u32,
 
-    /// 合成位图放进缓冲的裁边与尺寸。按各块内容区的左上角取能裁掉的透明边，弹出菜单、键盘时候选窗在 popup 里不挪。
+    /// 合成位图放进缓冲的裁边与尺寸。按各块位图的透明边取交集，只裁完全透明的空白。
     pub placement: Placement,
 
     window: Part,
@@ -49,16 +49,13 @@ impl Canvas {
     /// `menu` 是菜单的位图，与菜单卡片左上角在候选窗内容区里的位置（点）；`scale` 是 popup 的缩放。
     pub fn new(window: &Rendered, menu: Option<(&Rendered, (f32, f32))>, scale: f64) -> Self {
         let window_part = Part::new(window, (0, 0));
-        let (mut width, mut height) = (window.pixmap.width(), window.pixmap.height());
+        let (width, height) = (window.pixmap.width(), window.pixmap.height());
         let menu = menu.map(|(menu, (x, y))| {
             let left = window_part.left + x * window.scale - menu.content_x as f32;
             let top = window_part.top + y * window.scale - menu.content_y as f32;
-            let part = Part::new(menu, (left.round() as i32, top.round() as i32));
-            width = width.max(reach(part.origin.0, menu.pixmap.width()));
-            height = height.max(reach(part.origin.1, menu.pixmap.height()));
-            part
+            Part::new(menu, (left.round() as i32, top.round() as i32))
         });
-        Self {
+        let mut canvas = Self {
             width,
             height,
             placement: Placement::new(width, height, window.content_x, window.content_y, scale),
@@ -67,7 +64,9 @@ impl Canvas {
             keyboard: None,
             scale: window.scale,
             interactive: true,
-        }
+        };
+        canvas.fit(scale);
+        canvas
     }
 
     /// 中 / 英提示沿用候选的裁边、缩放与贴图，鼠标完全穿透。
@@ -79,7 +78,7 @@ impl Canvas {
     }
 
     /// 把画好的键盘摆进合成位图，返回这段输入用的那一侧（下一次先试它，键盘不随光标左右跳）。
-    /// `flipped` 是合成器把 popup 翻到光标上方。键盘位图的原点按内容位置减位图阴影边摆，负的那一截贴图时裁掉。
+    /// `flipped` 是合成器把 popup 翻到光标上方。键盘位图的原点按内容位置减位图边距摆，再扩展画布保留左上伸出的部分。
     pub fn place_key_hint(
         &mut self,
         keyboard: &Rendered,
@@ -117,30 +116,39 @@ impl Canvas {
                 content.1 - keyboard.content_y as i32,
             ),
         );
-        let mut width = reach(self.window.origin.0, self.window.size.0)
-            .max(reach(keyboard.origin.0, keyboard.size.0));
-        let mut height = reach(self.window.origin.1, self.window.size.1)
-            .max(reach(keyboard.origin.1, keyboard.size.1));
-        let mut margin_x = self.window.left.min(keyboard.left);
-        let mut margin_y = self.window.top.min(keyboard.top);
-        if let Some(menu) = &self.menu {
-            width = width.max(reach(menu.origin.0, menu.size.0));
-            height = height.max(reach(menu.origin.1, menu.size.1));
-            margin_x = margin_x.min(menu.left);
-            margin_y = margin_y.min(menu.top);
+        self.keyboard = Some(keyboard);
+        self.fit(f64::from(self.scale));
+        side
+    }
+
+    /// 合并完整位图边界；左上有负坐标时一起平移，保持菜单锚点、候选落点和键盘间隙一致。
+    fn fit(&mut self, scale: f64) {
+        let (left, top) = std::iter::once(&self.window)
+            .chain(&self.menu)
+            .chain(&self.keyboard)
+            .fold((0, 0), |(x, y), part| {
+                (x.min(part.origin.0), y.min(part.origin.1))
+            });
+        for part in std::iter::once(&mut self.window)
+            .chain(&mut self.menu)
+            .chain(&mut self.keyboard)
+        {
+            part.shift(-left, -top);
+        }
+        let (mut width, mut height) = (0, 0);
+        let (mut margin_x, mut margin_y) = (u32::MAX, u32::MAX);
+        for part in std::iter::once(&self.window)
+            .chain(&self.menu)
+            .chain(&self.keyboard)
+        {
+            width = width.max(reach(part.origin.0, part.size.0));
+            height = height.max(reach(part.origin.1, part.size.1));
+            margin_x = margin_x.min(reach(part.origin.0, part.transparent.0));
+            margin_y = margin_y.min(reach(part.origin.1, part.transparent.1));
         }
         self.width = width;
         self.height = height;
-        // 各块内容区起点里最靠左 / 最靠上的那个，就是位图左上能整个裁掉的透明边
-        self.placement = Placement::new(
-            width,
-            height,
-            margin_x.max(0.0).round() as u32,
-            margin_y.max(0.0).round() as u32,
-            f64::from(self.scale),
-        );
-        self.keyboard = Some(keyboard);
-        side
+        self.placement = Placement::new(width, height, margin_x, margin_y, scale);
     }
 
     /// 合成位图的像素宽（每行 `width * 4` 字节）。

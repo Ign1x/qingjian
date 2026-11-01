@@ -1,5 +1,6 @@
 //! 合成位图的算术：surface 坐标认落点（裁边、缩放、菜单盖在上面）、收鼠标的区域、菜单的位置与叠图。
 
+mod clipping;
 mod keyboard;
 
 use qingjian_render::{HitRegion, HitTarget, Pixmap, Rendered};

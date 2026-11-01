@@ -12,7 +12,7 @@ fn keyboard() -> Rendered {
     rendered((140, 96), (10, 8, 120, 80), 1.0, &[])
 }
 
-/// 未翻转、这段输入用的是右边：键盘并排在候选窗右边，合成位图变宽，裁边仍按候选窗的阴影，候选照旧点得中，键盘不占收鼠标的区域。
+/// 未翻转、这段输入用的是右边：键盘并排在候选窗右边，合成位图变宽，非透明边距完整保留，候选照旧点得中，键盘不占收鼠标的区域。
 /// （先试哪一侧由 `key_hint::place` 的测试管：这块候选窗宽是高的两倍，不指定会先往下。）
 #[test]
 fn the_keyboard_sits_beside_the_window_on_the_right() {
@@ -30,11 +30,11 @@ fn the_keyboard_sits_beside_the_window_on_the_right() {
     assert_eq!(canvas.width(), 314, "候选窗 200 像素，键盘伸到 174 + 140");
     assert_eq!(
         (canvas.placement.crop_x, canvas.placement.crop_y),
-        (16, 12),
-        "裁边仍按候选窗的阴影"
+        (0, 0),
+        "候选窗与键盘的边缘有非透明像素，不裁"
     );
-    assert_eq!(canvas.spot(20.0, 40.0), Some(Spot::Candidate(0)));
-    assert_eq!(canvas.input_region(), [(4, 4, 160, 80)], "键盘不收鼠标");
+    assert_eq!(canvas.spot(36.0, 52.0), Some(Spot::Candidate(0)));
+    assert_eq!(canvas.input_region(), [(20, 16, 160, 80)], "键盘不收鼠标");
 
     let pixels = canvas.compose(&window, None, Some(&board));
     let at = |x: usize, y: usize| &pixels[(y * 314 + x) * 4..(y * 314 + x) * 4 + 4];

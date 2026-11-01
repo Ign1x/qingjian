@@ -3,7 +3,7 @@
 use qingjian_render::{HitRegion, HitTarget, Rendered};
 
 pub struct Part {
-    /// 位图左上角在合成位图里的像素位置；菜单的可以是负的（左上的阴影出了界，那一截不画）。
+    /// 位图左上角在合成位图里的像素位置；合成前整体平移到非负坐标。
     pub origin: (i32, i32),
 
     /// 内容区左上角在合成位图里的像素位置。
@@ -19,6 +19,9 @@ pub struct Part {
     /// 位图的像素宽高：合成位图的宽高按各块伸到哪儿算。
     pub size: (u32, u32),
 
+    /// 位图左、上完全透明的边距，不超过内容区起点；皮肤装饰与半透明阴影都不能裁。
+    pub transparent: (u32, u32),
+
     /// 能点的区域，内容区像素（`Rendered::hits`）。
     hits: Vec<HitRegion>,
 }
@@ -32,6 +35,7 @@ impl Part {
             width: rendered.content_width as f32,
             height: rendered.content_height as f32,
             size: (rendered.pixmap.width(), rendered.pixmap.height()),
+            transparent: transparent_margin(rendered),
             hits: rendered.hits.clone(),
         }
     }
@@ -68,4 +72,27 @@ impl Part {
             )
         })
     }
+}
+
+/// `content_x/y` 只标卡片起点，前面还可能有装饰；逐行缩小可裁范围，任何非零 alpha 都保留。
+fn transparent_margin(rendered: &Rendered) -> (u32, u32) {
+    let width = rendered.pixmap.width() as usize;
+    let mut left = rendered.content_x.min(rendered.pixmap.width()) as usize;
+    let mut top = rendered.content_y.min(rendered.pixmap.height()) as usize;
+    for (y, row) in rendered.pixmap.data().chunks_exact(width * 4).enumerate() {
+        if y < top && row.chunks_exact(4).any(|pixel| pixel[3] != 0) {
+            top = y;
+        }
+        if let Some(x) = row
+            .chunks_exact(4)
+            .take(left)
+            .position(|pixel| pixel[3] != 0)
+        {
+            left = x;
+        }
+        if left == 0 && top == 0 {
+            break;
+        }
+    }
+    (left as u32, top as u32)
 }

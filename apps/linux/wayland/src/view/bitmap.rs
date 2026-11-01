@@ -1,8 +1,8 @@
-//! 位图怎么放进 popup 的 shm 缓冲：裁掉左上多余的阴影边，按缩放定逻辑尺寸与缓冲尺寸，再换成 Wayland 的像素格式；
+//! 位图怎么放进 popup 的 shm 缓冲：裁掉左上多余的透明边，按缩放定逻辑尺寸与缓冲尺寸，再换成 Wayland 的像素格式；
 //! 右键菜单弹着时先把它叠到候选窗的位图上（[`paste`]）。
 //! 只做算术，不碰 Wayland 对象；规则见 `docs/design/linux-wayland.md`「显示」的缩放与像素格式两条。
 
-/// 左上的阴影边留几点：合成器把 popup 左上角贴在光标上，阴影边整个留着候选框就离光标太远。
+/// 完全透明的左上边距最多留几点：合成器把 popup 左上角贴在光标上，不为多余空白拉远窗口。
 const KEEP_POINTS: f64 = 4.0;
 
 /// 像素 ÷ 缩放本该整除时，浮点误差可能让商多出一点点，向上取整就平白多一个逻辑像素。
@@ -10,7 +10,7 @@ const EPSILON: f64 = 1e-9;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Placement {
-    /// 从位图左边裁掉的像素（阴影边）。
+    /// 从位图左边裁掉的像素（完全透明的空白）。
     pub crop_x: u32,
 
     /// 从位图上边裁掉的像素。
@@ -29,7 +29,7 @@ pub struct Placement {
 
 impl Placement {
     /// `width` / `height` 是位图的像素宽高；`margin_x` / `margin_y` 是位图左上那块可以整个裁掉的透明边
-    /// （候选窗单独用时就是它的阴影边，即 `Rendered` 的 `content_x` / `content_y`）；`scale` 是画位图用的倍数。
+    /// （由像素 alpha 确认，不能直接用 `Rendered::content_x/y`）；`scale` 是画位图用的倍数。
     pub fn new(width: u32, height: u32, margin_x: u32, margin_y: u32, scale: f64) -> Self {
         let scale = if scale.is_finite() && scale > 0.0 {
             scale

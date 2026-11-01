@@ -21,7 +21,7 @@ The Linux fcitx edition uses the Fcitx / IBus candidate panel, whose look is set
 | 波奇酱 (Bocchi) | Pink double border, cream background, an audio cable looped around the window, pink highlight block; Bocchi with her guitar lying on the top edge of the window, hiding on the left in vertical layout |
 
 Click a theme card to switch. 青简绿, 系统蓝, 微信绿 and 玻璃 each have a light and a dark version; choose follow system, light or dark under 外观 (Appearance) on the same page. 樱花, 大肥鱼, 初音未来 and 波奇酱 are light only.
-With follow system, the Linux Wayland native edition follows the desktop's light/dark preference, and uses light mode when the desktop doesn't provide one.
+With follow system, the Linux Wayland native edition follows the desktop's light/dark preference, and uses light mode when the desktop doesn't provide one. The candidate window preserves decorations and shadows around the theme, including Sakura's overhang on the left and top.
 Themes only apply when 渲染引擎 (Rendering engine) is set to 青简渲染器 (Qingjian renderer, the default); the Linux Wayland native edition always draws with the Qingjian renderer, whatever this is set to.
 
 To make a theme of your own, see [Custom themes](../advanced/custom-themes.md); once you've added a finished theme, reopen Settings and it appears among the theme cards.

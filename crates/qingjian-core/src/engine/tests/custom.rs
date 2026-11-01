@@ -239,3 +239,24 @@ fn custom_preview_handles_unicode_controls_and_limits() {
     assert_eq!(CustomPhrase::preview("甲", 0), "…");
     assert_eq!(CustomPhrase::preview("", 0), "");
 }
+
+/// #800：短语里的时间变量出候选时就换成当时的时间，上屏的与显示的相同；置顶 / 取消置顶仍按带变量的原文认。
+#[test]
+fn time_variables_expand_in_candidates_but_pins_keep_the_template() {
+    let mut e = engine();
+    e.set_custom_phrases(vec![
+        phrase("rqx", 20, "今天{year}年"),
+        phrase("rqx", 10, "{{year}}"),
+    ])
+    .unwrap();
+    e.set_input("rqx");
+    let items = e.query().unwrap().candidates.items;
+    let year = jiff::Zoned::now().year();
+    assert_eq!(items[0].text, format!("今天{year}年"));
+    assert_eq!(items[1].text, "{year}");
+    assert_eq!(
+        e.pin_target(&items[0]),
+        Some(("rqx".to_owned(), "今天{year}年".to_owned()))
+    );
+    assert_eq!(e.commit(&items[0]), format!("今天{year}年"));
+}

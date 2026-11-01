@@ -3,6 +3,8 @@
 
 use qingjian_core::CustomPhrase;
 
+use crate::i18n::tr;
+
 /// 编辑中的一条。
 #[derive(Debug, Clone)]
 pub struct PhraseEditor {
@@ -52,7 +54,7 @@ impl PhraseEditor {
         match self.index {
             Some(index) => {
                 if list.get(index) != self.original.as_ref() {
-                    return Err("这条在别处被改过了，没有保存；关掉再打开看看现在的样子".to_owned());
+                    return Err(tr("phrases.changed_elsewhere").to_owned());
                 }
                 match phrase {
                     Some(phrase) => list[index] = phrase,

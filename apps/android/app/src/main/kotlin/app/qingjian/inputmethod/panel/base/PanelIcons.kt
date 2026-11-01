@@ -7,7 +7,7 @@ import android.graphics.RectF
 
 /** 工具栏、面板与 App 页面的线条图标，画在 24×24 的格子里再按尺寸缩放；与 [app.qingjian.inputmethod.keyboard.paint.KeyIcons] 同一种画法。 */
 object PanelIcons {
-    enum class Icon { BACK, CHEVRON, EXPAND, COLLAPSE, HIDE, EMOJI, KEYBOARD, SYMBOLS, RESIZE, MIC, CLIPBOARD, TRANSLATE, CLEAR, PLUS, TRASH, PEN, TOP, SPLIT, COPY, SETTINGS, GLOBE, LOCK, UNLOCK, CHECK, INFO, HOME, BOOK, USER, CHART, CLOUD, PALETTE }
+    enum class Icon { BACK, CHEVRON, EXPAND, COLLAPSE, HIDE, EMOJI, KEYBOARD, SYMBOLS, RESIZE, MIC, CLIPBOARD, TRANSLATE, CLEAR, PLUS, TRASH, PEN, TOP, SPLIT, COPY, SETTINGS, GLOBE, LOCK, UNLOCK, CHECK, INFO, HOME, BOOK, USER, CHART, CLOUD, PALETTE, PHRASES, TUNE, MINUS }
 
     private val path = Path()
     private val oval = RectF()
@@ -46,6 +46,9 @@ object PanelIcons {
             Icon.CHART -> chart()
             Icon.CLOUD -> cloud()
             Icon.PALETTE -> palette()
+            Icon.PHRASES -> phrases()
+            Icon.TUNE -> tune()
+            Icon.MINUS -> polyline(5f, 12f, 19f, 12f)
         }
         val scale = size / 24f
         canvas.save()
@@ -130,7 +133,6 @@ object PanelIcons {
         polyline(15.5f, 8.5f, 15.5f, 4.5f, 4.5f, 4.5f, 4.5f, 15.5f, 8.5f, 15.5f)
     }
 
-    /** 夹板：板子加顶上的夹子，板上两行字。 */
     /** 翻译：左上一个「文」，右下一个「A」。 */
     private fun translate() {
         polyline(7.5f, 3f, 7.5f, 5.5f)
@@ -141,6 +143,7 @@ object PanelIcons {
         polyline(14f, 17.5f, 19f, 17.5f)
     }
 
+    /** 夹板：板子加顶上的夹子，板上两行字。 */
     private fun clipboard() {
         oval.set(5f, 5f, 19f, 21f)
         path.addRoundRect(oval, 2.5f, 2.5f, Path.Direction.CW)
@@ -226,6 +229,23 @@ object PanelIcons {
         circle(8f, 10f, 1.2f)
         circle(12f, 7f, 1.2f)
         circle(16f, 10f, 1.2f)
+    }
+
+    /** 常用语：左下带尾巴的对话框，里面两行字。 */
+    private fun phrases() {
+        polyline(11f, 17f, 6f, 17f, 3.5f, 14.5f, 3.5f, 6.5f, 6f, 4f, 18f, 4f, 20.5f, 6.5f, 20.5f, 14.5f, 18f, 17f, 11f, 17f, 7f, 20.5f, 7f, 17f)
+        polyline(7.5f, 9f, 16.5f, 9f)
+        polyline(7.5f, 12.5f, 13.5f, 12.5f)
+    }
+
+    /** 定制：三道滑杆，各带一个钮。 */
+    private fun tune() {
+        polyline(4f, 6.5f, 20f, 6.5f)
+        polyline(4f, 12f, 20f, 12f)
+        polyline(4f, 17.5f, 20f, 17.5f)
+        circle(9f, 6.5f, 2f)
+        circle(15.5f, 12f, 2f)
+        circle(7.5f, 17.5f, 2f)
     }
 
     private fun info() {

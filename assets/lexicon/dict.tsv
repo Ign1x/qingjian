@@ -1,6 +1,21 @@
 # 青简基础词库，由 qingjian-dict-convert lexicon 生成。词	音节	词频
 # 来源：通用规范汉字表（8105 字）；生僻字（Unihan、CNS 全字库读音）；现代汉语常用词表（liuxilu 校对版）；THUOCL 领域词（MIT，清华大学自然语言处理实验室）；
 # 读音：Unihan（Unicode License）+ LLM 标注多音字词；词频：青简自己的语料统计（中文维基 CC BY-SA 4.0、LCCC MIT）。
+A站	a zhan	1500
+A股	a gu	5000
+B站	b zhan	40000
+B股	b gu	300
+C盘	c pan	8000
+D盘	d pan	4000
+E盘	e pan	2000
+F盘	f pan	300
+G盘	g pan	300
+H股	h gu	300
+T台	t tai	1500
+T恤	t xu	7000
+U盘	you pan	9000
+X光	x guang	800
+X射线	x she xian	2000
 㐀	qiu	0
 㐁	tian	0
 㐄	kua	0
@@ -7399,7 +7414,10 @@
 一艘	yi1 sou1	2571
 一色	yi1 se4	171
 一落千丈	yi1 luo4 qian1 zhang4	94
+一行	yi hang	300
 一行	yi1 xing2	97
+一行字	yi hang zi	30
+一行行	yi hang hang	30
 一衣带水	yi1 yi1 dai4 shui3	3
 一表人才	yi1 biao3 ren2 cai2	66
 一见倾心	yi1 jian4 qing1 xin1	131
@@ -7988,6 +8006,7 @@
 三餐	san1 can1	1280
 三鲜	san1 xian1	249
 上	shang	535913
+上一行	shang yi hang	50
 上上	shang shang	16
 上下	shang4 xia4	4131
 上下其手	shang4 xia4 qi2 shou3	58
@@ -8245,6 +8264,7 @@
 下一个	xia yi ge	5406
 下一代	xia4 yi1 dai4	1179
 下一步	xia4 yi1 bu4	1176
+下一行	xia yi hang	60
 下三滥	xia4 san1 lan4	4
 下三烂	xia san lan	1
 下不为例	xia4 bu4 wei2 li4	147
@@ -9800,6 +9820,7 @@
 两者	liang3 zhe3	4475
 两肋插刀	liang3 lei4 cha1 dao1	7
 两艘	liang3 sou1	1329
+两行	liang hang	120
 两袖清风	liang3 xiu4 qing1 feng1	47
 两败俱伤	liang3 bai4 ju4 shang1	131
 两辆	liang3 liang4	628
@@ -19819,6 +19840,7 @@
 几秒钟	ji3 miao3 zhong1	284
 几经	ji3 jing1	356
 几艘	ji3 sou1	218
+几行	ji hang	120
 几许	ji3 xu3	81
 几起几落	ji3 qi3 ji3 luo4	18
 几近	ji3 jin4	310
@@ -22790,7 +22812,7 @@
 匹敌	pi3 di2	234
 匹配	pi3 pei4	2430
 匹马	pi3 ma3	765
-区	ou	8544
+区	ou	5016
 区	qu	170872
 区位	qu1 wei4	73
 区公安分局	qu gong an fen ju	51
@@ -23529,6 +23551,7 @@
 单线	dan1 xian4	999
 单色	dan1 se4	335
 单薄	dan1 bo2	337
+单行	dan hang	40
 单行	dan1 xing2	181
 单行本	dan1 xing2 ben3	1244
 单行线	dan1 xing2 xian4	21
@@ -23890,7 +23913,7 @@
 占领	zhan4 ling3	8604
 占领军	zhan4 ling3 jun1	102
 卡	ka	98038
-卡	qia	4902
+卡	qia	973
 卡丘	ka qiu	89
 卡乡	ka xiang	100
 卡什	ka shi	504
@@ -26662,6 +26685,7 @@
 各自为战	ge4 zi4 wei2 zhan4	27
 各自为政	ge4 zi4 wei2 zheng4	42
 各舰	ge4 jian4	219
+各行	ge hang	40
 各行其事	ge4 xing2 qi2 shi4	2
 各行其是	ge4 xing2 qi2 shi4	5
 各行其道	ge4 xing2 qi2 dao4	11
@@ -28086,7 +28110,7 @@
 咋舌	ze2 she2	8
 咋这么	za3 zhe4 me5	4925
 和	he	904283
-和	hu	45214
+和	hu	5685
 和	huo	3612
 和丰	he2 feng1	129
 和乐	he le	339
@@ -28575,7 +28599,7 @@
 哩哔哩	li bi li	1
 哩哩啦啦	li5 li5 la1 la1	13
 哪	na	98852
-哪	nai	4943
+哪	nai	3087
 哪	ne	4943
 哪	nei	4943
 哪个	na3 ge5	46150
@@ -33259,6 +33283,7 @@
 多肽	duo1 tai4	110
 多舛	duo1 chuan3	130
 多虑	duo1 lv4	326
+多行	duo hang	60
 多语言	duo yu yan	131
 多说	duo shuo	2592
 多谋善断	duo1 mou2 shan4 duan4	2
@@ -50664,7 +50689,7 @@
 担架	dan1 jia4	91
 担纲	dan1 gang1	450
 担负	dan1 fu4	432
-拆	ca	398
+拆	ca	360
 拆	chai	7963
 拆借	chai1 jie4	29
 拆兑	chai dui	3
@@ -51891,6 +51916,7 @@
 换药	huan4 yao4	116
 换血	huan4 xie3	5
 换血	huan xue	45
+换行	huan hang	200
 换装	huan4 zhuang1	642
 换言之	huan4 yan2 zhi1	274
 换货	huan4 huo4	109
@@ -54545,6 +54571,7 @@
 整纪	zheng ji	2
 整编	zheng3 bian1	991
 整肃	zheng3 su4	107
+整行	zheng hang	40
 整衣	zheng yi	3
 整装	zheng3 zhuang1	43
 整装待发	zheng3 zhuang1 dai4 fa1	68
@@ -57735,7 +57762,7 @@
 曼陀	man4 tuo2	215
 曽	ceng	0
 曾	ceng	83252
-曾	zeng	4163
+曾	zeng	1874
 曾于	ceng2 yu2	5450
 曾任	ceng2 ren4	17277
 曾任寿	ceng ren shou	2
@@ -58543,6 +58570,7 @@
 末端	mo4 duan1	1304
 末至	mo4 zhi4	330
 末节	mo4 jie2	34
+末行	mo hang	20
 末路	mo4 lu4	86
 本	ben	89547
 本业	ben3 ye4	72
@@ -63335,6 +63363,7 @@
 每每	mei mei	524
 每秒	mei3 miao3	1550
 每股	mei3 gu3	266
+每行	mei hang	90
 每逢	mei3 feng2	1169
 每隔	mei3 ge2	560
 毐	ai	19
@@ -79047,7 +79076,7 @@
 秋风扫落叶	qiu1 feng1 sao3 luo4 ye4	30
 秋高气爽	qiu1 gao1 qi4 shuang3	1
 秌	qiu	0
-种	chong	3612
+种	chong	3591
 种	zhong	72240
 种事	zhong shi	3366
 种仁	zhong3 ren2	2
@@ -79802,6 +79831,7 @@
 空荡荡	kong1 dang4 dang4	472
 空落落	kong1 luo4 luo4	160
 空虚	kong1 xu1	2426
+空行	kong hang	50
 空袭	kong1 xi2	1795
 空言	kong1 yan2	11
 空论	kong1 lun4	9
@@ -80596,6 +80626,7 @@
 第一流	di4 yi1 liu2	19
 第一眼	di4 yi1 yan3	2252
 第一线	di4 yi1 xian4	323
+第一行	di yi hang	120
 第一财经	di4 yi1 cai2 jing1	67
 第七	di4 qi1	7554
 第七十	di4 qi1 shi2	444
@@ -80669,6 +80700,7 @@
 第二百	di4 er4 bai3	572
 第二章	di4 er4 zhang1	417
 第二职业	di4 er4 zhi2 ye4	51
+第二行	di er hang	50
 第二课堂	di4 er4 ke4 tang2	16
 第二轮	di4 er4 lun2	1947
 第五	di4 wu3	12417
@@ -86461,7 +86493,7 @@
 胓	ping	0
 胔	zi	0
 胕	fu	0
-胖	pan	5487
+胖	pan	3804
 胖	pang	109744
 胖乎乎	pang4 hu1 hu1	279
 胖了	pang4 le5	25372
@@ -92477,7 +92509,7 @@
 衊	mie	0
 衋	xi	0
 行	hang	8344
-行	heng	5633
+行	heng	5460
 行	xing	112650
 行不行	xing2 bu4 xing2	2329
 行不通	xing2 bu4 tong1	166
@@ -92511,6 +92543,7 @@
 行劫	xing2 jie2	25
 行包	xing2 bao1	49
 行医	xing2 yi1	283
+行号	hang hao	40
 行吗	xing2 ma5	2986
 行吧	xing2 ba5	6315
 行商	xing2 shang1	33
@@ -92525,6 +92558,7 @@
 行将	xing2 jiang1	55
 行将就木	xing2 jiang1 jiu4 mu4	8
 行尸走肉	xing2 shi1 zou3 rou4	595
+行尾	hang wei	30
 行市	hang2 shi4	14
 行帮	hang bang	10
 行当	hang2 dang1	108
@@ -92596,8 +92630,10 @@
 行销	xing2 xiao1	937
 行长	hang2 zhang3	568
 行间	hang2 jian1	27
+行首	hang shou	30
 行驶	xing2 shi3	3987
 行骗	xing2 pian4	102
+行高	hang gao	30
 衍	yan	1431
 衍化	yan3 hua4	46
 衍射	yan3 she4	118
@@ -99202,7 +99238,7 @@
 轩辕	xuan1 yuan2	269
 轪	dai	10
 轫	ren	82
-转	zhuai	2243
+转	zhuai	679
 转	zhuan	44859
 转世	zhuan3 shi4	971
 转业	zhuan3 ye4	298
@@ -100535,6 +100571,7 @@
 这种感觉	zhe4 zhong3 gan3 jue2	3277
 这般	zhe4 ban1	665
 这茬	zhe4 cha2	329
+这行	zhe hang	80
 这话	zhe4 hua4	8921
 这话说	zhe4 hua4 shuo1	2864
 这话说的	zhe4 hua4 shuo1 de5	256
@@ -101319,6 +101356,7 @@
 逐步	zhu2 bu4	2488
 逐渐	zhu2 jian4	10641
 逐级	zhu2 ji2	66
+逐行	zhu hang	40
 逐项	zhu2 xiang4	21
 逐鹿	zhu2 lu4	36
 逑	qiu	33
@@ -102048,9 +102086,9 @@
 邢台	xing2 tai2	394
 邢台市	xing2 tai2 shi4	311
 那	na	627741
-那	nai	31387
+那	nai	3087
 那	ne	31387
-那	nei	31387
+那	nei	28384
 那不是	na bu shi	6462
 那个	na4 ge5	156009
 那个人	na4 ge5 ren2	7520
@@ -102135,6 +102173,7 @@
 那肯定	na4 ken3 ding4	2900
 那般	na4 ban1	214
 那英	na4 ying1	395
+那行	na hang	30
 那要	na4 yao4	3606
 那边	na4 bian1	23544
 那边的	na bian de	2468
@@ -110197,6 +110236,7 @@
 首脑	shou3 nao3	1304
 首航	shou3 hang2	305
 首舰	shou3 jian4	286
+首行	shou hang	60
 首要	shou3 yao4	790
 首诗	shou3 shi1	617
 首轮	shou3 lun2	1087

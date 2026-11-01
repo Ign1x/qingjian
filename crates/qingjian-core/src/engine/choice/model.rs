@@ -1,5 +1,7 @@
 //! 选词模型的接口。
 
+use super::CharTable;
+
 /// 选词模型：给盖住整段输入的几条候选各打一个分，壳在停顿后经后台线程调用（见 `engine::choice` 的模块说明）。
 ///
 /// 对齐在按键回调里同步做（便宜，只查表），打分在后台线程做（一页几十毫秒）。
@@ -12,4 +14,10 @@ pub trait ChoiceModel: Send + Sync {
 
     /// 每条候选的分（越大越合适），与 `texts` 一一对应；算不了返回空 Vec。
     fn score(&self, context: &str, typed: &[u32], texts: &[&str]) -> Vec<f32>;
+
+    /// 按音节出字：`syllables` 是敲的每个音节与它敲全了没有，返回每个音节一行的字分布（整句词图用）。
+    /// 模型没有这个头、或有音节对不上模型的输入单元时返回 `None`。
+    fn compose(&self, _context: &str, _syllables: &[(&str, bool)]) -> Option<CharTable> {
+        None
+    }
 }

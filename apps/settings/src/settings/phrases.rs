@@ -1,11 +1,12 @@
-//! 自定义短语的编辑卡片：打开、关闭、存回配置。
+//! 自定义短语的编辑卡片（打开、关闭、存回配置）与导入导出。
 
 use bamboo_slip::TextEdit;
 use qingjian_core::CustomPhrase;
-use qingjian_core::custom_phrase::{DEFAULT_WEIGHT, parse_weight};
-use qingjian_platform::Config;
+use qingjian_core::custom_phrase::{DEFAULT_WEIGHT, merge_imported, parse_weight};
+use qingjian_platform::{Config, export_phrases, import_phrases};
 
 use super::Settings;
+use crate::i18n::{tr, tr_args};
 use crate::message::FieldId;
 use crate::phrase_editor::PhraseEditor;
 
@@ -79,6 +80,66 @@ impl Settings {
             weight: parse_weight(&field(FieldId::PhraseWeight))?,
             enabled: editor.enabled,
         })
+    }
+
+    /// 选一个导出的短语文件（或「文字、Tab、输入码」一行一条的文本），短语并进现有的；同码同文本的不重复加。
+    pub(super) fn import_phrases(&mut self) {
+        let Some(source) = rfd::FileDialog::new()
+            .set_title(tr("phrases.import_title"))
+            .add_filter(tr("phrases.file_filter"), &["toml", "txt", "tsv"])
+            .add_filter(tr("import.all_files"), &["*"])
+            .pick_file()
+        else {
+            return;
+        };
+        let result = std::fs::read_to_string(&source)
+            .map_err(|error| tr_args("phrases.cant_read", &[("error", &error)]))
+            .and_then(|text| import_phrases(&text))
+            .and_then(|(imported, skipped)| {
+                let total = imported.len();
+                let (list, added) = merge_imported(&self.config.custom_phrases, imported);
+                if added > 0 {
+                    self.write_phrases(&list)?;
+                }
+                let mut summary = tr_args("phrases.added", &[("n", &added)]);
+                if total > added {
+                    summary.push_str(&tr_args("phrases.existing", &[("n", &(total - added))]));
+                }
+                if skipped > 0 {
+                    summary.push_str(&tr_args("phrases.skipped", &[("n", &skipped)]));
+                }
+                Ok(summary)
+            });
+        self.notice = Some(("phrases-transfer", result.unwrap_or_else(|error| error)));
+    }
+
+    /// 全部短语（含关着的）存成一个文件，换电脑或备份时在另一边导入。
+    pub(super) fn export_phrases(&mut self) {
+        let phrases = &self.config.custom_phrases;
+        if phrases.is_empty() {
+            self.notice = Some((
+                "phrases-transfer",
+                tr("phrases.nothing_to_export").to_owned(),
+            ));
+            return;
+        }
+        let name = tr_args("phrases.file_name", &[("date", &jiff::Zoned::now().date())]);
+        let Some(target) = rfd::FileDialog::new()
+            .set_title(tr("phrases.export_title"))
+            .set_file_name(&name)
+            .add_filter(tr("phrases.file_filter"), &["toml"])
+            .save_file()
+        else {
+            return;
+        };
+        let notice = match std::fs::write(&target, export_phrases(phrases)) {
+            Ok(()) => tr_args(
+                "phrases.exported",
+                &[("n", &phrases.len()), ("path", &target.display())],
+            ),
+            Err(error) => tr_args("phrases.cant_write", &[("error", &error)]),
+        };
+        self.notice = Some(("phrases-transfer", notice));
     }
 
     pub(super) fn write_phrases(&mut self, list: &[CustomPhrase]) -> Result<(), String> {

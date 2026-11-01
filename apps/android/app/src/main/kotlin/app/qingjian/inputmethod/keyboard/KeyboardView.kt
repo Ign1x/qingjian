@@ -18,7 +18,8 @@ import kotlin.math.abs
 
 /**
  * 自绘键盘。多指各自跟踪（快打时前一指没抬后一指已落），抬起时出键；退格长按连发；
- * 九宫格的数字键长按弹气泡选字母 / 数字；全键盘拼音与英文键盘开着「滑行输入」时，落在字母键上的手指挪开够远就是滑行（[SwipeTrail]）。
+ * 九宫格的数字键长按弹气泡选字母 / 数字；开着「上滑输入」时在键上往上一划出长按的那一项（键面角标或数字）；
+ * 全键盘拼音与英文键盘开着「滑行输入」时，落在字母键上的手指挪开够远就是滑行（[SwipeTrail]）。
  * 顶排的按键气泡要画到候选条上，父容器得关 clipChildren。
  */
 @SuppressLint("ViewConstructor")
@@ -57,7 +58,7 @@ class KeyboardView(
     }
 
     private val metrics = KeyboardMetrics(resources.displayMetrics.density, settings.heightPercent)
-    private val painter = KeyPainter(palette, metrics)
+    private val painter = KeyPainter(palette, metrics, settings.keyTextSize.scale)
     private val side = SideColumn(metrics.density) { item ->
         tapFeedback()
         listener.onSideItem(item)
@@ -93,14 +94,25 @@ class KeyboardView(
     private val longPress = Runnable { openChoices() }
 
     /**
-     * 按着空格的那根手指；横着滑开就进挪光标，按住不动到点进语音（关着「长按空格说话」或语音开不起来时进挪光标），
+     * 按着空格的那根手指；横着滑开就进挪光标（「空格滑动移动光标」开着时），按住不动到点进语音（关着「长按空格说话」或语音开不起来时进挪光标），
      * 这两种抬手都不出空格。
      */
     private var spacePointer = -1
     private var spaceAnchorX = 0f
+    private var spaceAnchorY = 0f
     private var cursorMode = false
     private var voiceMode = false
     private val spaceHold = Runnable { onSpaceHold() }
+
+    /**
+     * 可能是上滑的那根手指与它落下的键（[Key.flick]，开着「上滑输入」时）；-1 是没在看。
+     * 往上划过 [FLICK_DP] 且没横着偏出这一列就 [flickArmed]，抬手出上滑的字，不出键本身、也不算滑行。
+     */
+    private var flickPointer = -1
+    private var flickSlot: KeySlot? = null
+    private var flickX = 0f
+    private var flickY = 0f
+    private var flickArmed = false
 
     /** 这一套键位能不能滑行（全键盘拼音与英文键盘，服务按当前键盘设）；还要设置里开着「滑行输入」。 */
     var swipeLayout = false
@@ -109,11 +121,11 @@ class KeyboardView(
 
     private val trail = SwipeTrail(palette, resources.displayMetrics.density)
 
-    /** Shift 亮着：字母画成大写。 */
-    var shifted: Boolean
-        get() = painter.shifted
+    /** Shift 亮着字母画成大写，锁定时 Shift 键上另画一道横线。 */
+    var shift: ShiftState
+        get() = painter.shift
         set(value) {
-            painter.shifted = value
+            painter.shift = value
             invalidate()
         }
 
@@ -193,8 +205,12 @@ class KeyboardView(
     override fun onDraw(canvas: Canvas) {
         for (slot in slots) painter.drawKey(canvas, slot, down = pressed.containsValue(slot))
         if (side.enabled) painter.drawSide(canvas, side)
-        trail.draw(canvas)
-        if (settings.keyPopup) {
+        val flicking = flickSlot?.takeIf { flickArmed }
+        if (flicking == null) trail.draw(canvas)
+        if (flicking != null) {
+            // 上滑出的是哪个字放在气泡里；`;` 兼大写那个键划出的是 Shift，键本身亮着就够了
+            flicking.key.flick?.let { painter.drawBubble(canvas, flicking, width, it) }
+        } else if (settings.keyPopup) {
             pressed.values.filter { it.key.poppable && !choicePopup.showing }.forEach { painter.drawBubble(canvas, it, width) }
         }
     }
@@ -214,6 +230,13 @@ class KeyboardView(
                     trail.begin(pointer, event.getX(index), event.getY(index), slot.bounds.width())
                 }
                 pressed[pointer] = slot
+                if (flickPointer < 0 && flickable(slot.key)) {
+                    flickPointer = pointer
+                    flickSlot = slot
+                    flickX = event.getX(index)
+                    flickY = event.getY(index)
+                    flickArmed = false
+                }
                 tapFeedback()
                 when {
                     slot.key == Key.Backspace -> {
@@ -224,6 +247,7 @@ class KeyboardView(
                     slot.key is Key.Space -> {
                         spacePointer = pointer
                         spaceAnchorX = event.getX(index)
+                        spaceAnchorY = event.getY(index)
                         cursorMode = false
                         voiceMode = false
                         timer.postDelayed(spaceHold, if (settings.voiceHoldSpace) VOICE_HOLD_MS else LONG_PRESS_MS)
@@ -239,12 +263,24 @@ class KeyboardView(
             }
 
             MotionEvent.ACTION_MOVE -> {
+                trackFlick(event)
                 trackSwipe(event)
                 trackChoices(event)
                 trackCursor(event)
             }
 
             MotionEvent.ACTION_UP, MotionEvent.ACTION_POINTER_UP -> {
+                if (pointer == flickPointer) {
+                    val flicked = flickSlot?.takeIf { flickArmed }
+                    endFlick()
+                    if (flicked != null) {
+                        if (pointer == trail.pointer) trail.clear()
+                        pressed.remove(pointer)
+                        flick(flicked.key)
+                        invalidate()
+                        return true
+                    }
+                }
                 if (pointer == trail.pointer) {
                     val swiped = trail.swiping
                     if (swiped) listener.onSwipe(trail.toJson(slots))
@@ -302,6 +338,38 @@ class KeyboardView(
         }
     }
 
+    private fun flickable(key: Key) = (key as? Key.Letter)?.flickShift == true || (settings.flickSymbols && key.flick != null)
+
+    /**
+     * 上滑的那根手指挪动：往上划够了、横向没比纵向挪得多、也没偏出这一列半个键宽就算上滑，撤掉等着的长按。
+     * 起点与终点要在同一列，所以跨键的滑行（[SwipeTrail]）不会被当成上滑。
+     */
+    private fun trackFlick(event: MotionEvent) {
+        val slot = flickSlot ?: return
+        val at = event.findPointerIndex(flickPointer)
+        if (at < 0 || choicePopup.showing) return
+        val x = event.getX(at)
+        val up = flickY - event.getY(at)
+        val slop = slot.bounds.width() / 2
+        val armed = up > metrics.density * FLICK_DP && abs(x - flickX) < up &&
+            x > slot.bounds.left - slop && x < slot.bounds.right + slop
+        if (armed && longPressPointer == flickPointer) {
+            timer.removeCallbacks(longPress)
+            longPressPointer = -1
+        }
+        flickArmed = armed
+    }
+
+    private fun endFlick() {
+        flickPointer = -1
+        flickSlot = null
+        flickArmed = false
+    }
+
+    private fun flick(key: Key) {
+        if ((key as? Key.Letter)?.flickShift == true) listener.onKey(Key.Shift) else key.flick?.let(listener::onKeyChoice)
+    }
+
     /** 长按气泡里的项：中英键是语言名，其余是键自己的。 */
     private fun choicesOf(key: Key) = if (key == Key.Language) languageChoices else key.choices
 
@@ -348,7 +416,7 @@ class KeyboardView(
         )
     }
 
-    /** 按住空格不动到点：开着「长按空格说话」先试语音，开不起来（还不能用、没权限）退回挪光标。 */
+    /** 按住空格不动到点：开着「长按空格说话」先试语音，开不起来（还不能用、没权限）退回挪光标（挪光标也关着就当普通空格）。 */
     private fun onSpaceHold() {
         if (spacePointer < 0 || cursorMode || voiceMode) return
         if (settings.voiceHoldSpace && listener.onVoiceHold()) {
@@ -357,7 +425,7 @@ class KeyboardView(
             invalidate()
             return
         }
-        enterCursorMode()
+        if (settings.spaceCursor) enterCursorMode()
     }
 
     /** 按着空格说话：手指挪到哪儿交给语音面板（它盖在键盘上，按屏幕坐标对）。 */
@@ -375,14 +443,15 @@ class KeyboardView(
         Haptics.hold(context)
     }
 
-    /** 按着空格横着滑：滑开一段就进挪光标，之后每 [CURSOR_STEP_DP] 挪一格。 */
+    /** 按着空格横着滑：横向滑开一段（比竖向多）就进挪光标，之后每 [CURSOR_STEP_DP] 挪一格。 */
     private fun trackCursor(event: MotionEvent) {
         if (voiceMode) return trackVoice(event)
         val at = event.findPointerIndex(spacePointer)
         if (at < 0) return
         val dx = event.getX(at) - spaceAnchorX
         val step = metrics.density * CURSOR_STEP_DP
-        if (!cursorMode && abs(dx) > step) enterCursorMode()
+        val dy = event.getY(at) - spaceAnchorY
+        if (!cursorMode && settings.spaceCursor && abs(dx) > step && abs(dx) > abs(dy)) enterCursorMode()
         if (!cursorMode) return
         val steps = (dx / step).toInt()
         if (steps == 0) return
@@ -393,6 +462,7 @@ class KeyboardView(
     private fun release() {
         pressed.clear()
         trail.clear()
+        endFlick()
         timer.removeCallbacks(repeatBackspace)
         timer.removeCallbacks(longPress)
         timer.removeCallbacks(spaceHold)
@@ -429,6 +499,9 @@ class KeyboardView(
         /** 按住空格不动这么久进语音（开着「长按空格说话」时）。 */
         const val VOICE_HOLD_MS = 400L
         const val TRACK_SLOP_DP = 10f
+
+        /** 往上划多远算上滑：点按时手指一般挪不到 10dp，再长短距离一划就够不着。 */
+        const val FLICK_DP = 18f
         const val CURSOR_STEP_DP = 14f
     }
 }

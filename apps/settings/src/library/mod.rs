@@ -15,6 +15,7 @@ use qingjian_platform::aux_schemes::{self, AuxSchemeEntry};
 use qingjian_platform::code_schemes::{self, CodeSchemeEntry};
 use qingjian_platform::shuangpin_schemes::{self, ShuangpinSchemeEntry};
 
+use crate::i18n::{tr, tr_args};
 use crate::system::paths;
 
 #[derive(Debug, Clone, Default)]
@@ -246,14 +247,16 @@ fn base_dictionary() -> Option<PathBuf> {
 
 /// 挪进 `removed/`；输入法看到文件没了会自己卸掉。
 pub fn remove(kind: Kind, stem: &str) -> Result<(), String> {
-    let dir = kind.user_dir().ok_or("找不到数据目录")?;
+    let dir = kind.user_dir().ok_or(tr("common.no_data_dir"))?;
     let (_, path) = kind
         .list(&dir)
         .into_iter()
         .find(|(name, _)| name == stem)
-        .ok_or("文件已经不在了")?;
+        .ok_or(tr("library.gone"))?;
     let removed = dir.join("removed");
-    std::fs::create_dir_all(&removed).map_err(|error| format!("移除失败：{error}"))?;
-    let name = path.file_name().ok_or("文件名不对")?;
-    std::fs::rename(&path, removed.join(name)).map_err(|error| format!("移除失败：{error}"))
+    std::fs::create_dir_all(&removed)
+        .map_err(|error| tr_args("library.remove_failed", &[("error", &error)]))?;
+    let name = path.file_name().ok_or(tr("library.bad_name"))?;
+    std::fs::rename(&path, removed.join(name))
+        .map_err(|error| tr_args("library.remove_failed", &[("error", &error)]))
 }

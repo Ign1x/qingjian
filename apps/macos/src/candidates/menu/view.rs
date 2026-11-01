@@ -167,6 +167,7 @@ impl MenuView {
         let (Some(pick), Some(id)) = (pick, id) else {
             return;
         };
+        tracing::info!(id, item, "候选菜单项命中");
         if let Some(window) = self.window() {
             window.orderOut(None);
         }
@@ -183,7 +184,7 @@ impl MenuView {
         let y = point.y as f32 - rendered.content_y as f32 / rendered.scale;
         match rendered.hit_at(x, y)? {
             HitTarget::MenuItem(item) => Some(item),
-            HitTarget::Candidate(_) | HitTarget::Translation { .. } => None,
+            HitTarget::Candidate(_) | HitTarget::Translation { .. } | HitTarget::Page(_) => None,
         }
     }
 

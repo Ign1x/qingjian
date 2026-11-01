@@ -4,6 +4,7 @@ use bamboo_slip::taffy::{FlexDirection, NodeId, Style};
 use bamboo_slip::{Checkbox, RenderError, SettingRow, Ui, Visual, group, section_title};
 use qingjian_platform::{DEFAULT_ENGLISH_CANDIDATES_ON, ShiftLetter, SwitchKey};
 
+use crate::i18n::tr;
 use crate::message::Message;
 use crate::support::Feature;
 use crate::view::Page;
@@ -22,8 +23,8 @@ pub fn language(ui: &mut Ui<Message>, page: &Page) -> Result<Vec<NodeId>, Render
     let mut rows = vec![toggle_info(
         ui,
         page,
-        "英文模式",
-        Some("关掉后只打中文"),
+        tr("language.english_mode"),
+        Some(tr("language.english_mode_info")),
         ("general", "english_mode"),
         general.english_mode,
         false,
@@ -35,8 +36,12 @@ pub fn language(ui: &mut Ui<Message>, page: &Page) -> Result<Vec<NodeId>, Render
         rows.push(toggle_info(
             ui,
             page,
-            "默认英文模式",
-            Some("打开时先用英文"),
+            tr("language.default_english"),
+            Some(if Feature::RememberModePerApp.here() {
+                tr("language.default_english_info")
+            } else {
+                tr("language.default_english_info_new_window")
+            }),
             ("general", "default_english"),
             general.default_english,
             !general.english_mode,
@@ -46,8 +51,8 @@ pub fn language(ui: &mut Ui<Message>, page: &Page) -> Result<Vec<NodeId>, Render
         rows.push(toggle_info(
             ui,
             page,
-            "按应用记住中英模式",
-            Some("切回应用时恢复它上次的中英状态"),
+            tr("language.remember_per_app"),
+            Some(tr("language.remember_per_app_info")),
             ("general", "remember_mode_per_app"),
             general.remember_mode_per_app,
             !general.english_mode,
@@ -62,7 +67,7 @@ pub fn language(ui: &mut Ui<Message>, page: &Page) -> Result<Vec<NodeId>, Render
             .map(|&app| app.to_owned())
             .collect()
     };
-    let only = Checkbox::new(only_in_apps, "只在写字的应用里给")
+    let only = Checkbox::new(only_in_apps, tr("language.english_only_in_apps"))
         .disabled(!general.english_candidates)
         .build(
             ui,
@@ -77,8 +82,8 @@ pub fn language(ui: &mut Ui<Message>, page: &Page) -> Result<Vec<NodeId>, Render
         Message::set("general", "english_candidates", !general.english_candidates),
     )?;
     rows.push(
-        SettingRow::new("英文模式也给候选")
-            .info("Tab 或方向键选英文词")
+        SettingRow::new(tr("language.english_candidates"))
+            .info(tr("language.english_candidates_info"))
             .control(switch)
             .below(only)
             .build(ui, theme)?,
@@ -93,12 +98,12 @@ pub fn language(ui: &mut Ui<Message>, page: &Page) -> Result<Vec<NodeId>, Render
         |value| Message::set("general", "shift_letter", value.key()),
     )?;
     rows.push(
-        SettingRow::new("Shift + 字母")
-            .info("进组句才能打出「C盘」")
+        SettingRow::new(tr("language.shift_letter"))
+            .info(tr("language.shift_letter_info"))
             .control(shift)
             .build(ui, theme)?,
     );
-    out.push(section_title(ui, theme, "英文")?);
+    out.push(section_title(ui, theme, tr("language.section_english"))?);
     out.push(group(ui, theme, &rows)?);
 
     let chinese = choice(
@@ -111,7 +116,7 @@ pub fn language(ui: &mut Ui<Message>, page: &Page) -> Result<Vec<NodeId>, Render
         |value| Message::set("general", "full_width_punctuation", value),
     )?;
     let mut rows = vec![
-        SettingRow::new("中文标点")
+        SettingRow::new(tr("language.chinese_punctuation"))
             .control(chinese)
             .build(ui, theme)?,
     ];
@@ -126,7 +131,7 @@ pub fn language(ui: &mut Ui<Message>, page: &Page) -> Result<Vec<NodeId>, Render
             |value| Message::set("general", "english_full_width_punctuation", value),
         )?;
         rows.push(
-            SettingRow::new("英文标点")
+            SettingRow::new(tr("language.english_punctuation"))
                 .control(english)
                 .build(ui, theme)?,
         );
@@ -134,8 +139,8 @@ pub fn language(ui: &mut Ui<Message>, page: &Page) -> Result<Vec<NodeId>, Render
     rows.push(toggle_info(
         ui,
         page,
-        "标点先上屏候选",
-        Some("nihao, 一气打完「你好，」"),
+        tr("language.punct_commits"),
+        Some(tr("language.punct_commits_info")),
         ("general", "punct_commits"),
         general.punct_commits,
         false,
@@ -144,40 +149,48 @@ pub fn language(ui: &mut Ui<Message>, page: &Page) -> Result<Vec<NodeId>, Render
         rows.push(toggle_info(
             ui,
             page,
-            "中文与英文、数字之间自动加空格",
-            Some("「用Go写」上屏成「用 Go 写」"),
+            tr("language.auto_space"),
+            Some(tr("language.auto_space_info")),
             ("general", "auto_space"),
             general.auto_space,
             false,
         )?);
     }
-    out.push(section_title(ui, theme, "标点")?);
+    out.push(section_title(
+        ui,
+        theme,
+        tr("language.section_punctuation"),
+    )?);
     out.push(group(ui, theme, &rows)?);
 
     if Feature::StatusBar.here() {
         let status = toggle(
             ui,
             page,
-            "悬浮状态条",
+            tr("language.status_bar"),
             ("status_bar", "enabled"),
             config.status_bar.enabled,
         )?;
         let size = percent_slider(
             ui,
             page,
-            ("状态条大小", ("status_bar", "size")),
+            (tr("language.status_bar_size"), ("status_bar", "size")),
             config.status_bar.size(),
             (60.0, 150.0),
             !config.status_bar.enabled,
         )?;
-        out.push(section_title(ui, theme, "状态条")?);
+        out.push(section_title(ui, theme, tr("language.section_status_bar"))?);
         out.push(group(ui, theme, &[status, size])?);
     }
     Ok(out)
 }
 
 fn width_label(full: bool) -> &'static str {
-    if full { "全角" } else { "半角" }
+    if full {
+        tr("language.full_width")
+    } else {
+        tr("language.half_width")
+    }
 }
 
 /// 中英切换键可以多选，一个都不勾就只剩按钮能切；最后一个是 Windows 自己的 Ctrl + Space，改的是系统设置。
@@ -206,12 +219,14 @@ fn switch_keys(ui: &mut Ui<Message>, page: &Page) -> Result<NodeId, RenderError>
     }
     if Feature::SystemCtrlSpace.here() {
         let system = page.settings.ctrl_space;
-        boxes.push(Checkbox::new(system, "Ctrl + Space（系统）").build(
-            ui,
-            &page.theme,
-            "switch-key-system",
-            Message::SystemCtrlSpace(!system),
-        )?);
+        boxes.push(
+            Checkbox::new(system, tr("language.system_ctrl_space")).build(
+                ui,
+                &page.theme,
+                "switch-key-system",
+                Message::SystemCtrlSpace(!system),
+            )?,
+        );
     }
     let column = ui.scene().node(
         Style {
@@ -226,11 +241,11 @@ fn switch_keys(ui: &mut Ui<Message>, page: &Page) -> Result<NodeId, RenderError>
     with_notice(
         ui,
         page,
-        SettingRow::new("切换键")
+        SettingRow::new(tr("language.switch_keys"))
             .info(if combos {
-                "可以多选"
+                tr("language.switch_keys_multi")
             } else {
-                "勾上后 Caps Lock 只管大小写"
+                tr("language.switch_keys_caps")
             })
             .control(column),
         "switch-keys",

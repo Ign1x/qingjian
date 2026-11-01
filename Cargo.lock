@@ -288,6 +288,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "bamboo-slip-i18n"
+version = "0.1.1"
+dependencies = [
+ "sys-locale",
+ "toml",
+ "tracing",
+]
+
+[[package]]
 name = "base64"
 version = "0.13.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3698,8 +3707,9 @@ checksum = "1d8f70e07b9c3962945a74e59ca1c511bba65b6419468acc217c457d93f3c740"
 
 [[package]]
 name = "qingjian-android"
-version = "0.3.2-dev"
+version = "0.3.3-dev"
 dependencies = [
+ "bamboo-slip-i18n",
  "jiff",
  "jni 0.21.1",
  "qingjian-core",
@@ -3744,6 +3754,7 @@ dependencies = [
 name = "qingjian-core"
 version = "0.1.1"
 dependencies = [
+ "bamboo-slip-i18n",
  "ferrous-opencc",
  "foldhash 0.2.0",
  "jiff",
@@ -3844,7 +3855,7 @@ dependencies = [
 
 [[package]]
 name = "qingjian-linux-server"
-version = "0.3.2-dev"
+version = "0.3.3-dev"
 dependencies = [
  "libc",
  "qingjian-core",
@@ -3893,6 +3904,7 @@ dependencies = [
 name = "qingjian-lm"
 version = "0.1.1"
 dependencies = [
+ "memmap2",
  "qingjian-core",
  "qingjian-format",
  "thiserror 2.0.21",
@@ -3902,8 +3914,9 @@ dependencies = [
 
 [[package]]
 name = "qingjian-macos"
-version = "0.3.2-dev"
+version = "0.3.3-dev"
 dependencies = [
+ "block2 0.6.2",
  "dotenvy",
  "jiff",
  "objc2 0.6.5",
@@ -3940,6 +3953,7 @@ dependencies = [
  "ort",
  "qingjian-core",
  "qingjian-format",
+ "rayon",
  "serde",
  "serde_json",
  "thiserror 2.0.21",
@@ -3951,9 +3965,11 @@ dependencies = [
 name = "qingjian-platform"
 version = "0.1.1"
 dependencies = [
+ "bamboo-slip-i18n",
  "libc",
  "qingjian-core",
  "qingjian-dictionary",
+ "qingjian-format",
  "qingjian-neural",
  "qingjian-predict",
  "qingjian-render",
@@ -4012,9 +4028,10 @@ dependencies = [
 
 [[package]]
 name = "qingjian-settings"
-version = "0.3.2-dev"
+version = "0.3.3-dev"
 dependencies = [
  "bamboo-slip",
+ "bamboo-slip-i18n",
  "cosmic-text",
  "dotenvy",
  "flate2",
@@ -4087,8 +4104,9 @@ dependencies = [
 
 [[package]]
 name = "qingjian-windows-server"
-version = "0.3.2-dev"
+version = "0.3.3-dev"
 dependencies = [
+ "bamboo-slip-i18n",
  "dotenvy",
  "embed-manifest",
  "qingjian-core",
@@ -4115,7 +4133,7 @@ dependencies = [
 
 [[package]]
 name = "qingjian-windows-settings"
-version = "0.3.2-dev"
+version = "0.3.3-dev"
 dependencies = [
  "jiff",
  "qingjian-core",
@@ -4136,7 +4154,7 @@ dependencies = [
 
 [[package]]
 name = "qingjian-windows-tsf"
-version = "0.3.2-dev"
+version = "0.3.3-dev"
 dependencies = [
  "qingjian-core",
  "qingjian-platform",

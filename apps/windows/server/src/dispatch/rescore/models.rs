@@ -21,26 +21,28 @@ pub(super) enum ModelFiles {
 }
 
 impl ModelDirs {
-    /// 选的知微、知意还没下载（或缺运行库）就用通变；一个模型文件都没有为 `None`。
+    /// 选的模型还没下载（或知意缺运行库）为 `None`：不用模型，不再换成另一个。
     pub(super) fn resolve(&self, wanted: LocalModel) -> Option<ModelFiles> {
-        let user = self.user.as_deref();
         match wanted {
             LocalModel::Zhiyi => match (self.zhiyi_dir(), self.onnx_runtime()) {
-                (Some(dir), Some(runtime)) => return Some(ModelFiles::Zhiyi { dir, runtime }),
-                (None, _) => tracing::warn!("选了知意但没下载，改用含章·通变"),
-                (_, None) => tracing::warn!("找不到 onnxruntime.dll，知意改用含章·通变"),
-            },
-            LocalModel::Zhiwei => {
-                match user.and_then(|dir| {
-                    qingjian_neural::find_model(&dir.join("models/hanzhang-zhiwei"))
-                }) {
-                    Some(path) => return Some(ModelFiles::Sentence(path)),
-                    None => tracing::warn!("选了含章·知微但没下载，改用含章·通变"),
+                (Some(dir), Some(runtime)) => Some(ModelFiles::Zhiyi { dir, runtime }),
+                (None, _) => {
+                    tracing::warn!("选了知意但没下载，不用模型");
+                    None
                 }
+                (_, None) => {
+                    tracing::warn!("找不到 onnxruntime.dll，知意不可用，不用模型");
+                    None
+                }
+            },
+            LocalModel::Tongbian => {
+                let found = find_model(self.user.as_deref(), &self.bundled_root);
+                if found.is_none() {
+                    tracing::warn!("选了含章·通变但没下载，不用模型");
+                }
+                found.map(ModelFiles::Sentence)
             }
-            LocalModel::Tongbian => {}
         }
-        find_model(user, &self.bundled_root).map(ModelFiles::Sentence)
     }
 
     fn zhiyi_dir(&self) -> Option<PathBuf> {
@@ -60,15 +62,12 @@ impl ModelDirs {
     }
 }
 
-/// P2C 优先，同类模型里用户目录优先；没有 P2C 才回退字级模型。
+/// 含章·通变：用户目录（设置里下载的、或自己放的）优先于随包的。含章·知微已下线，它的目录不再找。
 pub fn find_model(user_dir: Option<&Path>, bundled_root: &Path) -> Option<PathBuf> {
     let candidates = [
         user_dir.map(|dir| dir.join("models/hanzhang-tongbian")),
         user_dir.map(|dir| dir.join("model-p2c")),
         Some(bundled_root.join("data/models/hanzhang-tongbian")),
-        user_dir.map(|dir| dir.join("models/hanzhang-zhiwei")),
-        user_dir.map(|dir| dir.join("model")),
-        Some(bundled_root.join("data/models/hanzhang-zhiwei")),
     ];
     candidates
         .into_iter()

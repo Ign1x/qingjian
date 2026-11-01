@@ -13,6 +13,8 @@ use std::sync::{Arc, Mutex};
 use bamboo_slip::Waker;
 use qingjian_platform::LocalModel;
 
+use crate::i18n::{tr, tr_args};
+
 /// 正在下的这个走到哪了。
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Stage {
@@ -71,10 +73,10 @@ impl ModelDownload {
 
     pub fn start(&mut self, model: LocalModel, waker: Option<Waker>) -> Result<(), String> {
         if self.busy() {
-            return Err("正在下载另一个模型".to_owned());
+            return Err(tr("download.busy").to_owned());
         }
-        let pack = Pack::of(model).ok_or("这个模型不用下载")?;
-        let user_dir = crate::system::paths::user_dir().ok_or("找不到数据目录")?;
+        let pack = Pack::of(model).ok_or(tr("download.not_needed"))?;
+        let user_dir = crate::system::paths::user_dir().ok_or(tr("common.no_data_dir"))?;
         let shared = Arc::new(Shared {
             stage: Mutex::new(Stage::Downloading { done: 0, total: 0 }),
             cancel: AtomicBool::new(false),
@@ -96,7 +98,7 @@ impl ModelDownload {
                 };
                 worker.set(stage);
             })
-            .map_err(|error| format!("起不了下载线程：{error}"))?;
+            .map_err(|error| tr_args("download.no_thread", &[("error", &error)]))?;
         self.current = Some((model, shared));
         Ok(())
     }

@@ -58,6 +58,26 @@ impl Engine {
         self.shuangpin_raw_preedit
     }
 
+    /// 换双拼候选窗口拼音行的显示形式：开着时显示原始按键，关着（缺省）展开成全拼。
+    pub fn set_shuangpin_raw_window(&mut self, enabled: bool) {
+        self.shuangpin_raw_window = enabled;
+    }
+
+    pub fn shuangpin_raw_window(&self) -> bool {
+        self.shuangpin_raw_window
+    }
+
+    /// 双拼方案下是否同时接受全拼。开着时同一段输入里的音节可以两种打法混用（`wodemingzi`），
+    /// 一边双拼一边全拼的两个人共用一份设置；关着（缺省）只有双拼一种读法。
+    pub fn set_shuangpin_full_pinyin(&mut self, enabled: bool) {
+        self.shuangpin_full_pinyin = enabled;
+        *self.correction_cache.borrow_mut() = None;
+    }
+
+    pub fn shuangpin_full_pinyin(&self) -> bool {
+        self.shuangpin_full_pinyin
+    }
+
     /// 挂上辅码码表（用户导入的与随包的笔画表）。照 [`Self::set_extra_dictionaries`] 的模式：壳按目录与配置装配。
     pub fn with_aux_codes(mut self, tables: Vec<Arc<dyn AuxCodeLookup>>) -> Self {
         self.aux_codes = tables;
@@ -269,6 +289,23 @@ impl Engine {
         }
     }
 
+    /// 一段键的全部读法：纯双拼（或注音）一条，开了混输时还有全拼与两种打法交替的读法。
+    /// 第一条是主读法，拼音行、尾巴与上屏消耗都按它算；其余读法只参与候选与整句比分数。
+    pub(super) fn decode_readings(&self, keys: &str) -> Vec<EngineDecoded> {
+        match (
+            self.zhuyin,
+            self.shuangpin.as_deref(),
+            self.shuangpin_full_pinyin,
+        ) {
+            (false, Some(layout), true) => layout
+                .decode_mixed(keys, self.fuzzy)
+                .into_iter()
+                .map(EngineDecoded::Shuangpin)
+                .collect(),
+            _ => self.decode(keys).into_iter().collect(),
+        }
+    }
+
     /// 光标后剩余拼音的显示形式：双拼先解码；能切就按音节用 `'` 连上，切不动就原样。
     /// 只用形码时剩余段是编码，原样显示。
     pub(super) fn marked_rest(&self, rest: &str) -> String {
@@ -353,6 +390,7 @@ impl Engine {
         margin: Option<f64>,
         context: Option<usize>,
     ) -> Self {
+        self.generative = scorer.generates();
         self.sentence_scorer = Some(scorer);
         self.rescorer = None;
         self.set_neural_parameters(weight, margin, context);
@@ -373,10 +411,18 @@ impl Engine {
         self
     }
 
+    /// 后台模型（异步重打分、选词模型）每交一次结果就调一下 `wake`：壳拿它叫醒自己的消息循环，不用等下一次轮询。
+    /// 模型先接上、后给回调也行。
+    pub fn set_rescoring_wake(&self, wake: Option<super::Wake>) {
+        self.wake.set(wake);
+    }
+
     /// 运行时换 / 卸异步重打分器（壳里模型在后台加载完才接上，配置关掉就卸）。
     pub fn set_async_sentence_scorer(&mut self, scorer: Option<Box<dyn SentenceScorer>>) {
         self.sentence_scorer = None;
-        self.rescorer = scorer.map(super::rescoring::RescoreWorker::spawn);
+        self.generative = scorer.as_ref().is_some_and(|s| s.generates());
+        let wake = self.wake.clone();
+        self.rescorer = scorer.map(|scorer| super::rescoring::RescoreWorker::spawn(scorer, wake));
         *self.neural_cache.borrow_mut() = super::rescoring::NeuralCache::default();
         self.forget_span_cache();
     }
@@ -537,6 +583,20 @@ impl Engine {
         self.chinese_first
     }
 
+    /// 拼写纠错开关（配置 `[general] spelling_correction`，缺省开）。关掉后拼音只按敲的原样（与模糊音）读：
+    /// 不做整段纠正，整句词图也不加敲错边，学来的敲错表不再起作用（表本身留着）。
+    pub fn set_spelling_correction(&mut self, on: bool) {
+        if self.spelling_correction != on {
+            self.spelling_correction = on;
+            *self.correction_cache.borrow_mut() = None;
+            self.forget_span_cache();
+        }
+    }
+
+    pub fn spelling_correction(&self) -> bool {
+        self.spelling_correction
+    }
+
     /// 中西文之间是否自动补空格（配置 `[general] auto_space`，缺省关）。
     pub fn set_auto_space(&mut self, on: bool) {
         self.auto_space = on;
@@ -629,11 +689,22 @@ impl Engine {
         &self.extra_dictionaries
     }
 
+    /// 挂上从三元模型词表补出的词（`qingjian_dictionary::supplement`），`None` 摘掉。格子缓存随之作废。
+    pub fn set_model_words(&mut self, words: Option<Dictionary>) {
+        self.model_words = words;
+        self.forget_span_cache();
+    }
+
+    pub fn model_words(&self) -> Option<&Dictionary> {
+        self.model_words.as_ref()
+    }
+
     /// 查词用的全部词库：主词库、附加词库、内置的符号与 emoji 名字、用户词。
     pub(super) fn all_dictionaries(&self) -> Vec<&Dictionary> {
         let mut all = Vec::with_capacity(self.extra_dictionaries.len() + 2);
         all.push(&self.dictionary);
         all.extend(self.extra_dictionaries.iter());
+        all.extend(self.model_words.as_ref());
         all.extend(self.companion_words);
         if let Some(user) = self.learner.user_words() {
             all.push(user);

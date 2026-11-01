@@ -1,6 +1,6 @@
 //! 候选窗口一次绘制的全部内容。窗口记住上一帧，联想结果到了只改一处再重画。
 
-use super::panel_tabs::PanelTabs;
+use super::PanelTabs;
 use super::preedit::Preedit;
 use super::row::Row;
 
@@ -23,6 +23,9 @@ pub struct Frame {
 
     /// 右下角页码。
     pub footer: Option<String>,
+
+    /// 往前 / 往后还有页：主题把翻不动的箭头画淡。
+    pub pages_around: (bool, bool),
 
     /// 拼音行右侧的整句补全（云联想），组句时才有。
     pub sentence: Option<String>,

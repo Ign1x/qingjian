@@ -1,8 +1,14 @@
 //! 查询与呈现：刷新候选、画候选窗、整句补全、翻页与高亮。
 
-use super::*;
+use super::{
+    Candidate, Focus, Preedit, QingjianInputController, RESCORE_LOOKBACK, TextClient, host,
+    secure_input,
+};
 use qingjian_core::candidate::arrows::{self, Arrow, ArrowAction};
 use qingjian_platform::HighlightKeys;
+
+/// 拼音只在候选窗口显示时，组句中交给应用的 marked text。
+const HIDDEN_MARKED_TEXT: &str = "\u{200B}";
 
 impl QingjianInputController {
     /// 按当前缓冲区重新查候选、更新 marked text，回到第一页并重画候选窗口。
@@ -57,11 +63,14 @@ impl QingjianInputController {
         }) else {
             return;
         };
-        // 配置成只在候选窗口显示拼音时，应用里不放 marked text（光标位置仍按插入点取）
+        // 配置成只在候选窗口显示拼音时，组句中放一个零宽空格当 marked text：微信 4.x 这类应用看不到 marked text
+        // 就当输入法没在组句，自己再把字母、退格处理一遍（#815 #816）
         if inline {
             client.set_marked_text(&marked, cursor);
-        } else {
+        } else if marked.is_empty() {
             client.set_marked_text("", 0);
+        } else {
+            client.set_marked_text(HIDDEN_MARKED_TEXT, 0);
         }
         // 先发联想再画：发出去就留好云端槽位，画出来的第一帧本地候选就已经在最终位置
         if !marked.is_empty() {
@@ -231,6 +240,38 @@ impl QingjianInputController {
         }
     }
 
+    /// 额外导航键直接在候选间移动，不受方向键配置或拼音光标位置影响。
+    pub(super) fn navigate_candidate(&self, delta: isize, client: TextClient<'_>) {
+        let changed = host::with(|h| {
+            let focus_changed = h.session.focus != Focus::Candidates;
+            h.session.focus = Focus::Candidates;
+            let moved = if h.session.grid.is_some() {
+                h.session.move_cells(delta)
+            } else {
+                h.session.move_highlight(delta)
+            };
+            focus_changed || moved
+        })
+        .unwrap_or(false);
+        if changed {
+            self.render(client);
+        }
+    }
+
+    /// 额外导航键跳到当前页的首个或末个候选。
+    pub(super) fn navigate_page_edge(&self, last: bool, client: TextClient<'_>) {
+        let changed = host::with(|h| {
+            let focus_changed = h.session.focus != Focus::Candidates;
+            h.session.focus = Focus::Candidates;
+            let moved = h.session.move_to_page_edge(last);
+            focus_changed || moved
+        })
+        .unwrap_or(false);
+        if changed {
+            self.render(client);
+        }
+    }
+
     /// 左右键。横排矩阵开着、或高亮移动键选了 `←` / `→`，而且有候选时归候选：单行里逐个移动高亮（到页边自动翻页，不展开），展开后按阅读顺序跨行移动——
     /// 上下键被矩阵占了，单行里只剩左右键能挪高亮。规则与 Windows 壳的 `horizontal_key` 一致（把「拼音行 + 候选栏」当成
     /// 一条从左到右的序列走）：`→` 先走光标、到末位溢出成选词；`←` 先退候选、顶在第一个候选上回拼音行。
@@ -277,7 +318,16 @@ impl QingjianInputController {
     /// 翻页，高亮落到新页第一项。已在首页 / 末页时不动。
     pub(super) fn turn_page(&self, delta: isize, client: TextClient<'_>) -> bool {
         let turned = host::with(|h| {
-            // 矩阵展开着：翻页键一次翻一屏
+            // 矩阵展开着：翻页键一次翻一屏；开了「翻页键展开」（`[general] grid_page_keys`）时单行先展开、高亮移到上 / 下一行
+            if h.session.grid.is_none() && h.page_keys_expand() {
+                let before = h.session.highlighted;
+                // 展开本身也要重画，但高亮没挪就不算翻过页
+                let redraw = h.session.move_rows(delta);
+                if h.session.highlighted != before {
+                    h.engine.note_page_turn();
+                }
+                return redraw;
+            }
             let turned = if h.session.grid.is_some() {
                 h.session.move_screens(delta)
             } else {

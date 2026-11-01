@@ -1,4 +1,4 @@
-//! 侧栏：logo 与「青简」、搜索框、各页的导航项；当前页左边叠一段竹节。
+//! 侧栏：logo 与「青简」、搜索框、各页的导航项（当前页左边叠一段竹节），最下面是界面语言。
 
 use std::sync::Arc;
 
@@ -12,9 +12,11 @@ use bamboo_slip::{
 };
 
 use super::Page;
-use crate::message::Message;
+use crate::i18n::tr;
+use crate::message::{Message, Popup};
 use crate::page_id::PageId;
 use crate::view::icons::Glyph;
+use crate::view::parts::menus::{anchor, ui_language, ui_language_options};
 
 /// 侧栏宽度（点）。
 pub const WIDTH: f32 = 216.0;
@@ -23,7 +25,7 @@ pub fn sidebar(ui: &mut Ui<Message>, page: &Page) -> Result<NodeId, RenderError>
     let theme = &page.theme;
     let brand = brand(ui, page)?;
     let search = SearchField::new(&page.settings.search.edit)
-        .placeholder("搜索")
+        .placeholder(tr("sidebar.search"))
         .icon(Arc::new(Glyph::Search))
         .build(
             ui,
@@ -51,6 +53,15 @@ pub fn sidebar(ui: &mut Ui<Message>, page: &Page) -> Result<NodeId, RenderError>
         Visual::Group,
         &items,
     )?;
+    let spacer = ui.scene().node(
+        Style {
+            flex_grow: 1.0,
+            ..Style::default()
+        },
+        Visual::Group,
+        &[],
+    )?;
+    let language = language(ui, page)?;
     let (vertical, horizontal) = (page.px(16.0), page.px(14.0));
     ui.scene().node(
         Style {
@@ -70,7 +81,24 @@ pub fn sidebar(ui: &mut Ui<Message>, page: &Page) -> Result<NodeId, RenderError>
             ..Style::default()
         },
         Visual::solid(page.palette.sidebar, 0.0),
-        &[brand, search, list],
+        &[brand, search, list, spacer, language],
+    )
+}
+
+/// 界面语言：「文A」图标加当前语言自己的叫法，看不懂当前界面的人也认得出；点开是语言菜单。
+fn language(ui: &mut Ui<Message>, page: &Page) -> Result<NodeId, RenderError> {
+    let general = &page.settings.config.general;
+    let current = ui_language(general);
+    let options = ui_language_options();
+    let label = options
+        .iter()
+        .find(|(_, tag)| *tag == current)
+        .map_or(current, |(label, _)| label);
+    NavItem::new(label).icon(Arc::new(Glyph::Translate)).build(
+        ui,
+        &page.theme,
+        anchor(Popup::UiLanguage),
+        Message::OpenMenu(Popup::UiLanguage),
     )
 }
 
@@ -101,7 +129,7 @@ fn results(ui: &mut Ui<Message>, page: &Page) -> Result<Vec<NodeId>, RenderError
         return Ok(vec![paragraph(
             ui,
             theme,
-            "没有找到",
+            tr("sidebar.no_results"),
             Some(theme.colors.secondary),
         )?]);
     }
@@ -152,7 +180,7 @@ fn brand(ui: &mut Ui<Message>, page: &Page) -> Result<NodeId, RenderError> {
     children.push(ui.scene().node(
         Style::default(),
         Visual::Text {
-            text: "青简".to_owned(),
+            text: tr("common.app_name").to_owned(),
             style: TextStyle::new(font.scaled(page.scale), 19.0, page.theme.colors.text, 1.0),
         },
         &[],

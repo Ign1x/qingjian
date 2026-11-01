@@ -14,7 +14,6 @@ mod colors;
 mod dialog;
 mod group;
 mod info;
-mod info_mark;
 mod key_recorder;
 mod menu;
 mod nav_item;

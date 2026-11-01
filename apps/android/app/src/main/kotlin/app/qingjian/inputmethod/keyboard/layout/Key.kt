@@ -8,16 +8,22 @@ sealed class Key(val label: String, val weight: Float = 1f) {
     /** 长按不滑直接抬手选哪一项。 */
     open val initialChoice: Int get() = 0
 
+    /** 在键上往上一划上屏的字：同长按不滑直接抬手那一项（字母键是角标，九宫格是数字）；null 是不能上滑。 */
+    val flick: String? get() = choices.getOrNull(initialChoice)
+
     /**
      * 全键盘的字母键；[hint] 是键面角上的符号（首排数字、二三排常用符号）。
      * 双拼键盘另印这个键的翘舌声母 [initial] 与韵母 [finals]。
+     * [flickShift] 的键往上一划是 Shift（微软双拼占了 Shift 位置的 `;`）。
      */
     class Letter(
         val char: Char,
         val hint: String = "",
         val initial: String = "",
         val finals: String = "",
-    ) : Key(char.toString()) {
+        weight: Float = 1f,
+        val flickShift: Boolean = false,
+    ) : Key(char.toString(), weight) {
         /** 长按气泡：大写、角标符号、小写，气泡对着键居中，不滑抬手出符号（与键面角标一致）。 */
         override val choices: List<String>
             get() = if (hint.isEmpty()) emptyList() else listOf(char.uppercase(), hint, char.toString())

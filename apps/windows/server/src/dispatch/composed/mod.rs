@@ -106,6 +106,24 @@ impl Router {
         let Some(prediction) = self.engine.poll_prediction() else {
             return;
         };
+        if self
+            .candidate_translation
+            .as_ref()
+            .is_some_and(|(sequence, _)| *sequence == prediction.sequence)
+        {
+            let (_, candidate) = self.candidate_translation.take().expect("刚检查过候选译文");
+            let updated = prediction.sentence.is_some_and(|generated| {
+                self.engine
+                    .set_generated_candidate_translation(&candidate, &generated)
+            });
+            self.notice = Some(if updated {
+                self.refresh_candidate_translation(&candidate.text);
+                format!("已更新「{}」的译文", candidate.text)
+            } else {
+                "模型没有生成可用译文".to_owned()
+            });
+            return;
+        }
         if self.translation.is_some() {
             match prediction.sentence {
                 Some(text) => {
@@ -272,9 +290,17 @@ impl Router {
     }
 
     /// 整页翻 `step`，高亮落到目标页第一个候选；矩阵展开着时一次翻一屏（与 macOS 壳的 `turn_page` 一致）。
+    /// 开了「翻页键展开」（`RouterConfig::page_keys_expand`）时单行先展开，高亮移到上 / 下一行，与 `↓` 展开同一套。
     pub(super) fn page(&mut self, step: isize) {
-        if self.grid.is_some() {
-            if self.move_screens(step) {
+        let moved = if self.grid.is_some() {
+            Some(self.move_screens(step))
+        } else if self.config.page_keys_expand() {
+            Some(self.shift_grid_rows(step))
+        } else {
+            None
+        };
+        if let Some(moved) = moved {
+            if moved {
                 self.engine.note_page_turn();
             }
             return;
@@ -321,6 +347,11 @@ impl Router {
         self.grid = Some(Grid::at(layout, 0));
         self.navigated = true;
         true
+    }
+
+    /// 方向键按矩阵那套走：开了「横排时 ↑ / ↓ 展开」，或者矩阵已经展开着（翻页键展开的也算，不然展开后方向键会按单行移、走出视口）。
+    pub(super) fn grid_keys(&self) -> bool {
+        self.config.grid_keys() || self.grid.is_some()
     }
 
     /// 给 `arrows::route` 的矩阵状态：没开「横排时展开成多行」、单行、展开后高亮在不在第一行。
@@ -598,15 +629,20 @@ fn empty_cell() -> Candidate {
     }
 }
 
-/// 候选窗口顶部的拼音行：带调拼音开着、高亮候选读得出声调时换成它的读音，与行内拼音相同时不另给。
+/// 候选窗口顶部的拼音行：双拼「候选窗显示按键」开着时是敲的键；带调拼音开着、高亮候选读得出声调时换成它的读音；
+/// 与行内拼音相同时不另给。
 fn window_parts(
     engine: &Engine,
     query: &Query,
     candidate: Option<&Candidate>,
     preedit: &[PreeditSegment],
 ) -> Option<Box<(Vec<PreeditSegment>, usize)>> {
-    let toned = engine.toned_syllables(candidate?)?;
-    let (segments, cursor) = query.window_segments(Some(&toned));
+    let (segments, cursor) = if query.shuangpin_raw_window {
+        query.window_segments(None)
+    } else {
+        let toned = engine.toned_syllables(candidate?)?;
+        query.window_segments(Some(&toned))
+    };
     let segments: Vec<PreeditSegment> = segments.iter().map(Into::into).collect();
     (segments != preedit).then(|| Box::new((segments, cursor)))
 }

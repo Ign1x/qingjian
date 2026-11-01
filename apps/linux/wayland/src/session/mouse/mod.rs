@@ -34,6 +34,7 @@ impl<S: Server> Session<S> {
             return;
         }
         match click.spot {
+            Some(Spot::Page(next)) if !click.right => self.scroll(next, click.epoch, out, now),
             Some(Spot::Candidate(index)) if click.right => self.open_menu(index, click.epoch, out),
             Some(Spot::Candidate(index)) => {
                 if let Some(identity) = self.identity.clone() {

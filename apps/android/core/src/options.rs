@@ -1,4 +1,4 @@
-//! 键盘设置里影响候选的几项：模糊音、中文标点全半角、打拼音时给不给英文词、学习语言、繁体字形、学习开关、附加词库、分次选词留在组句里。Kotlin 按设置整份交过来。
+//! 键盘设置里影响候选的几项：模糊音、中文标点全半角、打拼音时给不给英文词、学习语言、繁体字形、学习开关、附加词库、分次选词留在组句里、拼写纠错。Kotlin 按设置整份交过来。
 
 use qingjian_core::{FuzzyRules, Language, TraditionalVariant};
 use serde::Deserialize;
@@ -42,6 +42,10 @@ pub struct InputOptions {
     /// 一段拼音分几次选时，选好的词先留在组句里、整段选完才上屏，退格先撤回上一次选择（PC 的 `[general] hold_selections`）。
     #[serde(default = "default_true")]
     pub hold_selections: bool,
+
+    /// 拼写纠错（PC 的 `[general] spelling_correction`）：关了拼音只按敲的原样与模糊音读。
+    #[serde(default = "default_true")]
+    pub spelling_correction: bool,
 }
 
 /// 没选过时的学习语言，同 PC。

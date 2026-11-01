@@ -18,12 +18,15 @@ use crate::candidates::Preedit;
 use crate::host;
 use crate::menubar;
 
+mod candidate_editor;
 mod click;
 mod command;
 mod commit;
 mod display;
+mod navigation;
 mod panel;
 mod text;
+mod trace;
 mod translate;
 
 pub use click::{click, menu_items, menu_pick, panel_mouse};
@@ -63,7 +66,13 @@ define_class!(
                 (Some(event), Some(client)) => {
                     let client = TextClient::new(client);
                     // panic 拦下后把缓冲区原样上屏，这个按键交还给应用
-                    catch_panic("handleEvent", || self.dispatch_event(event, client))
+                    catch_panic("handleEvent", || {
+                        if event.r#type() == NSEventType::KeyDown {
+                            self.dispatch_traced(event, client)
+                        } else {
+                            self.dispatch_event(event, client)
+                        }
+                    })
                         .unwrap_or_else(|| {
                             recover_from_panic(Some(client));
                             false
@@ -74,7 +83,7 @@ define_class!(
         }
 
         /// 声明要收的事件种类。父类缺省只回 `NSKeyDownMask`（Apple 文档原文），所以修饰键事件一直收不到，
-        /// Shift 的按下 / 抬起只能靠轮询采样（见 `host/mode_switch.rs`）；补上 flagsChanged 才有精确边沿。
+        /// Shift 的按下 / 抬起只能靠轮询采样（见 `host/mode/switch.rs`）；补上 flagsChanged 才有精确边沿。
         #[unsafe(method(recognizedEvents:))]
         fn recognized_events(&self, _sender: Option<&AnyObject>) -> NSUInteger {
             (NSEventMask::KeyDown.0 | NSEventMask::FlagsChanged.0) as NSUInteger
@@ -88,6 +97,7 @@ define_class!(
                 if let Some(client) = client {
                     self.commit_raw(client);
                 }
+                self.end_trace("commit-request", true);
                 host::with(|h| {
                     h.cancel_prediction();
                     h.window.hide();
@@ -112,10 +122,10 @@ define_class!(
                     let _: () =
                         unsafe { msg_send![sender, overrideKeyboardWithKeyboardNamed: &*layout] };
                 }
-                // 用户要往 [apps] 里加应用时，从这条日志抄 bundle identifier
+                // 用户要往 [apps] 里加应用时，从这条日志抄 bundle identifier；排查应用兼容问题也靠它，所以缺省级别就记
                 let bundle = sender.and_then(|s| TextClient::new(s).bundle_identifier());
                 if let Some(bundle) = &bundle {
-                    tracing::debug!(%bundle, "当前应用");
+                    tracing::info!(%bundle, "当前应用");
                 }
                 host::with(|h| {
                     h.engine.set_application(bundle);
@@ -160,6 +170,7 @@ define_class!(
                 if let Some(client) = client {
                     self.commit_raw(client);
                 }
+                self.end_trace("focus-out", true);
                 // 切换输入源时无论如何都收掉候选框，不能留一个孤儿窗口在屏幕上
                 host::with(|h| {
                     h.cancel_prediction();
@@ -235,7 +246,7 @@ impl QingjianInputController {
         }
     }
 
-    /// 一个按键事件的分发：只管按下；Cmd / Ctrl 组合除 Cmd+左右外一律交给应用；命令键映射成选择器；其余按字符当文本。
+    /// 一个按键事件的分发：只管按下；配置的组合键先处理，其他 Cmd / Ctrl 组合交给应用；命令键映射成选择器。
     fn dispatch_event(&self, event: &NSEvent, client: TextClient<'_>) -> bool {
         // 修饰键事件（`recognizedEvents:` 声明了 flagsChanged 才有）：Shift 的按下 / 抬起在这里，
         // 是精确边沿。事件本身继续照常交给系统，不吞。
@@ -342,11 +353,44 @@ impl QingjianInputController {
         {
             let (first, second) = host::with(|h| h.translation_keys).unwrap_or_default();
             if pressed == first {
+                tracing::info!(digit, sense = 0, "译词快捷键命中");
                 return self.handle_translation_key(digit, 0, client);
             }
             if pressed == second {
+                tracing::info!(digit, sense = 1, "译词快捷键命中");
                 return self.handle_translation_key(digit, 1, client);
             }
+        }
+        let navigation = host::with(|h| {
+            navigation::shortcut(
+                h.extra_candidate_navigation,
+                composing,
+                (0..h.session.layout.len())
+                    .any(|index| h.session.layout.candidate(index).is_some()),
+                h.layout,
+                pressed,
+                typed.as_deref().and_then(|t| t.chars().next()),
+            )
+        })
+        .flatten();
+        if let Some(navigation) = navigation {
+            match navigation {
+                navigation::Navigation::Candidate(delta) => self.navigate_candidate(delta, client),
+                navigation::Navigation::PageEdge(last) => self.navigate_page_edge(last, client),
+                navigation::Navigation::Page(delta) => {
+                    let focus_changed = host::with(|h| {
+                        let changed = h.session.focus != Focus::Candidates;
+                        h.session.focus = Focus::Candidates;
+                        changed
+                    })
+                    .unwrap_or(false);
+                    self.turn_page(delta, client);
+                    if focus_changed {
+                        self.render(client);
+                    }
+                }
+            }
+            return true;
         }
         let selector = match key {
             36 | 76 => Some(sel!(insertNewline:)),

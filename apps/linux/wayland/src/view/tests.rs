@@ -142,6 +142,7 @@ fn rendered(targets: &[HitTarget]) -> Rendered {
         content_height: 1,
         scale: 1.0,
         next_frame: None,
+        material: None,
         hits: targets
             .iter()
             .map(|&target| HitRegion {

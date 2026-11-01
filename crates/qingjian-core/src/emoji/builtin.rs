@@ -37,10 +37,10 @@ mod tests {
 
     #[test]
     fn built_in_tables_parse() {
-        assert!(emoji_supplement().lookup("笑死").contains(&"🤣".to_owned()));
-        assert_eq!(KAOMOJI.lookup("哭")[0], "(T_T)");
-        assert_eq!(SYMBOLS.lookup("alpha"), ["α", "Α"]);
-        assert_eq!(SYMBOLS.lookup("约等于"), ["≈"]);
+        assert!(emoji_supplement().lookup("笑死").any(|e| e == "🤣"));
+        assert_eq!(KAOMOJI.lookup("哭").next(), Some("(T_T)"));
+        assert!(SYMBOLS.lookup("alpha").eq(["α", "Α"]));
+        assert!(SYMBOLS.lookup("约等于").eq(["≈"]));
     }
 
     #[test]

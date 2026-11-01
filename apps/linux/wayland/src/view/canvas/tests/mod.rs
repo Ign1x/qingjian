@@ -26,6 +26,7 @@ pub(super) fn rendered(
         content_height: content.3,
         scale,
         next_frame: None,
+        material: None,
         hits: hits
             .iter()
             .map(|&(target, (x, y, width, height))| HitRegion {

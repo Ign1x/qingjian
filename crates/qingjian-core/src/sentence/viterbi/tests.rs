@@ -398,7 +398,7 @@ fn beam_width_of_one_keeps_only_the_best_path() {
 fn span_candidates_truncates_to_the_limit() {
     let dictionary = Dictionary::parse(SAMPLE).unwrap();
     let span = complete(&["qu"]);
-    let take = |limits| {
+    let take = |limits: SearchLimits| {
         span_candidates(
             &SearchInput::new(
                 &[&dictionary],
@@ -411,6 +411,7 @@ fn span_candidates_truncates_to_the_limit() {
             &span,
             0,
             &[],
+            span_limit(&span, &limits),
         )
         .len()
     };
@@ -426,7 +427,7 @@ fn span_candidates_truncates_to_the_limit() {
     );
     // 简拼格的宽度是另一个数：`q` 是前缀，命中一大片，用 abbreviated 那个
     let abbreviated = vec![vec![SyllablePattern::prefix("q")]];
-    let take_abbreviated = |limits| {
+    let take_abbreviated = |limits: SearchLimits| {
         span_candidates(
             &SearchInput::new(
                 &[&dictionary],
@@ -439,6 +440,7 @@ fn span_candidates_truncates_to_the_limit() {
             &abbreviated,
             0,
             &[],
+            span_limit(&abbreviated, &limits),
         )
         .len()
     };
@@ -495,4 +497,53 @@ fn each_limit_field_reaches_the_search_independently() {
     )
     .unwrap();
     assert_eq!(again.text, "开发");
+}
+
+/// 长句末尾几个音节各有一串打平的字时，末尾节点回溯出的 n-best 全是它们的组合；拼接备选让开头拿不准的字也有一条，
+/// 且同一处的变体不扎堆（选词模型只看前几条）。
+#[test]
+fn alternatives_reach_the_head_of_the_sentence_not_just_its_tail() {
+    // 长句末两个音节各有一串几乎打平的字，末尾节点回溯出的 n-best 全是它们的组合；开头 假 只差一点，也得有一条
+    let mut source = String::from(
+        "甲	jia	1000
+假	jia	500
+字	zi	1000
+",
+    );
+    for (syllable, chars) in [("ba", "八吧把爸拔疤"), ("la", "拉啦喇腊蜡辣")] {
+        for (i, c) in chars.chars().enumerate() {
+            source.push_str(&format!(
+                "{c}	{syllable}	{}
+",
+                1000 - i
+            ));
+        }
+    }
+    let dictionary = Dictionary::parse(&source).unwrap();
+    let mut syllables = vec!["jia"];
+    syllables.extend(["zi"; 10]);
+    syllables.extend(["ba", "la"]);
+    let middle = "字".repeat(10);
+    let paths = convert_paths(
+        &SearchInput::new(
+            &[&dictionary],
+            &NoLanguageModel,
+            Personal::NONE,
+            |_| 0,
+            |_, _| 0.0,
+        ),
+        &complete(&syllables),
+        false,
+        16,
+        &mut SpanCache::default(),
+    );
+    let texts: Vec<&str> = paths.iter().map(|p| p.text.as_str()).collect();
+    assert_eq!(texts[0], format!("甲{middle}八拉"));
+    // 选词模型均衡档只重排前 9 条
+    let head = format!("假{middle}八拉");
+    assert!(texts[..9].contains(&head.as_str()), "{texts:?}");
+    // 同一处的变体不扎堆：前 9 条里只改末字的至多两条
+    let tail = format!("甲{middle}八");
+    let tail_only = texts[1..9].iter().filter(|t| t.starts_with(&tail)).count();
+    assert!(tail_only <= 2, "{texts:?}");
 }

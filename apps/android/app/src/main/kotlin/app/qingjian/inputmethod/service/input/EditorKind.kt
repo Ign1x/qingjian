@@ -21,3 +21,9 @@ fun EditorInfo.wantsDirectInput(): Boolean {
  * 同 PC 上应用声明的私密输入框。
  */
 fun EditorInfo.wantsPrivacy(): Boolean = imeOptions and EditorInfo.IME_FLAG_NO_PERSONALIZED_LEARNING != 0
+
+/** 电话、数字、日期时间输入框：弹出来直接是数字键盘；换到别的输入框时 [Composer.abandon] 回到字母页。 */
+fun EditorInfo.wantsNumbers(): Boolean = when (inputType and InputType.TYPE_MASK_CLASS) {
+    InputType.TYPE_CLASS_NUMBER, InputType.TYPE_CLASS_PHONE, InputType.TYPE_CLASS_DATETIME -> true
+    else -> false
+}

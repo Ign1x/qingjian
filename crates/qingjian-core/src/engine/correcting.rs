@@ -1,6 +1,7 @@
 //! 整段拼写纠错：找一处编辑的纠正并按个人敲错表打折。
 
-use super::*;
+use crate::engine::{Learner, reads_as_typed, segment_longest_prefix};
+use crate::{Correction, Engine, correction, parser};
 
 impl Engine {
     /// 这段作用域生效的拼写纠正（带缓存）：拼音不像话、用户没对它回车原样上屏过、
@@ -27,7 +28,10 @@ impl Engine {
     }
 
     pub(super) fn find_correction(&self, scope: &str) -> Option<Correction> {
-        if !correction::eligible(scope) || self.learner.raw_count(scope) > 0 {
+        if !self.spelling_correction
+            || !correction::eligible(scope)
+            || self.learner.raw_count(scope) > 0
+        {
             return None;
         }
         // 整段就是个英文词（hello）：用户多半在打英文，别把它「纠」成 喝了哦
@@ -39,6 +43,11 @@ impl Engine {
             return None;
         }
         let (segmentations, tail) = segment_longest_prefix(scope).ok()?;
+        // 敲的拼音个个音节都完整（`shabi`、`nihaoa`）就照原样读，不拿整段换成别的拼音；
+        // 整句里按敲错边读出的那条只当备选（[`Self::plain_sentence`]）
+        if tail.is_empty() && segmentations.iter().any(reads_as_typed) {
+            return None;
+        }
         // 不像话的拼音试全部一处编辑；末尾单字母的只试相邻换位（`mingtain` → `mingtian`），其余合法拼音不碰
         let candidates = if correction::unlikely_pinyin(segmentations.first(), tail) {
             correction::candidates(scope)

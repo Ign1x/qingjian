@@ -57,6 +57,8 @@ pub fn render_frame(frame: &Frame, mode: Mode) -> qingjian_render::Frame {
         columns: frame.columns,
         column_ems: frame.column_ems.clone(),
         footer: (frame.page_count > 1).then(|| format!("{}/{}", frame.page + 1, frame.page_count)),
+        previous_page: frame.page > 0,
+        next_page: frame.page + 1 < frame.page_count,
         sentence: frame.sentence.clone(),
         status: frame.notice.clone(),
         mode,

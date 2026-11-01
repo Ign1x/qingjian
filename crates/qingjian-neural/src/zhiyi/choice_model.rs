@@ -1,6 +1,6 @@
 //! 把知意的选词模型接到 Core 的 [`ChoiceModel`] 上。
 
-use qingjian_core::ChoiceModel;
+use qingjian_core::{CharTable, ChoiceModel};
 
 use super::ChoiceScorer;
 
@@ -19,6 +19,16 @@ impl ChoiceModel for ChoiceScorer {
             Err(error) => {
                 tracing::warn!(%error, "知意选词打分失败，本次不重排");
                 Vec::new()
+            }
+        }
+    }
+
+    fn compose(&self, context: &str, syllables: &[(&str, bool)]) -> Option<CharTable> {
+        match ChoiceScorer::compose(self, context, syllables) {
+            Ok(rows) => rows.map(|rows| CharTable::new(self.char_index(), rows)),
+            Err(error) => {
+                tracing::warn!(%error, "知意按音节出字失败，本次整句不用它");
+                None
             }
         }
     }

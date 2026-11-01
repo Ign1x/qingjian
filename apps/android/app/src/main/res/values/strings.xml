@@ -74,7 +74,7 @@
     <string name="text_size_standard">标准</string>
     <string name="text_size_large">大</string>
     <string name="text_size_larger">特大</string>
-    <string name="text_size_note">候选和译词一起变，键上的字不变</string>
+    <string name="text_size_note">候选和译词一起变；键上的字在键盘设置「键面字号」里调</string>
 
     <string name="section_layout">中文键盘</string>
     <string name="layout_qwerty">全键盘（26 键）</string>
@@ -87,6 +87,8 @@
     <string name="shuangpin_scheme">双拼方案</string>
     <string name="shuangpin_raw_title">输入时显示按键</string>
     <string name="shuangpin_raw_note">输入框里显示敲的字母（ljse），关掉显示全拼（lan\'se）</string>
+    <string name="shuangpin_hints_title">键上显示声韵母</string>
+    <string name="shuangpin_hints_note">关掉键面和拼音全键盘一样</string>
     <string name="section_wubi">五笔</string>
     <string name="wubi_mixed_title">五笔拼音混输</string>
     <string name="wubi_mixed_note">五笔里也能直接打拼音，打全码的字词排在前面</string>
@@ -127,6 +129,8 @@
     <string name="process_text_replace">替换</string>
     <string name="process_text_copied">已复制译文</string>
     <string name="translate_no_cloud">快捷翻译要先在「键盘设置 → 云端大模型」里填好接口和密钥</string>
+    <string name="translate_needs_setup">快捷翻译要先填写云端大模型，点这里去设置</string>
+    <string name="voice_needs_setup">语音输入要先选好识别服务，点这里去设置</string>
     <string name="clipboard_limit_value">%1$d 条</string>
     <string name="section_size">尺寸</string>
     <string name="height_title">键盘高度</string>
@@ -157,7 +161,7 @@
     <string name="hold_selections_note">先选的词留在输入框里，整段选完再上屏；选错了按删除键撤回</string>
     <string name="chinese_first_title">中文排在英文词前面</string>
     <string name="english_candidates_title">英文键盘给候选</string>
-    <string name="english_candidates_note">关掉英文键盘直接上屏字母</string>
+    <string name="english_candidates_note">要词点候选；空格、数字、标点前照敲的字母上屏。关掉英文键盘直接上屏字母</string>
     <string name="learning_title">学习输入习惯</string>
     <string name="learning_note">常选的词和自己打的新词排在前面；私密输入框里不学</string>
     <string name="traditional_variant_title">繁体字形</string>
@@ -180,6 +184,11 @@
     <string name="candidate_forget_note">不再优先</string>
     <string name="section_keys">按键</string>
     <string name="haptic_title">按键震动</string>
+    <string name="haptic_strength_title">震动强度</string>
+    <string name="haptic_light">轻</string>
+    <string name="haptic_standard">标准</string>
+    <string name="haptic_strong">重</string>
+    <string name="key_text_size_title">键面字号</string>
     <string name="popup_title">按键气泡</string>
     <string name="popup_note">按下字母时在上面放大显示</string>
     <string name="keep_chinese_title">换语言时保留中文</string>
@@ -188,6 +197,16 @@
     <string name="voice_hold_space_note">按住空格说话，松手结束；滑到「撤回输入」撤回，滑到「发送」直接发出；要先配好语音识别</string>
     <string name="swipe_input_title">滑行输入</string>
     <string name="swipe_input_note">手指不抬起，依次划过要打的字母；打不出来就照常点</string>
+    <string name="flick_symbols_title">上滑输入</string>
+    <string name="flick_symbols_note">在键上往上一划，上屏键上角的数字或符号</string>
+    <string name="space_cursor_title">空格滑动移动光标</string>
+    <string name="space_cursor_note">按住空格左右滑，按滑过的距离逐字移动光标；打拼音时不响应</string>
+    <string name="spelling_correction_title">拼写纠错</string>
+    <string name="spelling_correction_note">拼音敲错时给纠正后的候选；敲的拼音照原样读得通时，纠正只排在后面当备选</string>
+    <string name="arrangement_title">布局</string>
+    <string name="arrangement_standard">默认</string>
+    <string name="arrangement_left_thumb">左手便捷</string>
+    <string name="arrangement_note">左手便捷：符号面板的分类竖排在左边、返回在左下角，左手大拇指够得着</string>
 
     <string name="tab_home">首页</string>
     <string name="tab_vocabulary">生词本</string>

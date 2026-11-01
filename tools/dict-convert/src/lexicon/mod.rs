@@ -17,6 +17,8 @@ mod entry;
 mod general;
 pub(crate) mod pack;
 mod readings;
+#[cfg(test)]
+mod tests;
 mod tone;
 
 use std::collections::{BTreeMap, HashMap, HashSet};
@@ -52,6 +54,10 @@ const RARE_FREQUENCY: u32 = 0;
 
 /// 单字不在 kHanyuPinlu 里的次要读音占主读音权重的比例。
 const MINOR_READING_SHARE: f64 = 0.05;
+
+/// 次要读音的词频最多是同音字里有用例的最高那个的几分之一：高频字的 5% 绝对值很大
+/// （和 读 hu 有 4.5 万次，比 湖 胡 都高），不压住会抢这个音的首选（#759）。
+const MINOR_READING_CEILING: u32 = 4;
 
 /// 常用词表自带的读音与 LLM 标注不一致时，原表读音降到标注读音词频的几分之一保留（怎么打都找得到，但不抢首选）。
 pub(crate) const DISPUTED_READING_DIVISOR: u32 = 8;
@@ -173,6 +179,8 @@ pub fn convert(
         .collect();
     extra.sort_unstable();
     chars.extend(extra.into_iter().map(|c| (c, None)));
+    // 先收齐所有单字读音，次要读音要对着同音字压上限
+    let mut singles: Vec<(LexiconEntry, bool)> = Vec::new();
     for (ch, level) in &chars {
         let weighted = readings.weighted(*ch, MINOR_READING_SHARE);
         let mut valid: Vec<(String, f64)> = weighted
@@ -192,15 +200,32 @@ pub fn convert(
             u64::from(CHAR_FLOOR[usize::from(level.unwrap_or(3).saturating_sub(1).min(2))])
         });
         let sum: f64 = valid.iter().map(|(_, w)| w).sum();
+        let single = valid.len() == 1;
         for (syllable, weight) in valid {
             let frequency = ((total as f64) * weight / sum).round().max(1.0) as u32;
-            insert(LexiconEntry {
-                text: ch.to_string(),
-                syllables: vec![syllable],
-                frequency,
-                tones: Vec::new(),
-            });
+            // 只剩一个读音的（嗯 en）就是它的主读音
+            let attested = single || readings.attested(*ch, &syllable);
+            singles.push((
+                LexiconEntry {
+                    text: ch.to_string(),
+                    syllables: vec![syllable],
+                    frequency,
+                    tones: Vec::new(),
+                },
+                attested,
+            ));
         }
+    }
+    let mut ceilings: HashMap<String, u32> = HashMap::new();
+    for (entry, _) in singles.iter().filter(|(_, attested)| *attested) {
+        let top = ceilings.entry(entry.syllables[0].clone()).or_default();
+        *top = (*top).max(entry.frequency);
+    }
+    for (mut entry, attested) in singles {
+        if !attested && let Some(top) = ceilings.get(&entry.syllables[0]) {
+            entry.frequency = entry.frequency.min((top / MINOR_READING_CEILING).max(1));
+        }
+        insert(entry);
     }
 
     // 生僻字：词库已有的字不动（读音以 Unihan 那份为准），其余按生僻字表的读音收，不是合法音节的读音丢掉

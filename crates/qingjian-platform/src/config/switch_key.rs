@@ -2,6 +2,8 @@ use serde::de::{self, Deserializer, SeqAccess, Visitor};
 use serde::ser::{SerializeSeq, Serializer};
 use serde::{Deserialize, Serialize};
 
+use crate::i18n::tr;
+
 /// 一个中 / 英切换键。`shift` / `control` 是**单击**那个修饰键；`ctrl+alt+space` 是组合键
 /// （Windows 走 TSF 保留键登记，与「翻译选中文字」同一套机制；Linux 由 Server 在按下时认）。
 ///
@@ -35,10 +37,10 @@ impl SwitchKey {
     }
 
     /// 界面上的名字。
-    pub const fn label(self) -> &'static str {
+    pub fn label(self) -> &'static str {
         match self {
-            Self::Shift => "单击 Shift",
-            Self::Control => "单击 Ctrl",
+            Self::Shift => tr("switch_key.shift"),
+            Self::Control => tr("switch_key.control"),
             Self::CtrlAltSpace => "Ctrl + Alt + Space",
         }
     }
@@ -120,9 +122,9 @@ impl SwitchKeys {
     pub fn describe(self) -> String {
         let labels: Vec<&str> = self.keys().map(SwitchKey::label).collect();
         if labels.is_empty() {
-            "无".to_owned()
+            tr("switch_key.none").to_owned()
         } else {
-            labels.join("、")
+            labels.join(tr("switch_key.separator"))
         }
     }
 }
@@ -221,6 +223,7 @@ mod tests {
 
     #[test]
     fn writes_a_list_in_display_order() {
+        bamboo_slip_i18n::pin_locale("zh-Hans");
         let keys = SwitchKeys::NONE
             .with(SwitchKey::CtrlAltSpace, true)
             .with(SwitchKey::Shift, true);

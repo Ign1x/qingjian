@@ -11,6 +11,8 @@ use super::manifest::Manifest;
 use super::pack::Pack;
 use super::{Shared, Stage};
 
+use crate::i18n::{tr, tr_args};
+
 /// 两边的附件一模一样：同时取清单，先回来的那边先用（大陆多半是 Gitee，海外多半是 GitHub），不通再换另一边。
 const HOSTS: [&str; 2] = [
     "https://gitee.com/qingjian-team/qingjian-models/releases/download",
@@ -31,11 +33,12 @@ pub(super) fn run(pack: Pack, user_dir: &Path, shared: &Shared) -> Result<(), St
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
-        .map_err(|error| format!("起不了下载：{error}"))?;
+        .map_err(|error| tr_args("download.cant_start", &[("error", &error)]))?;
     let models = user_dir.join("models");
     let work = models.join(format!(".download-{}", pack.tag));
     let _ = std::fs::remove_dir_all(&work);
-    std::fs::create_dir_all(&work).map_err(|error| format!("建不了下载目录：{error}"))?;
+    std::fs::create_dir_all(&work)
+        .map_err(|error| tr_args("download.cant_create_dir", &[("error", &error)]))?;
     let result = runtime.block_on(download(pack, &work, shared));
     let result = result.and_then(|archive| {
         shared.set(Stage::Installing);
@@ -52,11 +55,11 @@ async fn download(pack: Pack, work: &Path, shared: &Shared) -> Result<std::path:
         .read_timeout(READ_TIMEOUT)
         .user_agent(format!("qingjian/{}", env!("CARGO_PKG_VERSION")))
         .build()
-        .map_err(|error| format!("起不了下载：{error}"))?;
+        .map_err(|error| tr_args("download.cant_start", &[("error", &error)]))?;
     let (manifest, hosts) = manifest(&client, pack).await?;
     let archive_path = work.join(format!("{}.tar.gz", pack.tag));
-    let mut archive =
-        File::create(&archive_path).map_err(|error| format!("写不了下载文件：{error}"))?;
+    let mut archive = File::create(&archive_path)
+        .map_err(|error| tr_args("download.cant_write", &[("error", &error)]))?;
     let mut whole = Sha256::new();
     let total = manifest.parts.iter().map(|part| part.bytes).sum();
     let mut done = 0;
@@ -71,7 +74,7 @@ async fn download(pack: Pack, work: &Path, shared: &Shared) -> Result<std::path:
                     fetched = Some(bytes);
                     break;
                 }
-                Ok(_) => last_error = format!("{} 校验不对", part.name),
+                Ok(_) => last_error = tr_args("download.bad_checksum", &[("name", &part.name)]),
                 Err(error) => last_error = error,
             }
             if shared.cancelled() {
@@ -83,15 +86,15 @@ async fn download(pack: Pack, work: &Path, shared: &Shared) -> Result<std::path:
         whole.update(&bytes);
         archive
             .write_all(&bytes)
-            .map_err(|error| format!("写不了下载文件：{error}"))?;
+            .map_err(|error| tr_args("download.cant_write", &[("error", &error)]))?;
         done += part.bytes;
         shared.set(Stage::Downloading { done, total });
     }
     archive
         .flush()
-        .map_err(|error| format!("写不了下载文件：{error}"))?;
+        .map_err(|error| tr_args("download.cant_write", &[("error", &error)]))?;
     if hex(&whole.finalize()) != manifest.archive.sha256 {
-        return Err("拼起来的压缩包校验不对".to_owned());
+        return Err(tr("download.bad_archive").to_owned());
     }
     Ok(archive_path)
 }
@@ -129,17 +132,17 @@ async fn manifest_from(
     let result = match get_small(client, &url).await {
         Ok(bytes) => match serde_json::from_slice::<Manifest>(&bytes) {
             Ok(manifest) if manifest.tag != pack.tag || manifest.parts.is_empty() => {
-                Err("下载清单不是这个版本的".to_owned())
+                Err(tr("download.wrong_manifest").to_owned())
             }
             Ok(manifest) => {
                 let sum: u64 = manifest.parts.iter().map(|part| part.bytes).sum();
                 if sum == manifest.archive.bytes {
                     Ok(manifest)
                 } else {
-                    Err("下载清单的大小对不上".to_owned())
+                    Err(tr("download.manifest_size").to_owned())
                 }
             }
-            Err(error) => Err(format!("下载清单读不懂：{error}")),
+            Err(error) => Err(tr_args("download.bad_manifest", &[("error", &error)])),
         },
         Err(error) => Err(error),
     };
@@ -158,7 +161,7 @@ async fn get_small(client: &reqwest::Client, url: &str) -> Result<Vec<u8>, Strin
         .map_err(describe)?;
     let bytes = response.bytes().await.map_err(describe)?;
     if bytes.len() > MAX_MANIFEST_BYTES {
-        return Err("下载清单太大".to_owned());
+        return Err(tr("download.manifest_too_large").to_owned());
     }
     Ok(bytes.to_vec())
 }
@@ -186,7 +189,7 @@ async fn fetch_part(
         }
         bytes.extend_from_slice(&chunk);
         if bytes.len() as u64 > expected {
-            return Err("下到的比清单写的大".to_owned());
+            return Err(tr("download.too_large").to_owned());
         }
         if reported.elapsed() >= REPORT_EVERY {
             reported = Instant::now();
@@ -202,39 +205,42 @@ async fn fetch_part(
 /// 解到临时目录，再把旧的模型目录换掉；中途失败不动原来装着的。
 fn install(pack: Pack, archive: &Path, work: &Path, user_dir: &Path) -> Result<(), String> {
     let extracted = work.join("extracted");
-    let file = File::open(archive).map_err(|error| format!("打不开下载文件：{error}"))?;
+    let file =
+        File::open(archive).map_err(|error| tr_args("download.cant_open", &[("error", &error)]))?;
     let mut tar = tar::Archive::new(flate2::read::GzDecoder::new(BufReader::new(file)));
     // unpack 不放行绝对路径与 `..`，解不出包外
     tar.unpack(&extracted)
-        .map_err(|error| format!("解压失败：{error}"))?;
+        .map_err(|error| tr_args("download.unpack_failed", &[("error", &error)]))?;
     let source = pack.archive_path(&extracted);
     if !source.is_dir() {
-        return Err("压缩包里没有模型目录".to_owned());
+        return Err(tr("download.no_model_dir").to_owned());
     }
     let target = pack.install_path(user_dir);
     if let Some(parent) = target.parent() {
-        std::fs::create_dir_all(parent).map_err(|error| format!("建不了模型目录：{error}"))?;
+        std::fs::create_dir_all(parent)
+            .map_err(|error| tr_args("download.cant_create_model_dir", &[("error", &error)]))?;
     }
     let old = work.join("old");
     if target.exists() {
-        std::fs::rename(&target, &old).map_err(|error| format!("挪不开旧模型：{error}"))?;
+        std::fs::rename(&target, &old)
+            .map_err(|error| tr_args("download.cant_move_old", &[("error", &error)]))?;
     }
     if let Err(error) = std::fs::rename(&source, &target) {
         let _ = std::fs::rename(&old, &target);
-        return Err(format!("放不进模型目录：{error}"));
+        return Err(tr_args("download.cant_install", &[("error", &error)]));
     }
     Ok(())
 }
 
 fn describe(error: reqwest::Error) -> String {
     if error.is_timeout() {
-        "连接超时".to_owned()
+        tr("download.timeout").to_owned()
     } else if let Some(status) = error.status() {
-        format!("服务器返回 {}", status.as_u16())
+        tr_args("download.status", &[("status", &status.as_u16())])
     } else if error.is_connect() {
-        "连不上服务器".to_owned()
+        tr("download.unreachable").to_owned()
     } else {
-        format!("网络出错：{error}")
+        tr_args("download.network", &[("error", &error)])
     }
 }
 
@@ -256,8 +262,8 @@ mod tests {
     use super::*;
 
     #[test]
-    #[ignore = "联网从模型仓库下 52 MB"]
-    fn downloads_and_installs_zhiwei() {
+    #[ignore = "联网从模型仓库下 43 MB"]
+    fn downloads_and_installs_tongbian() {
         let dir = std::env::temp_dir().join("qingjian-model-download-test");
         let _ = std::fs::remove_dir_all(&dir);
         let shared = Shared {
@@ -265,12 +271,15 @@ mod tests {
             cancel: AtomicBool::new(false),
             waker: None,
         };
-        let pack = Pack::of(LocalModel::Zhiwei).unwrap();
+        let pack = Pack::of(LocalModel::Tongbian).unwrap();
         run(pack, &dir, &shared).unwrap();
         let installed = pack.install_path(&dir);
-        assert!(installed.join("hanzhang-zhiwei-small.qjm").is_file());
+        assert!(installed.join("hanzhang-tongbian-small.qjm").is_file());
         assert!(installed.join("LICENSE").is_file());
-        assert!(!dir.join("models/.download-hanzhang-zhiwei-v1.0.0").exists());
+        assert!(
+            !dir.join("models/.download-hanzhang-tongbian-v1.0.0")
+                .exists()
+        );
         std::fs::remove_dir_all(&dir).unwrap();
     }
 

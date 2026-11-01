@@ -2,7 +2,9 @@ use std::time::{Duration, Instant};
 
 use super::*;
 use crate::sentence::SentenceWord;
+use qingjian_dictionary::Dictionary;
 
+use crate::sentence::SentenceScorer;
 /// 这几个测试里路径共同解释的那段按键。
 const KEYS: &str = "kaifang";
 

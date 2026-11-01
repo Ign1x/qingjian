@@ -5,12 +5,11 @@
 #   scripts/bundle.sh --install  # 打包并安装到 ~/Library/Input Methods/，杀掉旧进程（开发用）
 #   scripts/bundle.sh --pkg      # 打包并做成 target/pkg/qingjian-<版本>-macos-<arm64|x86_64>.pkg（分发给测试者）
 #   … --sample-data              # 不带产品数据，只用 assets/sample/ 的样例词库（开发自测；不能和 --pkg 一起用）
-#   … --without-model            # 不带含章·通变
 # --install / --pkg 用完 target/Qingjian.app（与 pkg 暂存目录里那份）就删掉并从 LaunchServices 注销，见 forget_bundle。
 #
 # 架构：缺省编译本机架构；QINGJIAN_TARGET=x86_64-apple-darwin（或 aarch64-apple-darwin）交叉编译另一种，
 # 先 `rustup target add` 一次。CI 在 Apple Silicon runner 上两个都打（.github/workflows/release.yml）。
-# 产品数据缺省全带（词库、语言模型、领域词库、笔画码表、英文词表、释义表、含章·通变），缺哪样就报错停下，
+# 产品数据缺省全带（词库、语言模型、领域词库、笔画码表、英文词表、释义表），缺哪样就报错停下，
 # 不悄悄退回样例：2026-09 在没有 data/ 的 worktree 里打出过只有 148 条样例词库的包。TSV 比 .qj 新会重打。
 # 没有数据管道的机器跑 tools/release/data-fetch.sh 按 tools/release/data.lock 下载。
 #
@@ -27,12 +26,10 @@ set -euo pipefail
 
 MODE=""
 SAMPLE_DATA=0
-WITH_MODEL=1
 for arg in "$@"; do
   case "$arg" in
     --install|--pkg) MODE="$arg" ;;
     --sample-data) SAMPLE_DATA=1 ;;
-    --without-model) WITH_MODEL=0 ;;
     *) echo "不认识的参数: $arg" >&2; exit 1 ;;
   esac
 done
@@ -57,7 +54,6 @@ esac
 
 cd "$ROOT"
 # 先查产品数据再编译，缺了早停
-P2C_DIR="${QINGJIAN_P2C_MODEL_DIR:-data/models/hanzhang-tongbian}"
 if [[ "$SAMPLE_DATA" == 0 ]]; then
   missing=()
   [[ -f data/generated/dict.qj || -f data/generated/dict.tsv ]] || missing+=("data/generated/dict.qj")
@@ -68,13 +64,10 @@ if [[ "$SAMPLE_DATA" == 0 ]]; then
   for lang in en ja zh es vi de; do
     [[ -f "assets/glossary/glossary-$lang.tsv" || -f "data/generated/glossary-$lang.qj" ]] || missing+=("data/generated/glossary-$lang.qj")
   done
-  if [[ "$WITH_MODEL" == 1 && ! -f "$P2C_DIR/model.safetensors" && ! -f "$P2C_DIR/hanzhang-tongbian-small.qjm" ]]; then
-    missing+=("$P2C_DIR/hanzhang-tongbian-small.qjm（含章·通变）")
-  fi
   if [[ ${#missing[@]} -gt 0 ]]; then
     echo "缺产品数据：" >&2
     printf '  %s\n' "${missing[@]}" >&2
-    echo "跑 tools/release/data-fetch.sh 下载；开发自测只用样例词库加 --sample-data，不带模型加 --without-model" >&2
+    echo "跑 tools/release/data-fetch.sh 下载；开发自测只用样例词库加 --sample-data" >&2
     exit 1
   fi
 fi
@@ -157,17 +150,7 @@ if [[ "$SAMPLE_DATA" == 0 ]]; then
     mkdir -p "$APP/Contents/Resources/codes"
     cp data/generated/codes/*.qj assets/stroke/LICENSE-CNS11643.txt "$APP/Contents/Resources/codes/"
   fi
-  # 含章·通变（P2C，带噪拼音 → 汉字）：放 Resources/models/hanzhang-tongbian/。
-  # 含章·知微（字级模型）不随包：有通变时三个桌面平台都不加载它，用户自己放进数据目录 models/hanzhang-zhiwei/ 仍认
-  if [[ "$WITH_MODEL" == 1 ]]; then
-    if [[ -f "$P2C_DIR/model.safetensors" ]]; then
-      QINGJIAN_MODEL_DIR="$P2C_DIR" tools/release/pack-model.sh
-    fi
-    mkdir -p "$APP/Contents/Resources/models/hanzhang-tongbian"
-    cp "$P2C_DIR/hanzhang-tongbian-small.qjm" "$APP/Contents/Resources/models/hanzhang-tongbian/"
-    chmod 644 "$APP/Contents/Resources/models/hanzhang-tongbian/hanzhang-tongbian-small.qjm"
-    echo "打包含章·通变：$P2C_DIR/hanzhang-tongbian-small.qjm"
-  fi
+  # 本地整句模型不随包：缺省不用模型，含章·通变与知意都在设置的「实验功能」里下载到用户目录 models/
   # 释义表打成 .qj（TSV 比 .qj 新时重打），英文词表仍是 TSV。各表来源不同，元数据按表写（见 assets/glossary/README.md）
   for lang in en ja zh es vi de; do
     src="assets/glossary/glossary-$lang.tsv"

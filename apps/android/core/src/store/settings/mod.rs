@@ -6,7 +6,7 @@ mod choices;
 pub use choice::Choice;
 pub use choices::SettingChoices;
 
-use qingjian_core::{FuzzyRules, LEARNING_LANGUAGES, TraditionalVariant};
+use qingjian_core::{FuzzyRules, TraditionalVariant, learning_languages};
 use qingjian_learning::DEFAULT_CLIPBOARD_LIMIT;
 
 use crate::options::{DEFAULT_DOMAINS, DEFAULT_LEARNING_LANGUAGE, DEFAULT_TRADITIONAL_VARIANT};
@@ -22,7 +22,7 @@ pub fn setting_choices() -> SettingChoices {
             label: FuzzyRules::label(key),
         })
         .collect();
-    let learning_languages = LEARNING_LANGUAGES
+    let learning_languages = learning_languages()
         .into_iter()
         .map(|(key, label)| Choice {
             key,
@@ -55,6 +55,7 @@ mod tests {
 
     #[test]
     fn lists_match_what_the_keyboard_settings_showed() {
+        bamboo_slip_i18n::pin_locale("zh-Hans");
         let choices = setting_choices();
         assert_eq!(choices.fuzzy.len(), 9);
         assert_eq!(choices.fuzzy[0].key, "z_zh");

@@ -3,6 +3,7 @@
 use bamboo_slip::taffy::NodeId;
 use bamboo_slip::{RenderError, Ui, group, paragraph, section_title};
 
+use crate::i18n::tr;
 use crate::library::Kind;
 use crate::message::Message;
 use crate::view::Page;
@@ -14,9 +15,13 @@ pub fn dictionaries(ui: &mut Ui<Message>, page: &Page) -> Result<Vec<NodeId>, Re
     let config = &page.settings.config.dictionaries;
     let mut out = Vec::new();
 
-    out.push(section_title(ui, theme, "随包词库")?);
+    out.push(section_title(
+        ui,
+        theme,
+        tr("dictionaries.section_bundled"),
+    )?);
     let domains = if library.domains.is_empty() {
-        paragraph(ui, theme, "没找到随包的领域词库", None)?
+        paragraph(ui, theme, tr("dictionaries.no_bundled"), None)?
     } else {
         domain_grid(ui, page)?
     };
@@ -49,10 +54,14 @@ pub fn dictionaries(ui: &mut Ui<Message>, page: &Page) -> Result<Vec<NodeId>, Re
         ui,
         page,
         Kind::Dictionary,
-        "导入词库",
-        "支持 TSV、Rime .dict.yaml、只有词的表和 .qj，可以多选；只有词的读音按随包词库补",
+        tr("dictionaries.import"),
+        tr("dictionaries.import_info"),
     )?);
-    out.push(section_title(ui, theme, "导入的词库")?);
+    out.push(section_title(
+        ui,
+        theme,
+        tr("dictionaries.section_imported"),
+    )?);
     out.push(group(ui, theme, &rows)?);
     Ok(out)
 }

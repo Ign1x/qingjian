@@ -93,8 +93,7 @@ Source: "{#Repo}\data\generated\dicts\*.qj";     DestDir: "{app}\data\generated\
 ;    产品数据一律不加 skipifsourcedoesntexist：缺了就编不过，不悄悄打出少数据的包（build.ps1 编译前先查一遍）
 Source: "{#Repo}\data\generated\codes\*.qj";   DestDir: "{app}\data\generated\codes"; Flags: ignoreversion
 Source: "{#Repo}\assets\stroke\LICENSE-CNS11643.txt"; DestDir: "{app}\data\generated\codes"; Flags: ignoreversion
-; —— 含章·通变模型（含章·知微不随包：有通变时不加载它）——
-Source: "{#Repo}\data\models\hanzhang-tongbian\hanzhang-tongbian-small.qjm"; DestDir: "{app}\data\models\hanzhang-tongbian"; Flags: ignoreversion
+; 本地整句模型不随包：含章·通变与知意都在设置的「实验功能」里下载到用户目录 %APPDATA%\Qingjian\models
 ; —— 随 git 的资源 ——
 Source: "{#Repo}\assets\emoji\emoji-zh.tsv";     DestDir: "{app}\assets\emoji";  Flags: ignoreversion
 Source: "{#Repo}\assets\emoji\emoji-en.tsv";     DestDir: "{app}\assets\emoji";  Flags: ignoreversion
@@ -156,10 +155,10 @@ Filename: "{syswow64}\regsvr32.exe"; Parameters: "/u /s ""{app}\{#TsfDll32}"""; 
 [InstallDelete]
 ; 更早版本装在当前用户「启动」文件夹里的自启快捷方式：与机器级那份并存会起两个 Server（两条状态条）。
 Type: files; Name: "{userstartup}\Qingjian Server.lnk"
-; 更早版本装的模型三件套（现在只带正式命名的 .qjm）：留着白占 56 MB。
-Type: files; Name: "{app}\data\model\model.safetensors"
-Type: files; Name: "{app}\data\model\config.json"
-Type: files; Name: "{app}\data\model\vocab.json"
+; 更早版本随包的本地模型（三件套、含章·知微与通变的 .qjm）：现在不随包，通变要在设置里下载到用户目录。
+; 留着的话没下载的用户照样从这里加载到通变，选了「没下载就不用模型」也不灵，还白占一百来 MB。
+Type: filesandordirs; Name: "{app}\data\model"
+Type: filesandordirs; Name: "{app}\data\models"
 ; 0.1.4 开发版的随包码表旧位置
 Type: filesandordirs; Name: "{app}\codes"
 

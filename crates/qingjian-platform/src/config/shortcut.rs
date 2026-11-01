@@ -2,6 +2,7 @@ use qingjian_core::ModeKeys;
 use serde::{Deserialize, Serialize};
 
 use super::PageKeys;
+use super::commit_key::{CommitKey, CommitKeys};
 use super::highlight_keys::HighlightKeys;
 use super::key_combo::KeyCombo;
 use super::modifiers::Modifiers;
@@ -20,6 +21,9 @@ pub struct ShortcutConfig {
 
     /// 候选高亮由 `↑` / `↓` 还是 `←` / `→` 移动。详见 [`HighlightKeys`]。
     pub highlight_keys: HighlightKeys,
+
+    /// 候选中额外启用 Ctrl + F / B / N / P / A / E 导航（macOS）。
+    pub extra_candidate_navigation: bool,
 
     /// 切换当前中英模式的全 / 半角标点（macOS 只切中文模式的），空串禁用，例如 `ctrl+.`。
     #[serde(with = "super::optional_key_combo")]
@@ -44,6 +48,12 @@ pub struct ShortcutConfig {
     /// 缺省不开：只要青简是当前输入法，这个组合在所有应用里都会被拿走，编辑器的「在文件中查找」也用它。
     #[serde(with = "super::optional_key_combo")]
     pub toggle_traditional: Option<KeyCombo>,
+
+    /// 组句时上屏高亮候选的键（Windows、Linux 用），缺省不带 Shift 的空格。详见 [`CommitKey`]。
+    pub commit_candidate: CommitKey,
+
+    /// 组句时原样上屏敲的字母的键（Windows、Linux 用），缺省不带 Shift 的回车。
+    pub commit_raw: CommitKey,
 }
 
 impl Default for ShortcutConfig {
@@ -68,6 +78,7 @@ impl Default for ShortcutConfig {
             mode: ModeKeys::default(),
             switch_mode: SwitchKeys::default(),
             highlight_keys: HighlightKeys::UpDown,
+            extra_candidate_navigation: false,
             toggle_punctuation: None,
             extra_page_keys: PageKeys::default(),
             translation,
@@ -75,11 +86,25 @@ impl Default for ShortcutConfig {
             translate_selection,
             predict: KeyCombo::PREDICT_DEFAULT,
             toggle_traditional: None,
+            commit_candidate: CommitKey::SPACE,
+            commit_raw: CommitKey::ENTER,
         }
     }
 }
 
 impl ShortcutConfig {
+    /// 两个上屏键；配成同一个键时退回缺省，不做一半（读手改的配置用，设置程序录的时候就不让撞）。
+    pub fn commit_keys(&self) -> CommitKeys {
+        if self.commit_candidate == self.commit_raw {
+            CommitKeys::default()
+        } else {
+            CommitKeys {
+                candidate: self.commit_candidate,
+                raw: self.commit_raw,
+            }
+        }
+    }
+
     /// 两组译词修饰键；两组相同或有一组为空时整个退回缺省，不做一半。
     pub fn translation_keys(&self) -> (Modifiers, Modifiers) {
         if self.translation == self.translation_second
@@ -172,6 +197,21 @@ mod tests {
         assert_eq!(off.switch_mode, crate::SwitchKeys::NONE);
         let missing: ShortcutConfig = toml::from_str("").unwrap();
         assert_eq!(missing.switch_mode, SwitchKeys::default());
+    }
+
+    #[test]
+    fn extra_candidate_navigation_defaults_and_round_trips() {
+        let old: ShortcutConfig = toml::from_str("expression = 'i'").unwrap();
+        assert!(!old.extra_candidate_navigation);
+        for enabled in [false, true] {
+            let config: ShortcutConfig =
+                toml::from_str(&format!("extra_candidate_navigation = {enabled}")).unwrap();
+            assert_eq!(config.extra_candidate_navigation, enabled);
+            let restored: ShortcutConfig =
+                toml::from_str(&toml::to_string(&config).unwrap()).unwrap();
+            assert_eq!(restored.extra_candidate_navigation, enabled);
+        }
+        assert!(toml::from_str::<ShortcutConfig>("extra_candidate_navigation = 'yes'").is_err());
     }
 
     #[test]

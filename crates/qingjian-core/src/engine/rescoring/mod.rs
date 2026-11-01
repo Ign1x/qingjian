@@ -6,15 +6,20 @@
 //! 一次送去后台，[`Engine::poll_rescoring`] 收到结果后再查一次，这时全部路径的分都在缓存里，排序自然换成重排后的。
 //! 按键回调永远不等模型：先按词级模型出候选，模型的意见晚几十毫秒到。
 
+use crate::Engine;
+use crate::engine::take_last_chars;
+use crate::sentence::Conversion;
+
 mod cache;
+mod wake;
 mod worker;
 
 #[cfg(test)]
 mod tests;
 
-use super::*;
-
 pub(crate) use cache::NeuralCache;
+pub use wake::Wake;
+pub(crate) use wake::WakeSlot;
 pub(crate) use worker::RescoreWorker;
 
 /// 直接生成整句时的 beam 宽度。5 是 2026-09-24 在冻结集上量的：beam 5 首选 51.9%、前五 73.5%，
@@ -32,6 +37,16 @@ impl Engine {
     pub fn has_sentence_scorer(&self) -> bool {
         self.sentence_scorer.is_some()
             || self.rescorer.as_ref().is_some_and(RescoreWorker::is_alive)
+    }
+
+    /// 接了打分器、且它是拿来重排词图路径的（不是生成器）。
+    pub(super) fn reranks_paths(&self) -> bool {
+        self.has_sentence_scorer() && !self.generative
+    }
+
+    /// 接了生成器（含章·通变）：整句以它生成的为主。
+    pub(in crate::engine) fn generates_sentences(&self) -> bool {
+        self.has_sentence_scorer() && self.generative
     }
 
     /// 给模型看的前文：壳给了应用里的光标前文就用它（[`Self::set_rescoring_context`]），
@@ -56,7 +71,7 @@ impl Engine {
     /// `keys` 是这批路径共同解释的那段用户按键（P2C 的条件）。
     /// 只改顺序，每条路径的 `score` 原样不动（理由见下面的注释）。
     pub(super) fn rescore_paths(&self, paths: &mut [Conversion], keys: &str) {
-        if paths.len() < 2 || !self.has_sentence_scorer() {
+        if paths.len() < 2 || !self.reranks_paths() {
             return;
         }
         let context = self.rescoring_context();

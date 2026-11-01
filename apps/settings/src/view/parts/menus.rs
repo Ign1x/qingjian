@@ -2,15 +2,15 @@
 
 use bamboo_slip::taffy::NodeId;
 use bamboo_slip::{Menu, RenderError, Ui};
-use qingjian_core::{LEARNING_LANGUAGES, TraditionalVariant};
-use qingjian_platform::{EmojiCount, KeyHintMode, Scheme};
+use qingjian_core::{TraditionalVariant, learning_languages};
+use qingjian_platform::{
+    EmojiCount, GeneralConfig, KeyHintMode, Scheme, UI_LANGUAGE_DEFAULT, UI_LANGUAGE_SYSTEM,
+};
 
+use crate::i18n::{CATALOG, tr};
 use crate::message::{Message, Popup};
 use crate::support::Feature;
 use crate::view::Page;
-
-/// 形码方案下拉框里「关」那一项。
-pub const CODE_OFF: &str = "关";
 
 const CODE_OFF_KEY: &str = "off";
 
@@ -27,6 +27,7 @@ pub fn anchor(popup: Popup) -> &'static str {
         Popup::Symbols => "symbols",
         Popup::KeyHint => "key-hint",
         Popup::AuxScheme => "aux-scheme",
+        Popup::UiLanguage => "ui-language",
     }
 }
 
@@ -56,13 +57,33 @@ pub fn scheme_options(page: &Page) -> Vec<(String, String)> {
 
 /// 形码下拉的选项（名字，配置写法）：「关」在最前，后面是各套方案。
 pub fn code_options(page: &Page) -> Vec<(String, String)> {
-    std::iter::once((CODE_OFF.to_owned(), CODE_OFF_KEY.to_owned()))
+    std::iter::once((tr("common.off").to_owned(), CODE_OFF_KEY.to_owned()))
         .chain(
             page.settings
                 .library
                 .code_schemes
                 .iter()
                 .map(|entry| (entry.label.clone(), entry.id.clone())),
+        )
+        .collect()
+}
+
+/// 配置里的界面语言，没写时是缺省的那一种，好在下拉框里对上。
+pub fn ui_language(general: &GeneralConfig) -> &str {
+    match general.ui_language.trim() {
+        "" => UI_LANGUAGE_DEFAULT,
+        tag => tag,
+    }
+}
+
+/// 界面语言下拉的选项（名字，配置写法）：「跟随系统」在最前，后面每种语言用它自己的叫法。
+pub fn ui_language_options() -> Vec<(&'static str, &'static str)> {
+    std::iter::once((tr("appearance.follow_system"), UI_LANGUAGE_SYSTEM))
+        .chain(
+            CATALOG
+                .languages()
+                .into_iter()
+                .map(|(tag, name)| (name, tag)),
         )
         .collect()
 }
@@ -84,7 +105,7 @@ pub fn menu(
         match popup {
             Popup::Font => {
                 let families = page.settings.fonts.as_deref().unwrap_or_default();
-                let labels = std::iter::once("系统字体".to_owned())
+                let labels = std::iter::once(tr("common.system_font").to_owned())
                     .chain(families.iter().cloned())
                     .collect();
                 let values: Vec<String> = std::iter::once(String::new())
@@ -115,17 +136,17 @@ pub fn menu(
             }
             Popup::LearningLanguage => (
                 "learning_language",
-                LEARNING_LANGUAGES
+                learning_languages()
                     .iter()
                     .map(|(_, label)| (*label).to_owned())
                     .collect(),
                 strings(
-                    LEARNING_LANGUAGES
+                    learning_languages()
                         .iter()
                         .map(|(code, _)| (*code).to_owned())
                         .collect(),
                 ),
-                LEARNING_LANGUAGES
+                learning_languages()
                     .iter()
                     .position(|(code, _)| *code == general.learning_language),
             ),
@@ -178,6 +199,14 @@ pub fn menu(
                     .iter()
                     .position(|mode| *mode == general.key_hint),
             ),
+            Popup::UiLanguage => {
+                let (labels, values): (Vec<String>, Vec<String>) = ui_language_options()
+                    .into_iter()
+                    .map(|(label, tag)| (label.to_owned(), tag.to_owned()))
+                    .unzip();
+                let selected = values.iter().position(|tag| *tag == ui_language(general));
+                ("ui_language", labels, strings(values), selected)
+            }
             Popup::Emoji | Popup::Kaomoji | Popup::Symbols => {
                 let (key, count) = match popup {
                     Popup::Emoji => ("emoji", general.emoji),
@@ -186,10 +215,7 @@ pub fn menu(
                 };
                 (
                     key,
-                    EmojiCount::LABELS
-                        .iter()
-                        .map(|&label| label.to_owned())
-                        .collect(),
+                    (0..=EmojiCount::MAX).map(EmojiCount::label).collect(),
                     (0..=EmojiCount::MAX)
                         .map(|count| toml_edit::Value::from(i64::from(count)))
                         .collect(),

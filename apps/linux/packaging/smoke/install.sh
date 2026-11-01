@@ -1,6 +1,6 @@
 #!/bin/bash
 # 在容器里跑（run.sh 调）：装 /pkgs 下的三个包，确认自启登记、IBus 组件与插件依赖，起 Server 用包里的
-# qingjian-linux-ibus --check 打 nihao（走的是真前端的那套客户端代码，不另抄协议），等本地整句模型加载完，
+# qingjian-linux-ibus --check 打 nihao（走的是真前端的那套客户端代码，不另抄协议），配置里打开本地整句模型、等它加载完，
 # 再卸载看自启登记与组件有没有清掉。Wayland 前端没有合成器跑不起来，只看它能执行、dlopen 的 libxkbcommon 跟着装上了、
 # 服务单元在而没被全局 enable。$1 = apt / dnf / zypper；任一项不对退出码非 0
 set -e
@@ -33,6 +33,9 @@ echo "Wayland 前端：$wayland_version，缺库：$(ldd /usr/bin/qingjian-linux
 grep -qx 'ExecStart=/usr/bin/qingjian-linux-wayland' $wayland_unit || fail "Wayland 前端的服务单元不在或路径不对"
 [ ! -e /etc/systemd/user/graphical-session.target.wants/qingjian-wayland.service ] || fail "Wayland 前端被全局 enable 了"
 export XDG_RUNTIME_DIR=/tmp/run HOME=/root; mkdir -p $XDG_RUNTIME_DIR
+# 本地整句模型缺省关，打开它才验得到随包的含章·通变能加载
+mkdir -p /root/.config/qingjian
+printf '[model]\nenabled = true\nname = "tongbian"\n' > /root/.config/qingjian/config.toml
 qingjian-linux-server >/tmp/server.out 2>&1 &
 for _ in $(seq 1 60); do [ -S $XDG_RUNTIME_DIR/qingjian.sock ] && break; sleep 0.5; done
 # --check 的日志与结果都在 stdout：只留「打了…」起的那几行，候选压成一行

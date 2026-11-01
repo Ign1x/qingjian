@@ -2,7 +2,7 @@
 //! 缺省交给青简渲染器出位图再贴（[`super::painter`]），配置 `renderer = "system"` 时走 GDI：绘制在 [`view`]，
 //! 配色 / 字体在 [`theme`]。绘制内容在 [`RenderData`]，一行的展示形态在 [`row`]。设计语言对齐 macOS 端。
 
-mod click;
+pub(super) mod click;
 mod key_hint;
 mod menu;
 mod render_data;
@@ -19,9 +19,9 @@ use windows::Win32::UI::HiDpi::{GetDpiForSystem, GetDpiForWindow};
 use windows::Win32::UI::WindowsAndMessaging::{
     CreateWindowExW, DefWindowProcW, DestroyWindow, HWND_TOPMOST, IDC_ARROW, KillTimer,
     LoadCursorW, MSG, SW_HIDE, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE, SWP_SHOWWINDOW, SetTimer,
-    SetWindowPos, ShowWindow, WM_LBUTTONDOWN, WM_MOUSEACTIVATE, WM_NCHITTEST, WM_RBUTTONDOWN,
-    WM_RBUTTONUP, WM_TIMER, WNDCLASSEXW, WS_EX_LAYERED, WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW,
-    WS_EX_TOPMOST, WS_POPUP,
+    SetWindowPos, ShowWindow, WM_LBUTTONDOWN, WM_MOUSEACTIVATE, WM_MOUSEWHEEL, WM_NCHITTEST,
+    WM_RBUTTONDOWN, WM_RBUTTONUP, WM_TIMER, WNDCLASSEXW, WS_EX_LAYERED, WS_EX_NOACTIVATE,
+    WS_EX_TOOLWINDOW, WS_EX_TOPMOST, WS_POPUP,
 };
 use windows::core::{Error, PCWSTR, Result, w};
 
@@ -185,10 +185,8 @@ impl CandidateWindow {
                     self.hide();
                     return;
                 }
-                let overhang = (
-                    rendered.content_y as i32,
-                    rendered.pixmap.height() as i32 - rendered.content_y as i32 - content.1,
-                );
+                let overhang = rendered.visible_overhang();
+                let overhang = (overhang.0 as i32, overhang.1 as i32);
                 let (content_x, content_y) = place(anchor, content, overhang);
                 let position = (
                     content_x - rendered.content_x as i32,
@@ -396,7 +394,7 @@ impl Drop for CandidateWindow {
 }
 
 /// 内容左上角：贴光标下方，放不下放上方，再放不下贴屏幕内；都夹在所在显示器工作区里。
-/// `overhang` 是位图在内容区上、下伸出去的像素（投影、装饰），按主题而定：
+/// `overhang` 是位图在内容区上、下伸出去、看得见的像素（投影、装饰），按主题而定：
 /// 贴下方让开上沿那截，贴上方让开下沿那截，投影才不会罩在输入行刚打的字上（微信聊天框实测）。
 pub(super) fn place(anchor: RECT, content: (i32, i32), overhang: (i32, i32)) -> (i32, i32) {
     let work = monitor::work_area_near(POINT {
@@ -425,6 +423,10 @@ unsafe extern "system" fn wndproc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: 
         WM_MOUSEACTIVATE => click::mouse_activate(),
         WM_LBUTTONDOWN => {
             click::button_down();
+            LRESULT(0)
+        }
+        WM_MOUSEWHEEL => {
+            click::wheel(wparam);
             LRESULT(0)
         }
         // 按下吞掉（不让默认处理生出 WM_CONTEXTMENU），抬起时弹菜单

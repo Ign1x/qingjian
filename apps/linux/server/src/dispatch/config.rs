@@ -2,8 +2,8 @@
 use qingjian_core::TraditionalVariant;
 use qingjian_platform::protocol::KeyModifiers;
 use qingjian_platform::{
-    Appearance, AppsConfig, Config, HighlightKeys, KeyCombo, KeyHintMode, LayoutMode, NumpadDigit,
-    PageKeys, PreeditMode, Scheme, SwitchKeys,
+    Appearance, AppsConfig, CommitKeys, Config, HighlightKeys, KeyCombo, KeyHintMode, LayoutMode,
+    NumpadDigit, PageKeys, PreeditMode, Scheme, SwitchKeys,
 };
 
 /// Router 要用的配置项，与 macOS 壳的 `Host` 字段对齐。
@@ -23,6 +23,9 @@ pub struct RouterConfig {
 
     /// 组句中按需调用 AI 的组合键（`[shortcut] predict`）。
     pub predict: KeyCombo,
+
+    /// 组句时上屏高亮候选与原样上屏字母的键（`[shortcut] commit_candidate` / `commit_raw`）。
+    pub commit_keys: CommitKeys,
 
     /// 候选排布（`[general] layout`）。
     pub layout: LayoutMode,
@@ -150,6 +153,7 @@ impl From<&Config> for RouterConfig {
             },
             cloud_enabled: config.predict.enabled,
             predict: config.shortcut.predict,
+            commit_keys: config.shortcut.commit_keys(),
             layout: config.general.layout,
             appearance: config.general.appearance(),
             page_keys: config.general.page_keys(),

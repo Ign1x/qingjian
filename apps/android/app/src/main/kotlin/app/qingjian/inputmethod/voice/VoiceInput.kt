@@ -33,6 +33,9 @@ class VoiceInput(private val context: Context, private val engine: Engine, priva
         fun hideKeyboard()
 
         fun toast(message: String)
+
+        /** 还没选识别服务：提示去「语音识别」页配。 */
+        fun voiceNeedsSetup()
     }
 
     /** 最终结果上屏之后还要做的事。 */
@@ -55,7 +58,7 @@ class VoiceInput(private val context: Context, private val engine: Engine, priva
         if (active) return true
         val picked = pick()
         if (!picked.available) {
-            host.toast(context.getString(R.string.voice_unavailable))
+            host.voiceNeedsSetup()
             return false
         }
         if (picked.needsMicrophone && !MicrophonePermissionActivity.granted(context)) {

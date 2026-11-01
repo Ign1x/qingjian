@@ -1,4 +1,4 @@
-//! 「快捷键」页：翻页与模式（翻页键，平台接了的额外翻页键、高亮移动键、标点切换键，表达式、问字、? 进问字），候选上的组合键（译词上屏、删除、翻译选中文字），
+//! 「快捷键」页：翻页与模式（翻页键，平台接了的额外翻页键、高亮移动键、标点切换键，表达式、问字、? 进问字），候选上的键（平台接了的上屏键、译词上屏、删除、翻译选中文字），
 //! 恢复默认，页底列组句中固定的键。
 
 use bamboo_slip::taffy::{FlexDirection, LengthPercentage, NodeId, Rect, Style};
@@ -9,15 +9,13 @@ use bamboo_slip::{
 use qingjian_core::ModeKeys;
 use qingjian_platform::{HighlightKeys, PAGE_KEY_OPTIONS};
 
+use crate::i18n::tr;
 use crate::message::Message;
 use crate::shortcut::Shortcut;
 use crate::support::Feature;
 use crate::view::Page;
 use crate::view::parts::actions::with_notice;
 use crate::view::parts::controls::{choice, toggle_info};
-
-/// 组句中固定、不能改的键。
-const FIXED: &str = "组句时：空格上屏首选，1–9 选词，回车上屏拼音，Esc 清空，Tab 采用整句。";
 
 pub fn shortcuts(ui: &mut Ui<Message>, page: &Page) -> Result<Vec<NodeId>, RenderError> {
     let theme = &page.theme;
@@ -40,73 +38,105 @@ pub fn shortcuts(ui: &mut Ui<Message>, page: &Page) -> Result<Vec<NodeId>, Rende
     })?;
     let mode = config.shortcut.mode.sanitized();
     let mut rows = vec![
-        SettingRow::new("翻页键")
-            .info("选了逗号句号，组句时它们用来翻页")
+        SettingRow::new(tr("shortcuts.page_keys"))
+            .info(tr("shortcuts.page_keys_info"))
             .control(page_keys)
             .build(ui, theme)?,
     ];
     rows.extend(extra_keys(ui, page, &labels)?);
     rows.extend([
-        SettingRow::new("表达式")
-            .info("v1+2 出 3")
+        SettingRow::new(tr("shortcuts.expression"))
+            .info(tr("shortcuts.expression_info"))
             .control(mode_key(ui, page, "expression", mode.expression)?)
             .build(ui, theme)?,
-        SettingRow::new("问字")
-            .info("u4e00 出「一」")
+        SettingRow::new(tr("shortcuts.lookup"))
+            .info(tr("shortcuts.lookup_info"))
             .control(mode_key(ui, page, "question", mode.question)?)
             .build(ui, theme)?,
         toggle_info(
             ui,
             page,
-            "? 也进问字",
-            Some("敲 ? 再敲字母问字"),
+            tr("shortcuts.question_lookup"),
+            Some(tr("shortcuts.question_lookup_info")),
             ("shortcut", "question_mark"),
             mode.question_mark,
             false,
         )?,
     ]);
-    out.push(section_title(ui, theme, "翻页与模式")?);
+    out.push(section_title(ui, theme, tr("shortcuts.section_paging"))?);
     out.push(group(ui, theme, &rows)?);
 
-    let mut rows = vec![
+    let mut rows = Vec::new();
+    if Feature::CommitKeys.here() {
+        rows.push(recorder(
+            ui,
+            page,
+            Shortcut::CommitCandidate,
+            tr("shortcuts.commit_candidate_info"),
+            false,
+        )?);
+        rows.push(recorder(
+            ui,
+            page,
+            Shortcut::CommitRaw,
+            tr("shortcuts.commit_raw_info"),
+            false,
+        )?);
+    }
+    rows.extend([
         recorder(
             ui,
             page,
             Shortcut::Translation,
-            "按住它再按候选序号，上屏候选右侧的译词而不是中文",
+            tr("shortcuts.translation_info"),
             false,
         )?,
         recorder(
             ui,
             page,
             Shortcut::TranslationSecond,
-            "候选有两个译词时上屏后一个",
+            tr("shortcuts.translation_second_info"),
             false,
         )?,
         recorder(
             ui,
             page,
             Shortcut::TranslateSelection,
-            "选中文字再按它翻译，回车替换",
+            tr("shortcuts.translate_selection_info"),
             false,
         )?,
-    ];
+    ]);
     if Feature::CloudRequestControls.here() {
         rows.push(recorder(
             ui,
             page,
             Shortcut::Predict,
-            "组句时按它请求 AI 候选",
+            tr("shortcuts.predict_info"),
             false,
         )?);
     }
-    out.push(section_title(ui, theme, "候选")?);
+    out.push(section_title(
+        ui,
+        theme,
+        tr("shortcuts.section_candidates"),
+    )?);
     out.push(group(ui, theme, &rows)?);
 
-    let reset =
-        Button::new("恢复默认").build(ui, theme, "reset-shortcuts", Message::ResetShortcuts)?;
-    let reset = SettingRow::new("快捷键").control(reset).build(ui, theme)?;
-    let fixed = paragraph(ui, theme, FIXED, None)?;
+    let reset = Button::new(tr("shortcuts.reset")).build(
+        ui,
+        theme,
+        "reset-shortcuts",
+        Message::ResetShortcuts,
+    )?;
+    let reset = SettingRow::new(tr("shortcuts.shortcuts"))
+        .control(reset)
+        .build(ui, theme)?;
+    let fixed = if Feature::CommitKeys.here() {
+        tr("shortcuts.fixed_without_commit")
+    } else {
+        tr("shortcuts.fixed")
+    };
+    let fixed = paragraph(ui, theme, fixed, None)?;
     // 与分组标题一样往里缩一点
     let inset = LengthPercentage::length(page.px(4.0));
     let fixed = ui.scene().node(
@@ -138,8 +168,8 @@ fn extra_keys(
     let mut rows = Vec::new();
     if Feature::ExtraPageKeys.here() {
         rows.push(
-            SettingRow::new("额外翻页键")
-                .info("和上面的翻页键一起用")
+            SettingRow::new(tr("shortcuts.extra_page_keys"))
+                .info(tr("shortcuts.extra_page_keys_info"))
                 .control(page_key_boxes(ui, page, labels)?)
                 .build(ui, theme)?,
         );
@@ -155,9 +185,24 @@ fn extra_keys(
             |value| Message::set("shortcut", "highlight_keys", value.key()),
         )?;
         rows.push(
-            SettingRow::new("高亮移动键")
-                .info("选 ← / → 时 ← / → 在候选之间移动；横排下 ↑ 移到拼音里改光标位置、↓ 回到候选，竖排下拼音光标到末尾按 → 才到下一个候选")
+            SettingRow::new(tr("shortcuts.highlight_keys"))
+                .info(tr("shortcuts.highlight_keys_info"))
                 .control(highlight)
+                .build(ui, theme)?,
+        );
+    }
+    if Feature::ExtraCandidateNavigation.here() {
+        let enabled = shortcut.extra_candidate_navigation;
+        let checkbox = Checkbox::new(enabled, "Ctrl + F/B/N/P/A/E").build(
+            ui,
+            theme,
+            "extra-candidate-navigation",
+            Message::set("shortcut", "extra_candidate_navigation", !enabled),
+        )?;
+        rows.push(
+            SettingRow::new(tr("shortcuts.extra_candidate_navigation"))
+                .info(tr("shortcuts.extra_candidate_navigation_info"))
+                .control(checkbox)
                 .build(ui, theme)?,
         );
     }
@@ -174,8 +219,8 @@ fn extra_keys(
             ),
         )?;
         rows.push(
-            SettingRow::new("Ctrl + . 切换全半角标点")
-                .info("切换全角、半角标点")
+            SettingRow::new(tr("shortcuts.punctuation_width"))
+                .info(tr("shortcuts.punctuation_width_info"))
                 .control(switch)
                 .build(ui, theme)?,
         );
@@ -193,8 +238,8 @@ fn extra_keys(
             ),
         )?;
         rows.push(
-            SettingRow::new("Ctrl + Shift + F 切换简繁输出")
-                .info("在简体与上次用的繁体字形之间切换")
+            SettingRow::new(tr("shortcuts.traditional"))
+                .info(tr("shortcuts.traditional_info"))
                 .control(switch)
                 .build(ui, theme)?,
         );

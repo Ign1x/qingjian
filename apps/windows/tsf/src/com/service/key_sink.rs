@@ -253,6 +253,9 @@ impl TextService_Impl {
                     String::new()
                 };
                 self.shared.set_composing(!response.frame.is_empty());
+                self.shared
+                    .candidate_list()
+                    .show(&response.frame, pic.ok().ok());
                 // 翻译评审的任何键都结束评审（Server 侧已同步结束）。
                 self.shared.set_translating(false);
                 let consumed = matches!(response.outcome, KeyOutcome::Consumed);

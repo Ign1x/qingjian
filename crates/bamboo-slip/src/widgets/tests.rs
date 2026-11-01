@@ -147,6 +147,49 @@ fn paragraph_wraps_to_the_column_width() {
     assert!(height > line.height * 3.0, "{height}");
 }
 
+/// 多行输入框按框宽折行，设了最多几行时不再往下长。
+#[test]
+fn multiline_field_wraps_to_its_width() {
+    let interaction = Interaction::<Message>::new();
+    let mut text = TextPainter::new(FontLibrary::system("en").unwrap());
+    let theme = WidgetTheme::new(WidgetColors::LIGHT, 1.0);
+    let mut ui = Ui::new(&interaction);
+    let edit = TextEdit::multiline("word ".repeat(40));
+    let grown = TextField::new(&edit)
+        .width(160.0)
+        .rows(1)
+        .build(&mut ui, &theme, "grown", |_| Message::Toggle, None, None)
+        .unwrap();
+    let capped = TextField::new(&edit)
+        .width(160.0)
+        .rows(1)
+        .max_rows(3)
+        .build(&mut ui, &theme, "capped", |_| Message::Toggle, None, None)
+        .unwrap();
+    let root = ui
+        .scene()
+        .node(
+            Style {
+                flex_direction: FlexDirection::Column,
+                align_items: taffy::AlignItems::FLEX_START,
+                ..Style::default()
+            },
+            Visual::Group,
+            &[grown, capped],
+        )
+        .unwrap();
+    let (mut scene, _) = ui.finish();
+    layout(&mut scene, root, &mut text);
+    let line = theme
+        .text(theme.font.size - 1.0, 400, theme.colors.text)
+        .line_height;
+    let (_, _, width, grown) = scene.rect_in(grown, root).unwrap();
+    let (_, _, _, capped) = scene.rect_in(capped, root).unwrap();
+    assert!(width <= 160.5, "{width}");
+    assert!(grown > line * 6.0, "{grown}");
+    assert!(capped < line * 4.0, "{capped}");
+}
+
 #[derive(Debug, Clone, PartialEq)]
 enum Field {
     Edit(Edit),
@@ -184,6 +227,49 @@ fn field_frame(interaction: &mut Interaction<Field>, text: &mut TextPainter, edi
     let (mut scene, elements) = ui.finish();
     layout(&mut scene, root, text);
     interaction.attach(&scene, root, elements).unwrap();
+}
+
+/// 在输入框里按下的位置：(x 占元素宽度的比例, 元素)。
+fn press_at(interaction: &mut Interaction<Field>, key: Key, fraction: f32) -> Vec<Field> {
+    let (x, y, width, height) = interaction.rect(key).unwrap();
+    interaction.handle(&Event::PointerMoved {
+        x: x + width * fraction,
+        y: y + height / 2.0,
+    });
+    let messages = interaction.handle(&Event::PointerDown).messages;
+    interaction.handle(&Event::PointerUp);
+    messages
+}
+
+/// 点字的左半边光标落在它前面、右半边落在后面；点在文字后面的空白落到末尾。没拿焦点时点也一样。
+#[test]
+fn clicking_text_moves_the_caret() {
+    let mut interaction = Interaction::new();
+    let mut text = TextPainter::new(FontLibrary::system("zh-CN").unwrap());
+    let edit = TextEdit::new("你好 hello");
+    field_frame(&mut interaction, &mut text, &edit);
+    let field = Key::ROOT.child("field");
+    // 「好 」是一个单位（字节 3..7）：左边一点落在 3，右边落在 7
+    assert_eq!(
+        press_at(&mut interaction, field.child(("at", 3_usize)), 0.1),
+        vec![Field::Edit(Edit::Caret(3))]
+    );
+    assert_eq!(
+        press_at(&mut interaction, field.child(("at", 3_usize)), 0.95),
+        vec![Field::Edit(Edit::Caret(7))]
+    );
+    // 「hello」按字符数均分：中间偏右落在 hel|lo
+    assert_eq!(
+        press_at(&mut interaction, field.child(("at", 7_usize)), 0.55),
+        vec![Field::Edit(Edit::Caret(10))]
+    );
+    assert_eq!(
+        press_at(&mut interaction, field.child("view"), 0.99),
+        vec![Field::Edit(Edit::Caret(12))]
+    );
+    let mut edit = edit;
+    edit.apply(&Edit::Caret(4));
+    assert_eq!((edit.caret(), edit.selection()), (3, 3..3));
 }
 
 /// 秘密输入框聚焦时关输入法，普通输入框开着。

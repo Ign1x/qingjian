@@ -2,10 +2,17 @@
 
 use super::{Engine, Learner};
 use crate::candidate::{Candidate, CandidateKind};
+use crate::{Language, Sense, Translation};
 
 impl Engine {
     /// 这个候选存进学习数据与自定义短语时用的写法：繁体输出开着时换回简体。
-    fn stored_text(&self, candidate: &Candidate) -> String {
+    pub(super) fn stored_text(&self, candidate: &Candidate) -> String {
+        // 短语候选显示的是换过时间变量的文字，存的是带 `{year}` 这类变量的原文：按位置找回原文，取消置顶才认得
+        if let CandidateKind::Custom(position) = candidate.kind
+            && let Some(phrase) = self.scope_phrases().get(position.wrapping_sub(1))
+        {
+            return phrase.text.clone();
+        }
         self.traditional
             .restore(&candidate.text)
             .unwrap_or_else(|| candidate.text.clone())
@@ -17,6 +24,107 @@ impl Engine {
         let code = self.composition.scope();
         (!self.english_mode && crate::custom_phrase::valid_code(code))
             .then(|| (code.to_owned(), self.stored_text(candidate)))
+    }
+
+    /// 候选译文可编辑时所用的词与学习语言。没有学习语言时返回 `None`。
+    pub fn translation_target(&self, candidate: &Candidate) -> Option<(String, Language)> {
+        let language = self.translator.language();
+        (language != Language::Chinese && candidate.kind != CandidateKind::English)
+            .then(|| (self.stored_text(candidate), language))
+    }
+
+    /// 覆盖候选在当前学习语言下的个人译文，并立即落盘。
+    pub fn set_candidate_translation(&mut self, candidate: &Candidate, text: &str) -> bool {
+        let Some((word, _)) = self.translation_target(candidate) else {
+            return false;
+        };
+        self.set_translation(&word, text)
+    }
+
+    /// 保存模型生成的候选译文；模型给了可识别词性就一并保存，没给时仍保留译词。
+    pub fn set_generated_candidate_translation(
+        &mut self,
+        candidate: &Candidate,
+        generated: &str,
+    ) -> bool {
+        let Some((word, language)) = self.translation_target(candidate) else {
+            return false;
+        };
+        let generated = generated.trim();
+        let (part_of_speech, text) = match generated.split_once('\t') {
+            Some((part_of_speech, text)) => match part_of_speech.trim().parse() {
+                Ok(part_of_speech) => (Some(part_of_speech), text.trim()),
+                Err(_) => (None, text.trim()),
+            },
+            None => (None, generated),
+        };
+        if text.is_empty() {
+            return false;
+        }
+        let mut senses = self
+            .translator
+            .translate(&word)
+            .map(|translation| translation.senses().to_vec())
+            .unwrap_or_default();
+        match senses.first_mut() {
+            Some(sense) => {
+                sense.text = text.to_owned();
+                if part_of_speech.is_some() {
+                    sense.part_of_speech = part_of_speech;
+                }
+                sense.fresh = false;
+            }
+            None => senses.push(Sense {
+                part_of_speech,
+                text: text.to_owned(),
+                reading: None,
+                fresh: false,
+            }),
+        }
+        self.translator
+            .learn(&word, Translation::new(language, senses));
+        self.translator.flush();
+        true
+    }
+
+    /// 按已经还原成存储字形的词覆盖个人译文。弹出编辑框前先保存 `word`，即使 IMK 在弹窗期间重建会话也能写入。
+    pub fn set_translation(&mut self, word: &str, text: &str) -> bool {
+        let text = text.trim();
+        let language = self.translator.language();
+        if language == Language::Chinese || word.is_empty() {
+            return false;
+        }
+        if text.is_empty() {
+            return false;
+        }
+        let mut senses = self
+            .translator
+            .translate(word)
+            .map(|translation| translation.senses().to_vec())
+            .unwrap_or_default();
+        match senses.first_mut() {
+            Some(sense) => {
+                sense.text = text.to_owned();
+                sense.fresh = false;
+            }
+            None => senses.push(Sense {
+                part_of_speech: None,
+                text: text.to_owned(),
+                reading: None,
+                fresh: false,
+            }),
+        }
+        self.translator
+            .learn(word, Translation::new(language, senses));
+        self.translator.flush();
+        true
+    }
+
+    /// 查询当前学习语言下最终生效的译文（个人释义优先）。
+    pub fn candidate_translation(&self, text: &str) -> Option<Translation> {
+        let restored = self.traditional.restore(text);
+        self.translator
+            .translate(restored.as_deref().unwrap_or(text))
     }
 
     /// 降得了权的：自定义短语按权重排，不走降权。

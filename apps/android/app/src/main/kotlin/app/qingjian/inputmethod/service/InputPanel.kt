@@ -19,6 +19,7 @@ import app.qingjian.inputmethod.panel.FunctionPanel
 import app.qingjian.inputmethod.panel.KeyboardPickerPanel
 import app.qingjian.inputmethod.panel.PanelActions
 import app.qingjian.inputmethod.panel.PanelKind
+import app.qingjian.inputmethod.panel.ToolbarPanel
 import app.qingjian.inputmethod.panel.VoicePanel
 import app.qingjian.inputmethod.panel.clipboard.ClipboardPanel
 import app.qingjian.inputmethod.panel.clipboard.PiecesPanel
@@ -33,7 +34,7 @@ import app.qingjian.inputmethod.theme.Palette
  */
 class InputPanel(
     private val context: Context,
-    private val settings: Settings,
+    val settings: Settings,
     barListener: CandidateBarView.Listener,
     stripSource: StripSource,
     keyboardListener: KeyboardView.Listener,
@@ -42,7 +43,7 @@ class InputPanel(
 ) {
     private val palette = Palette.of(settings.theme, settings.appearance.dark(context))
 
-    val bar = CandidateBarView(context, palette, settings.textSize.scale, stripSource, barListener)
+    val bar = CandidateBarView(context, palette, settings.textSize.scale, stripSource, settings.toolbar, barListener)
     val keyboard = KeyboardView(context, palette, settings, keyboardListener)
 
     /** 开着的面板；null 是键盘。 */
@@ -66,13 +67,16 @@ class InputPanel(
         addView(main)
     }
 
+    /** 建视图时量到的导航栏高度；用户换导航方式（手势 ↔ 三键）后会过时，见 [stale]。 */
+    private val bottomInset = navigationBarHeight(context)
+
     private val root = LinearLayout(context).apply {
         orientation = LinearLayout.VERTICAL
         setBackgroundColor(palette.board)
         clipChildren = false
         clipToPadding = false
         addView(stack)
-        val inset = navigationBarHeight(context)
+        val inset = bottomInset
         if (settings.fullscreenAdapt) {
             addView(BottomActionsView(context, palette, inset, settings.bottomLeft, settings.bottomRight, onBottomAction))
         } else {
@@ -87,7 +91,11 @@ class InputPanel(
         val panel = when (kind) {
             PanelKind.FUNCTIONS -> FunctionPanel(context, palette, actions, header, settings)
             PanelKind.KEYBOARDS -> KeyboardPickerPanel(context, palette, actions, header, settings.layout)
-            PanelKind.SYMBOLS, PanelKind.EMOJI -> CatalogPanel(context, palette, actions, header, kind)
+            PanelKind.TOOLBAR -> ToolbarPanel(context, palette, actions, header, settings.toolbar)
+            PanelKind.SYMBOLS, PanelKind.EMOJI -> CatalogPanel(
+                context, palette, actions, header, kind,
+                leftThumb = settings.arrangement == Settings.Arrangement.LEFT_THUMB,
+            )
             PanelKind.CANDIDATES -> CandidateGrid(context, palette, actions, header, settings.textSize.scale)
             PanelKind.CLIPBOARD, PanelKind.PHRASES -> ClipboardPanel(context, palette, actions, header, phrasesFirst = kind == PanelKind.PHRASES)
             PanelKind.PIECES -> PiecesPanel(context, palette, actions, header, text)
@@ -147,6 +155,12 @@ class InputPanel(
             setMeasuredDimension(MeasureSpec.getSize(widthMeasureSpec), main.measuredHeight)
         }
     }
+
+    /**
+     * 导航栏高度变了（换了手势 / 三键导航）：输入法进程不一定重建视图，留着旧的底边，三键的导航栏会盖住最下一排键。
+     * 服务每次弹键盘时问一次，变了就重建。
+     */
+    fun stale(): Boolean = navigationBarHeight(context) != bottomInset
 
     /** 系统导航栏 / 手势条的高度。输入法窗口自己收不到这份 inset，从窗口度量里取。 */
     private fun navigationBarHeight(context: Context): Int {

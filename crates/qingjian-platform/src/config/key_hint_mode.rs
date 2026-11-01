@@ -2,6 +2,8 @@
 
 use serde::{Deserialize, Serialize};
 
+use crate::i18n::tr;
+
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum KeyHintMode {
@@ -31,9 +33,9 @@ impl KeyHintMode {
     /// 界面上的名字。
     pub fn label(self) -> &'static str {
         match self {
-            Self::Off => "关",
-            Self::Auto => "卡住时显示",
-            Self::Always => "一直显示",
+            Self::Off => tr("key_hint.off"),
+            Self::Auto => tr("key_hint.auto"),
+            Self::Always => tr("key_hint.always"),
         }
     }
 }

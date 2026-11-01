@@ -269,7 +269,7 @@ CC-CEDICT 表（`dict-convert cedict`）保留为备用来源，覆盖面广但�
   数据由 `dict-convert bigram` 统计：用青简词库做一元最大概率分词（与词图同一套词表），连续汉字段为句，`<s>` 句首标记。
   词图每格只留词频前 6 个词（有简拼位置的格子留 20 个：`h` 下几十个常用字，留少了句子里要的那个进不来），每个位置束宽 8。
   简拼位置就是前缀模式（`SyllablePattern.complete = false`），词库层不区分；每条路径覆盖的简拼位置相同，不需要额外罚分。
-- **个人 n-gram**（`sentence/user_ngram.rs` 的 `UserNgram`，由 Learner 持有、`Learner::user_ngram()` 暴露）：
+- **个人 n-gram**（`sentence/user_ngram/` 的 `UserNgram`，由 Learner 持有、`Learner::user_ngram()` 暴露）：
   上屏的词序列转移计数，二元 (前词, 后词) 与三元 (前二词, 前词, 后词) 一起记（整句按路径上的词逐条记，连续选词也记；
   标点、透传、回车上屏拼音、切应用打断链，下一个词按句首 `<s>` 记，句首词不记三元）。上文是 `sentence::Context`（前一个词 + 再前一个词），
   Engine 的 `CommitChain` 记最近两个上屏的词；Viterbi 不扩状态，前二词取前驱节点的回指（它那条最优路径上的前一个词），是近似。
@@ -372,9 +372,9 @@ CC-CEDICT 表（`dict-convert cedict`）保留为备用来源，覆盖面广但�
   （每页候选数、翻页键、外观、☁︎ 标识、菜单勾选、设置窗口控件）。启动、菜单开关、设置窗口、`host/config/watch.rs`
   每秒一次的 mtime 监视全都走它；三个入口都只写 `config.toml`，不各存一套状态。解析失败沿用上一份，错误显示在菜单与设置窗口里。
 - **中英切换**：Caps Lock 一直是英文模式开关（系统级，不受配置影响）。勾了 `[shortcut] switch_mode` 的 `shift` 后改成单击 Shift 切换
-  （`host/mode_switch.rs`：IMK 拿不到修饰键的按下 / 抬起，用 30 ms 定时器轮询 `NSEvent::modifierFlags_class()` 做边沿检测，
+  （`host/mode/switch.rs`：IMK 拿不到修饰键的按下 / 抬起，用 30 ms 定时器轮询 `NSEvent::modifierFlags_class()` 做边沿检测，
   按下到抬起之间插了别的键就不算一次单击，与 Windows 的 `com/key/tap.rs` 同一套规则），此时 Caps Lock 退化成只管大小写（字母按 `shift XOR caps`）。
-  切换时右上角弹一个和候选窗同层级的小浮窗（`host/mode_osd.rs`）显示「中」/「英」，只有大小写变了才显示「大写」/「小写」；组句中切到英文时把拼音原样上屏
+  切换时右上角弹一个和候选窗同层级的小浮窗（`host/mode/osd.rs`）显示「中」/「英」，只有大小写变了才显示「大写」/「小写」；组句中切到英文时把拼音原样上屏
   （`imk/controller/click.rs::commit_raw_after_switch`，借 `activateServer:` 记下的会话客户端，定时器里不能再借 Host）。
   按键走 `inputText:client:` +
   `didCommandBySelector:client:`，不用 `handleEvent:`。**组句期间 `didCommandBySelector:` 对不认识的
@@ -514,8 +514,8 @@ CC-CEDICT 表（`dict-convert cedict`）保留为备用来源，覆盖面广但�
 - **交叉编译验证**：`qingjian-core` / `-dictionary` / `-format` / `-lm` / `-platform` / `apps/windows/{server,tsf}` 已能
   `cargo check --target x86_64-pc-windows-gnu` 通过（借此修掉 `qingjian-format` 里 unix 专有的 `Mmap::advise` 未 `cfg` 的移植 bug）；
   本机只 `check`，真正编译在 Windows 机器上做（`qingjian-neural` 的 candle 后端在 Windows 走 CPU，已接进 Server，见下「本地整句模型」）。
-- **本地整句模型（Server 进程，与 macOS 的 `host/model/mod.rs` 对齐）**：`server/src/dispatch/rescore/`。启动时 `find_model` 优先找用户 `%APPDATA%\Qingjian\models\hanzhang-tongbian\` 与随包 `data\models\hanzhang-tongbian\`，缺失时回退 `hanzhang-zhiwei`；旧用户目录仍可读取。接受 `.qjm` 单文件或三件套目录；`[model] enabled` 开着就起线程加载并预热（`ModelLoader`），下一次按键 / tick 接上 `set_async_sentence_scorer`。
-  Server 没有定时器：缓冲变化后 `schedule_rescoring` 起防抖，工人循环 `recv_timeout(router.next_tick())` 按 `RescoreState` 的节拍醒来（防抖 80 ms → `request_rescoring`；然后 20 ms 一次 `poll_rescoring`，最多等 2 s），DLL 组句期间每 80 ms 的 `Poll` 也顺带 `tick`。分到了重查一次、重建候选布局（云端词与整句补全留着）、由 Server 自绘的候选窗直接重画，DLL 下一次 `Poll` 拿到新帧更新内联 preedit；翻过页 / 动过高亮不动。热加载 `[model]` 变了才重载 / 卸载。
+- **本地整句模型（Server 进程，与 macOS 的 `host/model/mod.rs` 对齐）**：`server/src/dispatch/rescore/`。启动时 `find_model` 找用户 `%APPDATA%\Qingjian\models\hanzhang-tongbian\`（设置里下载的）与随包 `data\models\hanzhang-tongbian\`（安装包不带，开发时用）；选的模型没下载就不用模型，不再回退；旧用户目录 `model-p2c\` 仍可读取。接受 `.qjm` 单文件或三件套目录；`[model] enabled` 开着就起线程加载并预热（`ModelLoader`），下一次按键 / tick 接上 `set_async_sentence_scorer`。
+  Server 没有定时器：缓冲变化后 `schedule_rescoring` 起防抖，工人循环 `recv_timeout(router.next_tick())` 按 `RescoreState` 的节拍醒来（防抖 30 ms → `request_rescoring`；后台线程交了结果经 `Engine::set_rescoring_wake` 往工人循环投 `Work::Wake` 马上收，另有 20 ms 一次的 `poll_rescoring` 兜底，最多等 2 s），DLL 组句期间每 80 ms 的 `Poll` 也顺带 `tick`。分到了重查一次、重建候选布局（云端词与整句补全留着）、由 Server 自绘的候选窗直接重画，DLL 下一次 `Poll` 拿到新帧更新内联 preedit；翻过页 / 动过高亮不动。热加载 `[model]` 变了才重载 / 卸载。
   前文：DLL 在**起组句的那次读写编辑会话**里顺手读选区起点前 64 个 UTF-16 单元（`com/edit/surrounding.rs::text_before_caret`，拼音还没插进去、不用再开一次会话），随 `ClientMessage::Surrounding` 单向送来。**密码框与私密输入**（2026-09-12 查了微软文档 / SampleIME / Chromium 源码后定）：
   TSF 规定键盘类 TIP 必须看上下文的 `GUID_COMPARTMENT_KEYBOARD_DISABLED`（微软文档明说密码框应禁用文本服务、`IS_PASSWORD` 只是标注不提供保护；Chromium 给密码框的上下文设的就是它），
   DLL 在 `OnTestKeyDown` / `OnKeyDown` / 保留键里没在组句时先查它（连同 `EMPTYCONTEXT`，`com/context.rs`），非零整键放行、不组句——与 macOS 的 Secure Input 同一语义；

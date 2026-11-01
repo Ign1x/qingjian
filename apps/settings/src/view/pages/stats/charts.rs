@@ -4,6 +4,8 @@ use bamboo_slip::taffy::{LengthPercentage, NodeId, Rect, Style};
 use bamboo_slip::{BarChart, Datum, Heatmap, RenderError, Ui, Visual, group};
 use jiff::civil::Date;
 
+use super::full_date;
+use crate::i18n::{tr, tr_args};
 use crate::message::Message;
 use crate::view::Page;
 
@@ -19,7 +21,16 @@ const BAR_HEIGHT: f32 = 96.0;
 /// 卡片左右的内边距（点），见 `bamboo_slip::group`。
 const CARD_PADDING: f32 = 16.0;
 
-const WEEKDAYS: [&str; 7] = ["日", "一", "二", "三", "四", "五", "六"];
+/// 周日起的星期简称（文案键）。
+const WEEKDAYS: [&str; 7] = [
+    "charts.sunday",
+    "charts.monday",
+    "charts.tuesday",
+    "charts.wednesday",
+    "charts.thursday",
+    "charts.friday",
+    "charts.saturday",
+];
 
 /// 近一年按天的格子图：一列一周（周日在上），颜色按那天的量相对这一年里最多那天的比例深浅。
 pub fn calendar(
@@ -50,7 +61,7 @@ pub fn calendar(
         if let Some(first) = days.iter().find(|date| date.day() == 1 && **date <= today)
             && last_label.is_none_or(|last| week >= last + 3)
         {
-            labels.push((week, format!("{}月", first.month())));
+            labels.push((week, month_label(first.month())));
             last_label = Some(week);
         }
         columns.push(
@@ -59,13 +70,14 @@ pub fn calendar(
                     (*date <= today).then(|| {
                         let amount = value(*date);
                         let level = (amount as f32 / max as f32).sqrt();
-                        let weekday = WEEKDAYS[date.weekday().to_sunday_zero_offset() as usize];
-                        let tip = format!(
-                            "{}年{}月{}日 周{weekday} · {}",
-                            date.year(),
-                            date.month(),
-                            date.day(),
-                            tip(*date, amount)
+                        let weekday = tr(WEEKDAYS[date.weekday().to_sunday_zero_offset() as usize]);
+                        let tip = tr_args(
+                            "charts.day_tip",
+                            &[
+                                ("date", &full_date(*date)),
+                                ("weekday", &weekday),
+                                ("amount", &tip(*date, amount)),
+                            ],
                         );
                         Datum::new(if amount == 0 { 0.0 } else { level }, tip)
                     })
@@ -75,7 +87,7 @@ pub fn calendar(
     }
     let cell = Heatmap::fit(inner_width(page), WEEKS as usize).min(MAX_CELL);
     let rows = [1, 3, 5]
-        .map(|row| (row, WEEKDAYS[row].to_owned()))
+        .map(|row| (row, tr(WEEKDAYS[row]).to_owned()))
         .to_vec();
     let map = Heatmap::new(columns)
         .cell(cell)
@@ -102,7 +114,7 @@ pub fn hours(
         .map(|(index, amount)| {
             let hour = clock(index);
             let day = if 23 - index > usize::from(now) {
-                "昨天 "
+                tr("charts.yesterday")
             } else {
                 ""
             };
@@ -119,7 +131,7 @@ pub fn hours(
         .collect();
     let chart = BarChart::new(bars, inner_width(page), BAR_HEIGHT)
         .labels(labels)
-        .end_label("现在")
+        .end_label(tr("charts.now"))
         .current(Some(23))
         .build(ui, &page.theme, local)?;
     card(ui, page, chart)
@@ -147,4 +159,8 @@ fn card(ui: &mut Ui<Message>, page: &Page, chart: NodeId) -> Result<NodeId, Rend
         &[chart],
     )?;
     group(ui, &page.theme, &[padded])
+}
+
+fn month_label(month: i8) -> String {
+    tr_args("charts.month", &[("month", &month)])
 }

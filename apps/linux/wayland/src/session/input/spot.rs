@@ -6,6 +6,9 @@ pub enum Spot {
     /// 本页第几个候选（从 0 起）；候选右侧的译词也算它：Linux 协议只有点候选，没有点哪条译词。
     Candidate(usize),
 
+    /// 翻页箭头：`true` 为下一页。
+    Page(bool),
+
     /// 右键菜单的第几项（从 0 起）。
     MenuItem(usize),
 

@@ -2,6 +2,7 @@
 
 use qingjian_core::candidate::arrows::Arrow;
 use qingjian_core::{CandidateKind, QUESTION_PREFIX, punctuation};
+use qingjian_platform::CommitRoute;
 use qingjian_platform::NumpadDigit;
 use qingjian_platform::protocol::KeyEvent;
 
@@ -29,6 +30,9 @@ impl Router {
         {
             self.toggle_traditional();
             return Effect::Navigated;
+        }
+        if let Some(effect) = self.apply_commit_key(event) {
+            return effect;
         }
         if self.composing()
             && !self.engine.expression_mode()
@@ -88,6 +92,28 @@ impl Router {
             self.apply_chinese(c, event)
         };
         with_prefix(flushed, effect, c)
+    }
+
+    /// 组句中换过的上屏键（`[shortcut] commit_candidate` / `commit_raw`，怎么分见 `CommitKeys::route`）；
+    /// 注音的空格是一声、回车有自己的规则，不参与。返回 `None` 照原来的分派走。
+    fn apply_commit_key(&mut self, event: &KeyEvent) -> Option<Effect> {
+        if !self.composing() || self.engine.is_zhuyin_mode() {
+            return None;
+        }
+        let route = self.config.commit_keys.route(event);
+        if route == CommitRoute::Keep {
+            return None;
+        }
+        // 只有一个 `?`：上屏键就是「把这个 ? 上屏」，与空格、回车一样
+        if route != CommitRoute::Unbound && self.engine.bare_question() {
+            let english = event.modifiers.caps || event.modifiers.english_mode;
+            return Some(Effect::Changed(Some(self.restore_bare_question(english))));
+        }
+        Some(match route {
+            CommitRoute::Candidate => Effect::Changed(Some(self.commit_highlighted())),
+            CommitRoute::Raw => Effect::Changed(Some(self.engine.take_raw())),
+            CommitRoute::Unbound | CommitRoute::Keep => Effect::Navigated,
+        })
     }
 
     /// 缓冲区里只有一个 `?`：清掉，还原成问号（按当前模式的全角设置转）。

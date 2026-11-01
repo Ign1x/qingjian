@@ -203,6 +203,7 @@ impl Canvas {
             | HitTarget::Translation {
                 candidate: index, ..
             } => Some(Spot::Candidate(index)),
+            HitTarget::Page(step) => Some(Spot::Page(step > 0)),
             HitTarget::MenuItem(_) => None,
         }
     }
@@ -239,6 +240,7 @@ impl Canvas {
             .centers()
             .filter_map(|(target, x, y)| match target {
                 HitTarget::Candidate(index) => Some((format!("candidate{index}"), x, y)),
+                HitTarget::Page(step) => Some((format!("page{step}"), x, y)),
                 HitTarget::Translation { .. } | HitTarget::MenuItem(_) => None,
             });
         let menu =
@@ -247,7 +249,9 @@ impl Canvas {
                 .flat_map(Part::centers)
                 .filter_map(|(target, x, y)| match target {
                     HitTarget::MenuItem(item) => Some((format!("item{item}"), x, y)),
-                    HitTarget::Candidate(_) | HitTarget::Translation { .. } => None,
+                    HitTarget::Candidate(_)
+                    | HitTarget::Translation { .. }
+                    | HitTarget::Page(_) => None,
                 });
         let mut text = String::new();
         for (name, x, y) in window.chain(menu) {

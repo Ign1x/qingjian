@@ -95,6 +95,6 @@ mod tests {
             Some("笑哭了")
         );
         assert_eq!(CATALOG.item("(T_T)").unwrap().kind, CandidateKind::Kaomoji);
-        assert!(KEYWORDS.lookup("箭头").contains(&"→".to_owned()));
+        assert!(KEYWORDS.lookup("箭头").any(|e| e == "→"));
     }
 }

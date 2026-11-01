@@ -3,19 +3,22 @@ package app.qingjian.inputmethod.keyboard.paint
 import android.graphics.Canvas
 import android.graphics.Paint
 import android.graphics.Path
+import app.qingjian.inputmethod.keyboard.ShiftState
 import app.qingjian.inputmethod.keyboard.layout.Key
 
 /** 功能键的矢量图标，画在 24×24 的格子里再按 [size] 缩放；不用字体里的符号，各家系统字体画出来不一样。 */
 object KeyIcons {
     private val path = Path()
 
-    fun draw(canvas: Canvas, key: Key, cx: Float, cy: Float, size: Float, paint: Paint, filled: Boolean) {
+    /** Shift 键按 [shift] 画：亮着（单次或锁定）实心；锁定的小点由 [KeyPainter] 画在键角上。 */
+    fun draw(canvas: Canvas, key: Key, cx: Float, cy: Float, size: Float, paint: Paint, shift: ShiftState = ShiftState.OFF) {
         val build = when (key) {
             Key.Shift -> ::shift
             Key.Backspace -> ::backspace
             is Key.Enter -> ::enter
             else -> return
         }
+        val filled = shift.on
         path.rewind()
         build(path)
         val scale = size / 24f

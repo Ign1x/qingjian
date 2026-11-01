@@ -99,10 +99,15 @@ abstract class PanelView(
     override fun onTouchEvent(event: MotionEvent): Boolean = gestures.onTouchEvent(event)
 
     /**
-     * 表头：与工具栏同样浮起的圆角卡片，和下面的内容分出层次；左边返回，[rightIcon] 画在右边一格
+     * 表头：与工具栏同样浮起的圆角卡片，和下面的内容分出层次；左边返回（编辑类面板换成品牌色的 [leftIcon]，如完成的对勾），[rightIcon] 画在右边一格
      * （点它由子类在 [onTap] 里认 [isRightIcon]）。
      */
-    protected fun drawHeader(canvas: Canvas, tabs: Tabs?, rightIcon: PanelIcons.Icon? = null) {
+    protected fun drawHeader(
+        canvas: Canvas,
+        tabs: Tabs?,
+        rightIcon: PanelIcons.Icon? = null,
+        leftIcon: PanelIcons.Icon = PanelIcons.Icon.BACK,
+    ) {
         val inset = ink.dp(6f)
         headerCard.set(inset, inset, width - inset, headerHeight - ink.dp(4f))
         headerCard.offset(0f, ink.density)
@@ -110,7 +115,7 @@ abstract class PanelView(
         headerCard.offset(0f, -ink.density)
         ink.round(canvas, headerCard, 14f, palette.surface)
         val cy = headerCard.centerY()
-        ink.icon(canvas, PanelIcons.Icon.BACK, ink.dp(BACK_WIDTH_DP) / 2, cy, 24f, palette.text)
+        ink.icon(canvas, leftIcon, ink.dp(BACK_WIDTH_DP) / 2, cy, 24f, if (leftIcon == PanelIcons.Icon.BACK) palette.text else palette.brand)
         tabs?.let {
             it.setBounds(ink.dp(BACK_WIDTH_DP), headerCard.top, width - ink.dp(BACK_WIDTH_DP), headerCard.bottom)
             it.draw(canvas)

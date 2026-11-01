@@ -1,3 +1,5 @@
+use crate::i18n::tr_args;
+
 /// 用户要求删掉一个候选（[`super::Engine::forget`]）之后，实际清掉了什么。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct Forgotten {
@@ -17,11 +19,11 @@ impl Forgotten {
     /// 删完给用户看的一句话（显示在拼音行旁）。
     pub fn describe(&self, text: &str) -> String {
         if self.user_word {
-            format!("已删除用户词「{text}」")
+            tr_args("forget.user_word", &[("text", &text)])
         } else if self.learning {
-            format!("已忘掉对「{text}」的学习记录")
+            tr_args("forget.learning", &[("text", &text)])
         } else {
-            format!("「{text}」是词库里的词，也没有学习记录，没什么可删")
+            tr_args("forget.nothing", &[("text", &text)])
         }
     }
 }

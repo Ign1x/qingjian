@@ -96,6 +96,7 @@ a = "aa"
 
 #[test]
 fn the_slot_loads_a_custom_layout_and_falls_back_to_full_pinyin() {
+    bamboo_slip_i18n::pin_locale("zh-Hans");
     let root = scratch("slot");
     let user = root.join("user");
     write(&user.join("schemes/mine/scheme.toml"), MINE);

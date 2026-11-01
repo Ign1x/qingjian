@@ -111,10 +111,73 @@ fn marked_text_joins_best_segmentation_with_apostrophes() {
 
 #[test]
 fn prefix_words_appear_after_full_matches() {
-    // 开放 / 开饭 来自 `kai f… a zhe` 这种切分的前缀 `kai f…`，排在覆盖更多字母的 开发 之后
+    // 开放 / 开饭 来自 `kai f… a zhe` 这种把 `fa` 拆开的切分，`kai fa zhe` 读得通时排到最后，单字 开 在它们前面
     let all = texts("kaifazhe");
     assert_eq!(&all[..2], ["开发者", "开发"]);
-    assert_eq!(all.last().map(String::as_str), Some("开"));
+    assert_eq!(&all[all.len() - 2..], ["开放", "开饭"]);
+    assert!(all.contains(&"开".to_owned()));
+}
+
+fn texts_in(dictionary: &str, input: &str) -> Vec<String> {
+    let mut engine = Engine::new(Dictionary::parse(dictionary).unwrap());
+    engine.set_input(input);
+    engine
+        .query()
+        .unwrap()
+        .candidates
+        .items
+        .into_iter()
+        .filter(|c| c.kind != CandidateKind::Sentence)
+        .map(|c| c.text)
+        .collect()
+}
+
+fn position(all: &[String], text: &str) -> usize {
+    all.iter()
+        .position(|t| t == text)
+        .unwrap_or_else(|| panic!("{text} 不在候选里：{all:?}"))
+}
+
+#[test]
+fn single_chars_come_before_guessed_words_and_split_readings() {
+    // 整段读得通（`shi shan`）但词库里没有想要的词：猜出来的长词至多三条，然后是首音节的单字，
+    // 拆开 `shan` 读出来的（`shi s… h… an` 的 事实、`shi sha n…` 的 是啥呢）排在单字后面
+    let dictionary = concat!(
+        "是\tshi\t9000\n时\tshi\t8000\n石山\tshi shan\t100\n",
+        "时尚\tshi shang\t9000\n世上\tshi shang\t8000\n史上\tshi shang\t7000\n事上\tshi shang\t6000\n",
+        "时尚潮流\tshi shang chao liu\t5000\n事实\tshi shi\t9000\n是啥呢\tshi sha ne\t9000\n",
+    );
+    let all = texts_in(dictionary, "shishan");
+    assert_eq!(all[0], "石山");
+    for guess in ["时尚", "世上", "史上"] {
+        assert!(position(&all, guess) < position(&all, "是"), "{all:?}");
+    }
+    for later in ["事上", "时尚潮流", "事实", "是啥呢"] {
+        assert!(position(&all, "时") < position(&all, later), "{all:?}");
+    }
+}
+
+#[test]
+fn long_input_without_a_word_offers_the_first_syllables_chars_after_a_few_words() {
+    // #769：整段没有词时，盖住开头几个音节的词至多几个，接着就是首音节的单字，不穿插也不用翻几页
+    let dictionary = concat!(
+        "实验室\tshi yan shi\t9000\n十堰市\tshi yan shi\t8000\n试验室\tshi yan shi\t7000\n",
+        "实验\tshi yan\t9000\n试验\tshi yan\t8000\n是\tshi\t9000\n时\tshi\t8000\n十\tshi\t7000\n",
+    );
+    let all = texts_in(dictionary, "shiyanshiqing");
+    assert_eq!(
+        &all[..8],
+        [
+            "实验室",
+            "十堰市",
+            "试验室",
+            "实验",
+            "试验",
+            "是",
+            "时",
+            "十"
+        ]
+    );
 }
 
 #[test]
@@ -138,7 +201,7 @@ fn keyboard_u_umlaut_spelling_matches_canonical_dictionary_keys() {
 
     engine.set_input("celue");
     let query = engine.query().unwrap();
-    assert_eq!(query.marked_text(), "ce'lue");
+    assert_eq!(query.marked_text(), "ce'lüe");
     assert_eq!(query.candidates.items[0].text, "策略");
     assert_eq!(query.candidates.items[0].syllables, ["ce", "lve"]);
     let strategy = query.candidates.items[0].clone();
@@ -162,7 +225,7 @@ fn keyboard_v_after_jqxy_matches_u_dictionary_keys() {
 
     engine.set_input("tiqv");
     let query = engine.query().unwrap();
-    assert_eq!(query.marked_text(), "ti'qv");
+    assert_eq!(query.marked_text(), "ti'qu");
     assert_eq!(query.candidates.items[0].text, "提取");
     assert_eq!(query.candidates.items[0].syllables, ["ti", "qu"]);
 
@@ -536,4 +599,46 @@ fn committing_the_rest_after_a_separator_split_consumes_it() {
         assert_eq!(engine.commit(&candidate), committed);
     }
     assert!(engine.composition().is_empty());
+}
+
+#[test]
+fn completions_stay_in_front_while_the_last_syllable_is_still_being_typed() {
+    // `jixub` 的 b 还没打完：补全正是用户要往下打的，不限条数，也不把单字提前
+    let dictionary = concat!(
+        "继续\tji xu\t9000\n继续保留\tji xu bao liu\t900\n继续秉承\tji xu bing cheng\t800\n",
+        "继续北上\tji xu bei shang\t700\n继续奔跑\tji xu ben pao\t600\n及\tji\t9000\n",
+    );
+    let all = texts_in(dictionary, "jixub");
+    for completion in ["继续保留", "继续秉承", "继续北上", "继续奔跑"] {
+        assert!(
+            position(&all, completion) < position(&all, "继续"),
+            "{all:?}"
+        );
+    }
+    assert!(position(&all, "继续") < position(&all, "及"), "{all:?}");
+}
+
+#[test]
+fn split_readings_keep_their_place_when_no_word_reads_as_typed() {
+    // `wodei` 想打 我的（口语 dei）：`wo dei` 读不出词，`wo d… ei` 的前缀 我的 正是要的，不往后放
+    let dictionary = "我的\two de\t9000\n我带\two dai\t800\n我\two\t9000\n沃\two\t100\n";
+    let all = texts_in(dictionary, "wodei");
+    assert_eq!(all[0], "我的");
+    assert!(position(&all, "我") < position(&all, "沃"), "{all:?}");
+}
+
+#[test]
+fn many_whole_words_still_leave_room_for_single_chars() {
+    // `zhiyi` 读得出五十多个整词：前 6 个之后先给首音节的单字，再接其余整词
+    let mut dictionary = String::from("知\tzhi\t100\n");
+    for (i, c) in "一二三四五六七八九十百千万亿".chars().enumerate() {
+        dictionary.push_str(&format!("之{c}\tzhi yi\t{}\n", 9000 - i));
+    }
+    let all = texts_in(&dictionary, "zhiyi");
+    let first_char = position(&all, "知");
+    assert_eq!(first_char, 6, "{all:?}");
+    assert!(
+        all[first_char + 1..].iter().any(|t| t.starts_with('之')),
+        "{all:?}"
+    );
 }

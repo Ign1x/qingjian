@@ -5,6 +5,7 @@
 //! 线程句柄是 `UiHandle`，命令在 `command`，候选窗口在 `candidates`，符号面板在 `panel`，状态条在 `status`，
 //! 分层窗口合成在 `layered`。
 
+mod candidate_editor;
 mod candidates;
 mod command;
 mod layered;
@@ -118,6 +119,10 @@ impl CandidateSink for UiHandle {
         self.post(UiCommand::Menu(menu));
     }
 
+    fn edit_translation(&self, offset: usize, current: String) {
+        self.post(UiCommand::TranslationEditor { offset, current });
+    }
+
     fn close_menu(&self) {
         self.post(UiCommand::MenuClose);
     }
@@ -215,6 +220,11 @@ fn run(
     loop {
         let got = unsafe { GetMessageW(&mut msg, None, 0, 0) };
         if got.0 <= 0 {
+            if got.0 < 0 {
+                tracing::error!(error = %std::io::Error::last_os_error(), "UI message loop failed");
+            } else {
+                tracing::info!(reason = "wm_quit", "UI message loop stopped");
+            }
             break;
         }
         if window.is_animation_timer(&msg) {
@@ -250,6 +260,9 @@ fn apply(
         }
         UiCommand::Hide => window.hide(),
         UiCommand::Menu(menu) => window.show_menu(menu),
+        UiCommand::TranslationEditor { offset, current } => {
+            candidate_editor::open(offset, &current)
+        }
         UiCommand::MenuClose => window.close_menu(),
         UiCommand::PanelShow(payload) => {
             let (frame, rect) = *payload;

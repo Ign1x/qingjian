@@ -43,7 +43,7 @@ ang = ["ah", "ag"]
 - `;` can only be a final key (the second key), like ing in Microsoft double pinyin: after a lone initial it's pinyin, otherwise it's still punctuation.
 - A scheme with mistakes (a key that isn't a letter, a final that doesn't exist, a zero-initial spelling that isn't two keys) doesn't appear in Settings; if only some syllables can't be typed, it still works, and the [runtime log](data-files.md#Runtime-logs) lists which ones.
 
-Once it's in place, switch back to the settings window and choose it under 设置 → 输入 → 拼音 (Settings → Input → Pinyin); built-in double pinyin schemes come first, followed by your own. Fuzzy pinyin, 输入框显示按键 (Show keys in the input box) and key hints work as with the built-in schemes.
+Once it's in place, switch back to the settings window and choose it under 设置 → 输入 → 拼音 (Settings → Input → Pinyin); built-in double pinyin schemes come first, followed by your own. Fuzzy pinyin, 输入框显示按键 (Show keys in the input box), 候选窗显示按键 (Show keys in the candidate window) and key hints work as with the built-in schemes.
 
 ## Custom shape-based schemes
 

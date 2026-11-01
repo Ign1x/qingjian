@@ -61,7 +61,7 @@ impl Router {
                 // 旧鼠标事件不能改变其他会话的焦点、显示身份或学习回报。
                 return Some(json!({"Ignored": {"session": request.session}}));
             }
-            match self.linux_event(request)? {
+            match self.traced_linux(request)? {
                 Answer::Message(message) => message,
                 Answer::Menu(menu) => return Some(json!({ "Menu": menu })),
             }

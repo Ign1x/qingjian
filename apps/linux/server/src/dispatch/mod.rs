@@ -15,6 +15,7 @@ mod reload;
 mod rescore;
 mod schemes;
 mod session;
+mod trace;
 mod translate;
 
 use self::answer::Answer;
@@ -28,6 +29,7 @@ use self::session::SessionInfo;
 use self::translate::Translation;
 use qingjian_core::candidate::arrows::Focus;
 use qingjian_core::{Engine, Grid};
+use qingjian_platform::logs::CompositionTrace;
 use qingjian_platform::models::{ModelDirs, ModelLoader};
 use qingjian_platform::protocol::{ClientMessage, ServerMessage, SessionId};
 use qingjian_platform::{LocalModelConfig, SchemeSlot};
@@ -118,6 +120,8 @@ pub struct Router {
 
     /// 随包的方案目录（见 [`find_bundled_schemes`]）；没有为 `None`。
     bundled_schemes: Option<PathBuf>,
+    /// 正在进行的这段组句的按键账；没在组句为 `None`。
+    trace: Option<CompositionTrace>,
 }
 
 impl Router {
@@ -155,11 +159,12 @@ impl Router {
             scheme_slot: SchemeSlot::default(),
             schemes_user_dir: None,
             bundled_schemes: None,
+            trace: None,
         }
     }
     /// 一条客户端消息；无需答复的通知返回 None。
     pub fn handle(&mut self, message: ClientMessage) -> Option<ServerMessage> {
-        let response = self.dispatch(message);
+        let response = self.traced(message);
         if self.last_flush.elapsed() >= LEARNING_FLUSH_INTERVAL {
             self.flush_learning();
         }

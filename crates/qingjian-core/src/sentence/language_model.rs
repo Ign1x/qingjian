@@ -4,6 +4,16 @@ pub trait LanguageModel: Send {
     /// 由 Core 用词库词频兜底。
     fn log_prob(&self, previous: Option<&str>, word: &str) -> Option<f64>;
 
+    /// `log P(word | earlier previous)`：三元模型覆盖它，缺省退回 [`Self::log_prob`]。
+    fn log_prob_trigram(
+        &self,
+        _earlier: Option<&str>,
+        previous: Option<&str>,
+        word: &str,
+    ) -> Option<f64> {
+        self.log_prob(previous, word)
+    }
+
     /// 没接模型（什么词都不认识），「模型认不认识这个词」就没有意义。
     fn is_empty(&self) -> bool {
         false

@@ -171,6 +171,8 @@ fn replay_commit(
             return;
         }
     };
+    // 接了后台模型（知意、异步神经重打分）时按壳停顿后的样子量：等分数回来再查一次
+    query = crate::rescoring::settled(engine, query);
     if let Some(reranker) = reranker {
         reranker.rerank(engine, &mut query, scope);
     }

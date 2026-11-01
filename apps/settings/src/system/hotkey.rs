@@ -6,6 +6,8 @@ use windows::Win32::UI::Input::Ime::{
 };
 use windows::Win32::UI::Input::KeyboardAndMouse::{HKL, MOD_CONTROL, VK_SPACE};
 
+use crate::i18n::tr;
+
 pub fn ctrl_space_enabled() -> bool {
     let mut modifiers = 0;
     let mut key = 0;
@@ -51,7 +53,7 @@ pub fn set_ctrl_space(enabled: bool) -> Result<(), String> {
     if changed && ctrl_space_enabled() == enabled {
         Ok(())
     } else {
-        Err("Windows 未能更新 Ctrl + Space，请重新打开设置后重试。".to_owned())
+        Err(tr("language.ctrl_space_failed").to_owned())
     }
 }
 

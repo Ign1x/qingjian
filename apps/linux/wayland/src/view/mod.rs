@@ -258,7 +258,7 @@ pub fn senses(rendered: &Rendered) -> Vec<(usize, usize)> {
         .iter()
         .filter_map(|region| match region.target {
             HitTarget::Translation { candidate, sense } => Some((candidate, sense)),
-            HitTarget::Candidate(_) | HitTarget::MenuItem(_) => None,
+            HitTarget::Candidate(_) | HitTarget::MenuItem(_) | HitTarget::Page(_) => None,
         })
         .take(MAX_SENSES)
         .collect()

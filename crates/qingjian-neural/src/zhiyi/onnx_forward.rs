@@ -39,6 +39,23 @@ impl OnnxForward {
 
 impl Forward for OnnxForward {
     fn logits(&self, sequence: &Sequence) -> Result<Vec<f32>, NeuralError> {
+        self.run(sequence, "logits").map(|(_, values)| values)
+    }
+
+    fn char_logits(&self, sequence: &Sequence) -> Result<Option<Vec<Vec<f32>>>, NeuralError> {
+        let (shape, values) = self.run(sequence, "char_logits")?;
+        let columns = shape.last().copied().unwrap_or(0).max(1);
+        Ok(Some(values.chunks(columns).map(<[f32]>::to_vec).collect()))
+    }
+}
+
+impl OnnxForward {
+    /// 跑一次前向，取名为 `output` 的输出：(形状, 展平的值)。
+    fn run(
+        &self,
+        sequence: &Sequence,
+        output: &str,
+    ) -> Result<(Vec<usize>, Vec<f32>), NeuralError> {
         let row = |values: Vec<i64>| Tensor::from_array(([1, values.len()], values));
         let ints = |values: &[u32]| values.iter().map(|&v| i64::from(v)).collect::<Vec<_>>();
         let slots: Vec<i64> = (0..sequence.units.len() as i64)
@@ -58,10 +75,11 @@ impl Forward for OnnxForward {
             .lock()
             .map_err(|_| NeuralError::Corrupt("ONNX session poisoned"))?;
         let outputs = session.run(inputs).map_err(onnx_error)?;
-        let (_, logits) = outputs["logits"]
+        let (shape, values) = outputs[output]
             .try_extract_tensor::<f32>()
             .map_err(onnx_error)?;
-        Ok(logits.to_vec())
+        let shape = shape.iter().map(|&d| d.max(0) as usize).collect();
+        Ok((shape, values.to_vec()))
     }
 }
 

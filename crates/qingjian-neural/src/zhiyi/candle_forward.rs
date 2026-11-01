@@ -31,7 +31,7 @@ pub(super) struct CandleForward {
 impl CandleForward {
     /// 加载时把线性层量化成 Q8_0。
     pub fn load(dir: &Path) -> Result<Self, NeuralError> {
-        let device = crate::scorer::default_device()?;
+        let device = crate::device::default_device()?;
         let config: Config = read_json(&dir.join("config.json"))?;
         let sliding: Vec<bool> = config
             .encoder

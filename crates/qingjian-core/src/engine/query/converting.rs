@@ -1,6 +1,13 @@
 //! 整句候选：把词图里重排过的前几条路径变成候选，以及整句转换本身。
 
-use super::*;
+use crate::engine::choice::char_emission;
+use crate::engine::query::{EnglishTail, leading_english};
+use crate::engine::{
+    ALTERNATE_MIN_SYLLABLES, CHOICE_SENTENCE_CANDIDATES, Learner, RESCORE_PATHS,
+    SENTENCE_CANDIDATES, TIED_SEGMENTATIONS, reads_as_typed,
+};
+use crate::sentence::Conversion;
+use crate::{Candidate, CandidateKind, Engine, Segmentation, parser, sentence};
 
 impl Engine {
     /// 整句候选。没有英文尾段时是整段拼音的转换（[`Self::plain_sentence`]），排在开头的英文候选之后。
@@ -20,16 +27,21 @@ impl Engine {
             return;
         };
         let keys = self.composition.scope();
-        let first_segmentation = |text: &str| parser::segment(text).ok()?.into_iter().next();
         match english_tail {
             Some(tail) if head_wins => {
                 if let Some(mixed) = self.mixed_sentence(best, tail, typos) {
                     items.insert(0, mixed);
                 }
-                // 整段读成拼音的那条本来就是「另一种读法」，只给一条
+                // 整段读成拼音的那条本来就是「另一种读法」，只给一条：与比分时同一种切分，取原样读的那条（第二条是纠正）
+                let segmentations = parser::segment(keys).ok();
                 if tail.competes
-                    && let Some(full) = first_segmentation(keys)
-                    && let Some(plain) = self.plain_sentence(items, &full, typos, false).pop()
+                    && let Some(full) = segmentations
+                        .as_deref()
+                        .and_then(|s| self.sentence_segmentation(s, typos))
+                    && let Some(plain) = self
+                        .plain_sentence(items, full, typos, false)
+                        .into_iter()
+                        .next()
                 {
                     let position = items.len().min(1);
                     items.insert(position, plain);
@@ -43,25 +55,44 @@ impl Engine {
                 // 词图读不通整段时模型直接生成的整句排在词图那几条前面：这时词图给的是把英文段
                 // 硬读成拼音的结果（`yongdockerbushuhenfangbian` → 用的哦乘客仍不熟很方便），排它前面没有可惜的
                 // `typos` 为假就是拼写纠错已经生效（见调用处），那时 `best` 是纠正后的切分
-                let generated: Vec<Candidate> = self
-                    .generated_sentence_candidates(best, keys, !typos)
-                    .into_iter()
-                    .filter(|g| {
-                        !items
-                            .iter()
-                            .chain(sentences.iter())
-                            .any(|c| c.text == g.text)
-                    })
-                    .collect();
-                let generated_count = generated.len();
-                for (offset, candidate) in generated.into_iter().enumerate() {
-                    items.insert((position + offset).min(items.len()), candidate);
+                // 接了生成器时拼音干净的输入也是生成的在前，没打完、纠正过的词图在前（见 `generated_sentence_candidates`）
+                let (generated, lead) =
+                    self.generated_sentence_candidates(best, keys, !typos, &sentences);
+                let mut sentences = sentences;
+                let mut ordered: Vec<Candidate> = Vec::new();
+                if !lead {
+                    // 词图没出整句时生成的跟在原来排第一的那个候选后面
+                    if !sentences.is_empty() {
+                        ordered.push(sentences.remove(0));
+                    } else if position < items.len() {
+                        ordered.push(items.remove(position));
+                    }
                 }
-                for (offset, plain) in sentences.into_iter().enumerate() {
-                    items.insert(
-                        (position + generated_count + offset).min(items.len()),
-                        plain,
-                    );
+                let mixed = !generated.is_empty();
+                // 生成的与词图的整句相同时用词图那条（带读音，上屏能学），但排在生成给的名次上
+                for g in generated {
+                    if items.iter().chain(ordered.iter()).any(|c| c.text == g.text) {
+                        continue;
+                    }
+                    match sentences.iter().position(|c| c.text == g.text) {
+                        Some(i) => ordered.push(sentences.remove(i)),
+                        None => ordered.push(g),
+                    }
+                }
+                ordered.extend(sentences);
+                if mixed {
+                    // 生成的加词图的整句一起最多 SENTENCE_CANDIDATES 条，不把第一页的词挤走（#769）
+                    let mut kept = 0;
+                    ordered.retain(|c| {
+                        if !matches!(c.kind, CandidateKind::Sentence | CandidateKind::Generated) {
+                            return true;
+                        }
+                        kept += 1;
+                        kept <= SENTENCE_CANDIDATES
+                    });
+                }
+                for (offset, candidate) in ordered.into_iter().enumerate() {
+                    items.insert((position + offset).min(items.len()), candidate);
                 }
             }
         }
@@ -103,6 +134,10 @@ impl Engine {
     /// `alternates` 为真且输入够长时把重排后的第 2、3 条路径也给出来（[`SENTENCE_CANDIDATES`] 条封顶）：
     /// 长句错一个字就得整句拆开重打，一条候选不够用；短输入不给，那几格留给词级候选更值。
     /// 备选只收真整句（路径上不止一个词），「整段读成一个词」那种噪声信道的判断只认第一条。
+    ///
+    /// 敲的拼音每个音节都完整（[`reads_as_typed`]）、原样读出的最优路径又全是认识的词（[`Self::credible`]）时只按原样读：
+    /// 敲错边读出的最优路径与原样不同就当第二条给（`shabi` 原样 沙比 / 傻逼，杀不 排第二；`meiganxi` 原样 美感洗，没关系 排第二），
+    /// 要不要把它提到第一交给带前文的选词模型去比。原样读不通（有残缺音节，或只读得出 咋嫩 这种碎片）时敲错边照旧可以赢（`zanen` → 咱们）。
     pub(in crate::engine) fn plain_sentence(
         &self,
         items: &mut Vec<Candidate>,
@@ -132,10 +167,95 @@ impl Engine {
             }
         }
         let wanted = if alternates && best.syllables.len() >= ALTERNATE_MIN_SYLLABLES {
-            SENTENCE_CANDIDATES
+            if self.has_choice_model() {
+                CHOICE_SENTENCE_CANDIDATES
+            } else {
+                SENTENCE_CANDIDATES
+            }
         } else {
             1
         };
+        let (as_typed, corrected) = if typos && reads_as_typed(best) {
+            let corrected = self
+                .sentence_paths(&best.patterns(), true, false, 1)
+                .into_iter()
+                .next()
+                .filter(|path| path.altered() && !path.has_placeholder());
+            let as_typed = self
+                .sentence_paths(&best.patterns(), false, false, 1)
+                .first()
+                .is_some_and(|path| self.credible(path, corrected.as_ref()));
+            (as_typed, corrected.filter(|_| as_typed))
+        } else {
+            (false, None)
+        };
+        let mut out = self.sentence_candidates(items, best, typos && !as_typed, wanted);
+        let Some(corrected) = corrected else {
+            return out;
+        };
+        if items
+            .iter()
+            .chain(out.iter())
+            .any(|c| c.text == corrected.text)
+        {
+            return out;
+        }
+        self.corrected_alternates
+            .borrow_mut()
+            .push(corrected.text.clone());
+        let candidate = Candidate {
+            kind: if corrected.word_count() >= 2 {
+                CandidateKind::Sentence
+            } else {
+                CandidateKind::Chinese
+            },
+            text: corrected.text,
+            syllables: corrected.syllables,
+            reading: None,
+            translation: None,
+            aux_code: None,
+        };
+        // 原样那条撞上词级候选、整句一条都不出时，备选跟在词级首选后面
+        if out.is_empty() {
+            let position = (leading_english(items) + 1).min(items.len());
+            items.insert(position, candidate);
+        } else {
+            out.insert(1, candidate);
+            out.truncate(wanted.max(2));
+        }
+        out
+    }
+
+    /// 原样读出的路径上，纠正那条没有的词语言模型都认识（没接模型时退回主词库里的词都算），且至少有一个多字词：这样才算「读得通」。
+    /// 只看有没有词等于从不纠：青简词库里几乎每种读音都有个词（赞恩、咋嫩），它们模型不认识；
+    /// 每个音节也总有个常用字，全靠单字拼出来的（赞 + 恩）不算。
+    /// 不要求主词库：补充词库里模型认识的词（傻逼）也是用户敲的原话。
+    /// 两条都有的词不算：长句里有个模型不认识的专名（菩提伽耶），纠正那条也照样带着它，不能因此判原样读不通（`xintaan…` → 新法案）。
+    fn credible(&self, path: &Conversion, corrected: Option<&Conversion>) -> bool {
+        let shared = |text: &str| corrected.is_some_and(|c| c.words.iter().any(|w| w.text == text));
+        !path.has_placeholder()
+            && path.words.iter().any(|word| word.text.chars().count() >= 2)
+            && path
+                .words
+                .iter()
+                .filter(|word| !shared(&word.text))
+                .all(|word| {
+                    if self.language_model.is_empty() {
+                        self.in_primary_dictionary(&word.text, &word.syllables)
+                    } else {
+                        self.language_model.log_prob(None, &word.text).is_some()
+                    }
+                })
+    }
+
+    /// [`Self::plain_sentence`] 里按一种读法（`typos` 决定加不加敲错边）出的整句候选。
+    fn sentence_candidates(
+        &self,
+        items: &mut Vec<Candidate>,
+        best: &Segmentation,
+        typos: bool,
+        wanted: usize,
+    ) -> Vec<Candidate> {
         let mut paths = self.sentence_paths(&best.patterns(), typos, false, wanted);
         if paths.is_empty() {
             return Vec::new();
@@ -279,10 +399,16 @@ impl Engine {
     ) -> Vec<Conversion> {
         let dictionaries = self.all_dictionaries();
         let expanded = self.expand_positions(patterns, typos);
-        let k = if self.has_sentence_scorer() {
+        let k = if self.reranks_paths() {
             RESCORE_PATHS.max(want)
         } else {
             want
+        };
+        let table = self.char_table(patterns);
+        let emission = |start: usize, text: &str, syllables: &[String]| {
+            table.as_deref().map_or(0.0, |table| {
+                char_emission(table, patterns, start, text, syllables)
+            })
         };
         let tones = self.sentence_tones(patterns);
         let input = sentence::SearchInput::new(
@@ -293,6 +419,7 @@ impl Engine {
             |index, syllable| expanded.cost(index, syllable),
         )
         .with_tones(&tones)
+        .with_emission(&emission)
         .with_limits(self.search_limits);
         let mut paths = sentence::convert_paths(
             &input,
@@ -312,4 +439,17 @@ impl Engine {
         }
         paths
     }
+}
+
+/// 选词模型重排完只留前 [`SENTENCE_CANDIDATES`] 条整句：词图交给模型的 [`CHOICE_SENTENCE_CANDIDATES`] 条多半只差一两个字，
+/// 全显示会把第一页的词挤走。没被模型排到前面的那些本来就只是给它比的。
+pub(in crate::engine) fn trim_sentence_alternates(items: &mut Vec<Candidate>) {
+    let mut kept = 0;
+    items.retain(|c| {
+        if c.kind != CandidateKind::Sentence {
+            return true;
+        }
+        kept += 1;
+        kept <= SENTENCE_CANDIDATES
+    });
 }

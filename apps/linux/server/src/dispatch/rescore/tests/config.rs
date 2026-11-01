@@ -12,6 +12,7 @@ fn disabling_or_changing_models_unloads_choice_and_stops_rescoring() {
     let mut router = router();
     let mut config = LocalModelConfig {
         name: LocalModel::Zhiyi,
+        enabled: true,
         ..Default::default()
     };
     router.configure_local_model(ModelDirs::default(), &config);
@@ -27,7 +28,7 @@ fn disabling_or_changing_models_unloads_choice_and_stops_rescoring() {
     config.enabled = true;
     router.apply_model_config(&config);
     attach(&mut router, &Arc::new(Prefers::default()));
-    config.name = LocalModel::Zhiwei;
+    config.name = LocalModel::Tongbian;
     router.apply_model_config(&config);
     assert!(!router.engine.has_choice_model());
 }
@@ -37,6 +38,7 @@ fn tier_change_keeps_the_model_and_changes_context_budget() {
     let mut router = router();
     let mut config = LocalModelConfig {
         name: LocalModel::Zhiyi,
+        enabled: true,
         ..Default::default()
     };
     router.configure_local_model(ModelDirs::default(), &config);
@@ -61,12 +63,13 @@ fn tier_change_keeps_the_model_and_changes_context_budget() {
 #[test]
 fn disabling_while_loading_discards_the_receiver() {
     let root = std::env::temp_dir().join(format!("qj-model-cancel-{}", std::process::id()));
-    let model_dir = root.join("models/hanzhang-zhiwei");
+    let model_dir = root.join("models/hanzhang-tongbian");
     std::fs::create_dir_all(&model_dir).unwrap();
     std::fs::write(model_dir.join("model.qjm"), b"bad model").unwrap();
     let mut router = router();
     let mut config = LocalModelConfig {
-        name: LocalModel::Zhiwei,
+        name: LocalModel::Tongbian,
+        enabled: true,
         ..Default::default()
     };
     router.configure_local_model(

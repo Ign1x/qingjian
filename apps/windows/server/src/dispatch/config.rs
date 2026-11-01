@@ -1,8 +1,8 @@
 use qingjian_core::TraditionalVariant;
 use qingjian_platform::protocol::KeyModifiers;
 use qingjian_platform::{
-    Appearance, AppsConfig, CandidateRenderer, Config, FontSize, HighlightKeys, KeyCombo,
-    KeyHintMode, LayoutMode, NumpadDigit, PageKeys, PreeditMode, Scheme, SwitchKeys,
+    Appearance, AppsConfig, CandidateRenderer, CommitKeys, Config, FontSize, HighlightKeys,
+    KeyCombo, KeyHintMode, LayoutMode, NumpadDigit, PageKeys, PreeditMode, Scheme, SwitchKeys,
 };
 
 use super::RenderSettings;
@@ -34,6 +34,9 @@ pub struct RouterConfig {
 
     /// 横排时上 / 下键把单行展开成多行矩阵（`[general] horizontal_grid`）。
     pub horizontal_grid: bool,
+
+    /// 横排时翻页键也把单行展开成矩阵（`[general] grid_page_keys`）。
+    pub grid_page_keys: bool,
 
     /// 候选窗口外观（`[general] appearance`，兼容旧写法见 [`qingjian_platform::GeneralConfig::appearance`]）。
     pub appearance: Appearance,
@@ -112,6 +115,9 @@ pub struct RouterConfig {
     /// 组句中按需调用 AI 的快捷键（`[shortcut] predict`）。
     pub predict: KeyCombo,
 
+    /// 组句时上屏高亮候选与原样上屏字母的键（`[shortcut] commit_candidate` / `commit_raw`）。
+    pub commit_keys: CommitKeys,
+
     /// 简繁切换快捷键；与选区翻译相同时不登记，保留翻译行为。
     pub toggle_traditional: Option<KeyCombo>,
 
@@ -160,6 +166,11 @@ impl RouterConfig {
         self.horizontal_grid && self.layout == LayoutMode::Horizontal
     }
 
+    /// 翻页键展开矩阵是否生效：开关开着（`[general] grid_page_keys`）而且排布是横排。
+    pub fn page_keys_expand(&self) -> bool {
+        self.grid_page_keys && self.layout == LayoutMode::Horizontal
+    }
+
     /// 方向键分拼音行与候选两区（Core 的 `arrows::route`）：横排，而且高亮移动键选了 `←` / `→`。
     pub fn two_area_arrows(&self) -> bool {
         self.layout == LayoutMode::Horizontal && self.highlight_keys == HighlightKeys::LeftRight
@@ -189,6 +200,7 @@ impl From<&Config> for RouterConfig {
             numpad_digit: config.general.numpad_digit,
             layout: config.general.layout,
             horizontal_grid: config.general.horizontal_grid,
+            grid_page_keys: config.general.grid_page_keys,
             appearance: config.general.appearance(),
             renderer: config.general.renderer,
             font: config.general.font.trim().to_owned(),
@@ -220,6 +232,7 @@ impl From<&Config> for RouterConfig {
             },
             translate_selection: config.shortcut.translate_selection,
             predict: config.shortcut.predict,
+            commit_keys: config.shortcut.commit_keys(),
             toggle_traditional: config
                 .shortcut
                 .toggle_traditional

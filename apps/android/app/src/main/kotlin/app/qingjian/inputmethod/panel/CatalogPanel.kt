@@ -21,7 +21,8 @@ import kotlin.math.hypot
 
 /**
  * 符号与表情面板，内容是 Core 的面板目录（[Catalog]），点一格上屏。
- * - 符号：不要表头，细线分格；右边一列 返回 / 删除 / 锁定，没锁上屏一个就回键盘；底下横排分类。
+ * - 符号：不要表头，细线分格，偶数列（成对的括号引号在目录里从偶数位起，不会被拆到两行）；右边一列 返回 / 删除 / 锁定，
+ *   没锁上屏一个就回键盘；底下横排分类。[leftThumb]（左手布局）时分类竖排在左边一列、左下角是返回，右边一列只剩删除 / 锁定。
  * - 表情：表头是 Emoji / 颜文字 两大类，底下横排小类，右下角删除；上屏后留在面板里接着选。
  */
 @SuppressLint("ViewConstructor")
@@ -31,8 +32,12 @@ class CatalogPanel(
     actions: PanelActions,
     headerHeight: Float,
     kind: PanelKind,
+    leftThumb: Boolean,
 ) : PanelView(context, palette, actions, headerHeight) {
     private val symbols = kind == PanelKind.SYMBOLS
+
+    /** 分类竖排在左边一列（左手布局的符号面板）。 */
+    private val leftColumn = symbols && leftThumb
 
     override val hasHeader get() = !symbols
 
@@ -49,6 +54,10 @@ class CatalogPanel(
     private val grid = RectF()
     private val bottom = RectF()
     private val side = RectF()
+
+    /** 左手布局：左边一列的分类与左下角的返回。 */
+    private val categoryColumn = RectF()
+    private val back = RectF()
     private val keyPaint = Paint(Paint.ANTI_ALIAS_FLAG)
 
     private val popup = ChoicePopup(this, palette, titleSp = 26f)
@@ -70,7 +79,11 @@ class CatalogPanel(
         selected = emojiTop
     }
 
-    private val categories = Tabs(ink, scrollable(true) { x, y -> bottomTabsContain(x, y) }, Tabs.Style.PILL).apply {
+    private val categories = if (leftColumn) {
+        Tabs(ink, scrollable(false) { x, y -> categoryColumn.contains(x, y) }, Tabs.Style.COLUMN)
+    } else {
+        Tabs(ink, scrollable(true) { x, y -> bottomTabsContain(x, y) }, Tabs.Style.PILL)
+    }.apply {
         labels = sections().map { it.name }
         selected = (if (symbols) symbolSection else emojiSection).coerceIn(0, (labels.size - 1).coerceAtLeast(0))
     }
@@ -89,7 +102,16 @@ class CatalogPanel(
     override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
         val bottomHeight = ink.dp(BOTTOM_DP)
         bottom.set(0f, h - bottomHeight, w.toFloat(), h.toFloat())
-        if (symbols) {
+        if (leftColumn) {
+            // 没有底排：左列分类 + 左下返回，中间网格，右列删除 / 锁定，都占满整高
+            val sideWidth = w / SIDE_FRACTION
+            bottom.set(0f, h.toFloat(), w.toFloat(), h.toFloat())
+            categoryColumn.set(0f, 0f, sideWidth, h - bottomHeight)
+            back.set(0f, h - bottomHeight, sideWidth, h.toFloat())
+            side.set(w - sideWidth, 0f, w.toFloat(), h.toFloat())
+            grid.set(sideWidth, 0f, side.left, h.toFloat())
+            categories.setBounds(categoryColumn.left, categoryColumn.top, categoryColumn.right, categoryColumn.bottom)
+        } else if (symbols) {
             side.set(w - w / SIDE_FRACTION, 0f, w.toFloat(), h - bottomHeight)
             grid.set(0f, 0f, side.left, h - bottomHeight)
         } else {
@@ -98,14 +120,14 @@ class CatalogPanel(
         gridScroll.reset()
     }
 
-    /** 一行几格：emoji 八格；符号一字一格五格，宽的（颜文字、单位）三格或两格。 */
+    /** 一行几格：emoji 八格；符号一字一格六格（网格窄了四格），宽的（颜文字、单位）四格或两格，总是偶数。 */
     private fun columns(): Int {
         val section = section ?: return 1
         if (!symbols) return if (section.name == Catalog.KAOMOJI) 3 else 8
         val widest = section.items.maxOfOrNull { item -> item.sumOf { if (it.code < 0x80) 6 else 10 } } ?: 10
         return when {
-            widest <= 20 -> 5
-            widest <= 50 -> 3
+            widest <= 20 -> if (grid.width() / 6 >= ink.dp(MIN_CELL_DP)) 6 else 4
+            widest <= 50 -> 4
             else -> 2
         }
     }
@@ -162,18 +184,34 @@ class CatalogPanel(
         ink.fill.color = palette.functionalKey
         canvas.drawRect(side, ink.fill)
         val cx = side.centerX()
-        val slot = side.height() / 3
-        ink.text(canvas, "返回", 16f, palette.text, cx, side.top + slot * 0.5f)
+        val slots = sideSlots()
+        val slot = side.height() / slots
+        // 左手布局的返回在左下角，右列不再放
+        val first = if (leftColumn) 0 else 1
+        if (!leftColumn) ink.text(canvas, "返回", 16f, palette.text, cx, side.top + slot * 0.5f)
         keyPaint.color = palette.text
-        KeyIcons.draw(canvas, Key.Backspace, cx, side.top + slot * 1.5f, ink.dp(24f), keyPaint, false)
+        KeyIcons.draw(canvas, Key.Backspace, cx, side.top + slot * (first + 0.5f), ink.dp(24f), keyPaint)
         ink.icon(
-            canvas, if (locked) Icon.LOCK else Icon.UNLOCK, cx, side.top + slot * 2.5f, 24f,
+            canvas, if (locked) Icon.LOCK else Icon.UNLOCK, cx, side.top + slot * (first + 1.5f), 24f,
             if (locked) palette.brand else palette.text,
         )
-        for (i in 1..2) ink.line(canvas, side.left, side.top + slot * i, side.right, side.top + slot * i, palette.faint)
+        for (i in 1 until slots) ink.line(canvas, side.left, side.top + slot * i, side.right, side.top + slot * i, palette.faint)
+    }
+
+    /** 右列几格：返回 / 删除 / 锁定，左手布局去掉返回。 */
+    private fun sideSlots() = if (leftColumn) 2 else 3
+
+    private fun drawLeftColumn(canvas: Canvas) {
+        ink.fill.color = palette.functionalKey
+        canvas.drawRect(categoryColumn, ink.fill)
+        canvas.drawRect(back, ink.fill)
+        categories.draw(canvas)
+        ink.line(canvas, back.left + ink.dp(12f), back.top, back.right - ink.dp(12f), back.top, palette.faint)
+        ink.text(canvas, "返回", 16f, palette.text, back.centerX(), back.centerY())
     }
 
     private fun drawBottom(canvas: Canvas) {
+        if (leftColumn) return drawLeftColumn(canvas)
         ink.fill.color = palette.functionalKey
         canvas.drawRect(bottom, ink.fill)
         val keyLeft = bottom.right - ink.dp(BOTTOM_KEY_DP)
@@ -185,7 +223,7 @@ class CatalogPanel(
             ink.icon(canvas, Icon.KEYBOARD, cx, bottom.centerY(), 24f, palette.text)
         } else {
             keyPaint.color = palette.text
-            KeyIcons.draw(canvas, Key.Backspace, cx, bottom.centerY(), ink.dp(24f), keyPaint, false)
+            KeyIcons.draw(canvas, Key.Backspace, cx, bottom.centerY(), ink.dp(24f), keyPaint)
         }
     }
 
@@ -196,16 +234,21 @@ class CatalogPanel(
             y > bottom.top && x > bottom.right - ink.dp(BOTTOM_KEY_DP) ->
                 if (symbols) actions.closePanel() else actions.deleteBackward()
 
-            y > bottom.top -> categories.indexAt(x)?.let {
+            y > bottom.top || categoryColumn.contains(x, y) -> categories.indexAt(x, y)?.let {
                 categories.selected = it
                 if (symbols) symbolSection = it else emojiSection = it
                 gridScroll.reset()
             }
 
-            symbols && side.contains(x, y) -> when (((y - side.top) / (side.height() / 3)).toInt()) {
-                0 -> actions.closePanel()
-                1 -> actions.deleteBackward()
-                else -> locked = !locked
+            back.contains(x, y) -> actions.closePanel()
+
+            symbols && side.contains(x, y) -> {
+                val slot = ((y - side.top) / (side.height() / sideSlots())).toInt()
+                when (if (leftColumn) slot + 1 else slot) {
+                    0 -> actions.closePanel()
+                    1 -> actions.deleteBackward()
+                    else -> locked = !locked
+                }
             }
 
             grid.contains(x, y) -> tapGrid(x, y)
@@ -344,8 +387,11 @@ class CatalogPanel(
         /** 手指移出这么远就算拖动，收起放大的格子。 */
         const val SLOP_DP = 10f
 
-        /** 符号面板右边功能列占整宽的几分之一。 */
+        /** 符号面板右边功能列（左手布局另有左边分类列）占整宽的几分之一。 */
         const val SIDE_FRACTION = 5.5f
+
+        /** 符号一格至少这么宽，六格放不下就排四格。 */
+        const val MIN_CELL_DP = 40f
 
         // 面板每次打开都新建，停在哪一类、锁没锁记在这里
         var symbolSection = 0

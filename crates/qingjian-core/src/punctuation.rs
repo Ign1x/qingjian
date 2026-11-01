@@ -29,6 +29,7 @@ pub fn converts(c: char) -> bool {
             | '~'
             | '"'
             | '\''
+            | '`'
     )
 }
 
@@ -71,6 +72,8 @@ impl Punctuation {
             '_' => "——",
             '$' => "￥",
             '~' => "～",
+            // 外国人名的间隔号（约翰·史密斯），与微软拼音、搜狗一致（issue #831）
+            '`' => "·",
             '"' => {
                 self.double_quote_open = !self.double_quote_open;
                 if self.double_quote_open { "“" } else { "”" }
@@ -119,6 +122,11 @@ mod tests {
         assert_eq!(p.convert('}'), Some("」"));
         assert_eq!(p.convert('['), Some("【"));
         assert_eq!(p.convert(']'), Some("】"));
+    }
+
+    #[test]
+    fn backtick_maps_to_middle_dot() {
+        assert_eq!(Punctuation::default().convert('`'), Some("·"));
     }
 
     #[test]

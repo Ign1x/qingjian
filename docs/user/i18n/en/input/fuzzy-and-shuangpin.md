@@ -18,7 +18,7 @@ Full pinyin, double pinyin and Zhuyin share the same dictionary, sentence conver
 
 ## A few spellings in full pinyin
 
-- `lue` / `nue` are equivalent to `lve` / `nve`; `v` after j / q / x / y is accepted too (`tiqv` → 提取), including with a final (`xvexi` → 学习, `jvan` → 卷, `yvn` → 云).
+- `lue` / `nue` are equivalent to `lve` / `nve`; `v` after j / q / x / y is accepted too (`tiqv` → 提取), including with a final (`xvexi` → 学习, `jvan` → 卷, `yvn` → 云). The pinyin line spells ü the way Hanyu Pinyin does: `ü` after l and n (typing `lve` or `lue` shows `lüe`, `nv` shows `nü`), and `u` after j / q / x / y (typing `qv` shows `qu`, `jvan` shows `juan`). Pinyin decoded from shuangpin and the nine-key pinyin line are shown the same way.
 - 嗯 is typed as `en` by convention (`enen` → 嗯嗯); `ng` on its own also gives 嗯, but use `en` when it's joined to other pinyin.
 - `lo` shares its key sequence with `luo` and is treated as luo.
 
@@ -33,11 +33,13 @@ Words matching what you actually typed still come first, followed by fuzzy match
 
 Nine schemes: Xiaohe, Ziranma, Microsoft, Sogou, Zhineng ABC, Xiaolang, Shoudao, Pinyin Jiajia, Ziguang.
 
-- The pinyin line in the candidate window shows the decoded full pinyin (`nihc` → `ni'hao`). With 输入框显示按键 (Show keys in the input box) on under 设置 → 输入 (Settings → Input), the app's input box shows the keys you typed (`kdfa`) instead, while the candidate window still shows full pinyin (`kai'fa`).
+- By default both the app's input box and the pinyin line in the candidate window show the decoded full pinyin (`nihc` → `ni'hao`). 设置 → 输入 (Settings → Input) has two switches, one for each: with 输入框显示按键 (Show keys in the input box) on, the app's input box shows the keys you typed (`kdfa`); with 候选窗显示按键 (Show keys in the candidate window) on, the pinyin line in the candidate window shows the keys you typed. Turn both on to show keys in both places. 候选窗显示按键 is available on macOS and Windows. Typing habits are recorded by the decoded full pinyin.
 - Double pinyin supports fuzzy pinyin too. With s/sh on, `sd` in Ziranma / Microsoft / Sogou and `sl` in Xiaohe find 双.
 - When the whole input can't form a single complete syllable, it's read again as initials, one per key: Pinyin Jiajia `im` → 什么, `zm` → 怎么. Input that decodes normally is unaffected, and complete double pinyin codes still work as before.
 - Spelling mistakes aren't corrected in double pinyin.
 - In double pinyin, v / u / i are all syllable keys, so calculations and asking about characters start with `Shift + V` and `Shift + U` instead; see [Dates, calculations and special characters](shortcuts.md#Changing-the-prefix-letters).
+
+**Full pinyin too** (off by default): when turned on under 设置 → 输入 (Settings → Input), full pinyin works alongside the double pinyin scheme, and both styles can be mixed within one input. It suits a computer shared by double pinyin and full pinyin typists: both `nihao` and `nihc` give 你好, and `kaifh` (full pinyin first, double pinyin second) gives 开发. When both readings cover the whole input, their sentence scores decide the order rather than always putting the double pinyin reading first; with the switch off, only the chosen scheme is read.
 
 How the schemes differ:
 
@@ -45,8 +47,8 @@ How the schemes differ:
 - **The `;` key**: in Microsoft / Sogou / Ziguang, `;` is ing: when an initial is left on its own at the end of the pinyin, `;` acts as pinyin (`x;` → xing); otherwise it's still punctuation.
 - **ü**: in Microsoft / Sogou the ü key is `y`: `ny` / `ly` give 女 / 绿, and `jy` / `qy` / `xy` / `yy` decode to ju / qu / xu / yu; the usual `ju` / `qu` / `xu` / `yu` still work. Other schemes also accept their ü key combined with j / q / x / y, but an existing reading of the same keys takes priority (Microsoft `jv` is still jue, Xiaolang `jv` is still jing).
 - **Zhineng ABC**: the retroflex initials are `a` for zh, `e` for ch and `v` for sh (`ai` → zhi, `ei` → chi, `vi` → shi).
-- **Xiaolang**: the retroflex initials are `e` for zh, `i` for ch and `v` for sh; `x` is ü (`lx` → lv, `nx` → nv, `jx` → ju); `v` doubles as the finals uai and ing; finals not in the key table are typed with their full-pinyin keys. `en` and `eng` share a code (`un`) and are treated as en; `dia` / `dai` share a code and are treated as dai, `lia` / `lai` as lai, and `nen` / `niang` as niang.
-- **Shoudao**: the retroflex initials are `v` for zh, `i` for ch and `e` for sh; zero-initial syllables double the first letter or follow full pinyin (`aa` `ai` `an` `ao` `oo` `ou` `en` `er`), ang is `ay`, and e / ei / eng are led by `u` (`ue` `ui` `uf`); ue is on `l` (`jl` → jue) and üe has its own key `b` (`lb` → lve). `den` / `dia` share a code (`dk`) and are treated as den.
+- **Xiaolang**: the retroflex initials are `e` for zh, `i` for ch and `v` for sh; `x` is ü (`lx` → lü, `nx` → nü, `jx` → ju); `v` doubles as the finals uai and ing; finals not in the key table are typed with their full-pinyin keys. `en` and `eng` share a code (`un`) and are treated as en; `dia` / `dai` share a code and are treated as dai, `lia` / `lai` as lai, and `nen` / `niang` as niang.
+- **Shoudao**: the retroflex initials are `v` for zh, `i` for ch and `e` for sh; zero-initial syllables double the first letter or follow full pinyin (`aa` `ai` `an` `ao` `oo` `ou` `en` `er`), ang is `ay`, and e / ei / eng are led by `u` (`ue` `ui` `uf`); ue is on `l` (`jl` → jue) and üe has its own key `b` (`lb` → lüe). `den` / `dia` share a code (`dk`) and are treated as den.
 - **Pinyin Jiajia**: the retroflex initials are `v` for zh, `u` for ch and `i` for sh (ch / sh are the reverse of Xiaohe and Ziranma); frequent finals sit on the home row: ai→S, ao→D, an→F, ang→G, ei→W, en→R, eng→T, with ing on `q`; ü is on `v` (`nv` 女, `lv` 绿) and üe on `x` (`jx` → jue, `nx` → nüe); zero-initial syllables are mainly doubled (`aa` `as` `af`, `ee` `er` `eq`, `oo` `op`; note that en is `er` and er is `eq`), with the o prefix also accepted (`oa` `oe`); the `;` key isn't used.
 - **Ziguang**: the retroflex initials are `u` for zh, `a` for ch and `i` for sh (`ui` → zhi, `ai` → chi, `ii` → shi; `a` and `i` double as finals); `;` is ing; ü is on `v` (`nv` 女, `lv` 绿), and üe shares `n` with ue and ui (`jn` → jue, `yn` → yue, `gn` → gui); zero-initial syllables are only `o` + the final key, with neither doubled vowels (`aa` is cha) nor doubled finals `ii` `uu` (those are shi and zhu).
 

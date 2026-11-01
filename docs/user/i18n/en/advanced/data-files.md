@@ -1,7 +1,7 @@
 ---
 title: Data files and logs
 order: 2
-description: "Where Qingjian's data folder is, what each file records, where the runtime logs are, and using your own local sentence model."
+description: "Where Qingjian's data folder is, what each file records, moving to another computer, where the runtime logs are, and using your own local sentence model."
 ---
 
 What Qingjian records is summarized in [Privacy](../help/privacy.md#What-it-records-on-your-device); this page lists the actual files.
@@ -46,6 +46,14 @@ These files are replaced whole each time, so even if the input method crashes it
 
 To start your typing habits over, delete the tables whose names start with `user` (except `user-glossary-*` and `user-vocab.tsv`); clear the vocabulary book on the 生词本 (Vocabulary book) page in Settings.
 
+## Moving to another computer
+
+导入、导出设置 (Import, export settings) under 设置 → 高级 (Settings → Advanced) saves your settings as a `.toml` file to import on the other computer:
+
+- The exported file leaves out custom phrases (imported and exported separately on the 自定义短语 page), the AI service key and the floating status bar's position on screen; importing keeps this computer's own values for those.
+- Importing replaces the rest of the settings, and first saves the old configuration as `config.before-import.toml` in the same folder so you can copy it back. If the file's settings can't be read, nothing changes.
+- Typing habits, your own words, imported dictionaries and other data files aren't included; to move them too, fully quit Qingjian on both computers and copy the whole data folder (between the same version).
+
 ## Runtime logs
 
 - **macOS**: `~/Library/Logs/Qingjian/`; the input method's logs are "qingjian.log.date" and the settings window's are "qingjian-settings.date.log".
@@ -53,17 +61,17 @@ To start your typing habits over, delete the tables whose names start with `user
 - **Linux**: `~/.local/state/qingjian/logs` (under `XDG_STATE_HOME` if that's set).
 
 打开日志目录 (Open log folder) under 设置 → 高级 → 日志文件 (Settings → Advanced → Log files) opens it directly; 打包到桌面 (Bundle to desktop) packs the logs together with your settings (keys scrubbed) into a zip to attach to a report; see [Reporting problems](../help/feedback.md).
-One file per day, kept for 7 days. What you type isn't recorded by default; only with 详细日志 (Verbose logging) on is each keystroke recorded.
+One file per day, kept for 7 days. What you type isn't recorded by default, only counts such as which app you're typing in, how many keys each composition took and how many characters were committed; only with 详细日志 (Verbose logging) on is each keystroke recorded.
 
 ## Using your own local sentence model
 
-The local sentence model (Hanzhang Tongbian) is bundled. To use a model you've trained yourself, put `hanzhang-tongbian-small.qjm` into `models/hanzhang-tongbian/` in the data folder; after the input method restarts, it's used first:
+On macOS and Windows, the local sentence model Hanzhang Tongbian is downloaded under 设置 → 实验功能 (Settings → Experimental features) into the folders below; the Linux version bundles it. To use a model you've trained yourself, put `hanzhang-tongbian-small.qjm` into `models/hanzhang-tongbian/` in the data folder; after the input method restarts, it's used first:
 
 - **macOS**: `~/Library/Application Support/Qingjian/models/hanzhang-tongbian/`
 - **Windows**: `%APPDATA%\Qingjian\models\hanzhang-tongbian\`
 - **Linux**: `~/.local/share/qingjian/models/hanzhang-tongbian/`
 
-- Hanzhang Zhiwei (`hanzhang-zhiwei-small.qjm`, in `models/hanzhang-zhiwei/`) is no longer bundled. Download it under 设置 → 实验功能 (Settings → Experimental features), or put it in that folder yourself and turn it on there (`[model] name = "zhiwei"`); it uses the few dozen characters before the cursor to reorder candidates. Zhiyi is downloaded to `models/zhiyi/` (`models/zhiyi-onnx/` on Windows and Linux).
+- Zhiyi is downloaded to `models/zhiyi/` (`models/zhiyi-onnx/` on Windows and Linux). Hanzhang Zhiwei has been retired: `models/hanzhang-zhiwei/` is no longer read and can be deleted.
 - The `model-p2c/` and `model/` folders used by older versions can still be read; for the same model, the new folder takes priority.
 - The three files exported directly, `model.safetensors`, `config.json` and `vocab.json`, are recognized too; if a folder has both kinds, `.qjm` is used first.
 

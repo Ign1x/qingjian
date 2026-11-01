@@ -16,7 +16,6 @@ import android.view.inputmethod.InputMethodManager
 import android.widget.Toast
 import app.qingjian.inputmethod.R
 import app.qingjian.inputmethod.candidates.CandidateBarView
-import app.qingjian.inputmethod.candidates.Toolbar
 import app.qingjian.inputmethod.clipboard.ClipboardImageProvider
 import app.qingjian.inputmethod.clipboard.ClipboardWatcher
 import app.qingjian.inputmethod.cloud.CloudConfig
@@ -29,6 +28,7 @@ import app.qingjian.inputmethod.core.store.PhraseItem
 import app.qingjian.inputmethod.core.store.PhraseRules
 import app.qingjian.inputmethod.core.store.Shuangpin
 import app.qingjian.inputmethod.keyboard.KeyboardView
+import app.qingjian.inputmethod.keyboard.ShiftState
 import app.qingjian.inputmethod.keyboard.layout.Key
 import app.qingjian.inputmethod.keyboard.layout.KeyboardLayout
 import app.qingjian.inputmethod.panel.PanelActions
@@ -41,10 +41,13 @@ import app.qingjian.inputmethod.service.input.Composer
 import app.qingjian.inputmethod.service.input.Language
 import app.qingjian.inputmethod.service.input.enterLabel
 import app.qingjian.inputmethod.service.input.wantsDirectInput
+import app.qingjian.inputmethod.service.input.wantsNumbers
 import app.qingjian.inputmethod.service.input.wantsPrivacy
 import app.qingjian.inputmethod.settings.BottomAction
 import app.qingjian.inputmethod.settings.Settings
+import app.qingjian.inputmethod.settings.ToolbarTool
 import app.qingjian.inputmethod.settings.page.KeyboardSettingsActivity
+import app.qingjian.inputmethod.settings.page.VoiceSettingsActivity
 import app.qingjian.inputmethod.theme.Palette
 import app.qingjian.inputmethod.translate.QuickTranslate
 import app.qingjian.inputmethod.translate.TranslateBar
@@ -193,10 +196,12 @@ class QingjianInputMethodService :
         enterLabel = attribute.enterLabel()
         panel?.keyboard?.enterLabel = enterLabel
         composer.abandon()
+        if (attribute.wantsNumbers()) composer.showNumbers()
     }
 
     override fun onStartInputView(info: EditorInfo, restarting: Boolean) {
         super.onStartInputView(info, restarting)
+        if (panel?.stale() == true) setInputView(onCreateInputView())
         // 网络可能换了（「只在 Wi-Fi 下使用」）
         syncCloud()
         clipboardWatcher.capture()
@@ -227,10 +232,10 @@ class QingjianInputMethodService :
     // 编辑条开着时打的字进编辑条
     override val connection: InputConnection? get() = editor?.connection ?: currentInputConnection
 
-    override var shifted: Boolean
-        get() = panel?.keyboard?.shifted == true
+    override var shift: ShiftState
+        get() = panel?.keyboard?.shift ?: ShiftState.OFF
         set(value) {
-            panel?.keyboard?.shifted = value
+            panel?.keyboard?.shift = value
         }
 
     override fun sendKey(keyCode: Int) = editor?.onKey(keyCode) ?: sendDownUpKeyEvents(keyCode)
@@ -256,7 +261,9 @@ class QingjianInputMethodService :
     override fun clearComposition() = composer.onKey(Key.Clear)
 
     override fun showKeyboard() {
-        val keyboard = panel?.keyboard ?: return
+        val panel = panel ?: return
+        val keyboard = panel.keyboard
+        val settings = panel.settings
         keyboard.chinese = composer.chinese
         keyboard.languageLabel = composer.language.key
         keyboard.languageHint = composer.partner.key
@@ -275,7 +282,12 @@ class QingjianInputMethodService :
             editor?.lettersOnly == true -> keyboard.setRows(KeyboardLayout.qwerty(chinese = false))
             composer.nineKey -> keyboard.setRows(KeyboardLayout.nineKey(fullWidth), side = true)
             composer.zhuyin -> keyboard.setRows(KeyboardLayout.zhuyin(fullWidth))
-            composer.shuangpin -> keyboard.setRows(KeyboardLayout.shuangpin(Shuangpin.keycaps(composer.shuangpinScheme), fullWidth))
+            composer.shuangpin -> keyboard.setRows(
+                KeyboardLayout.shuangpin(
+                    Shuangpin.keycaps(composer.shuangpinScheme), composer.shuangpinScheme, fullWidth,
+                    hints = settings.shuangpinHints,
+                ),
+            )
             else -> keyboard.setRows(KeyboardLayout.qwerty(composer.chinese, composer.japanese, fullWidth))
         }
         showSideItems(emptyList())
@@ -322,17 +334,20 @@ class QingjianInputMethodService :
 
     override fun openSymbolPanel() = openPanel(PanelKind.SYMBOLS)
 
-    override fun onToolbar(action: Toolbar.Action) = when (action) {
-        Toolbar.Action.FUNCTIONS -> openPanel(PanelKind.FUNCTIONS)
-        Toolbar.Action.EMOJI -> openPanel(PanelKind.EMOJI)
-        Toolbar.Action.KEYBOARDS -> openPanel(PanelKind.KEYBOARDS)
-        Toolbar.Action.VOICE -> voiceInput()
-        Toolbar.Action.SYMBOLS -> openPanel(PanelKind.SYMBOLS)
-        Toolbar.Action.CLIPBOARD -> clipboard()
-        Toolbar.Action.TRANSLATE -> toggleTranslate()
-        Toolbar.Action.RESIZE -> startResize()
-        Toolbar.Action.HIDE_KEYBOARD -> onHideKeyboard()
+    override fun onToolbar(tool: ToolbarTool) = when (tool) {
+        ToolbarTool.EMOJI -> openPanel(PanelKind.EMOJI)
+        ToolbarTool.KEYBOARDS -> openPanel(PanelKind.KEYBOARDS)
+        ToolbarTool.VOICE -> voiceInput()
+        ToolbarTool.SYMBOLS -> openPanel(PanelKind.SYMBOLS)
+        ToolbarTool.CLIPBOARD -> clipboard()
+        ToolbarTool.TRANSLATE -> toggleTranslate()
+        ToolbarTool.RESIZE -> startResize()
+        ToolbarTool.PHRASES -> openPanel(PanelKind.PHRASES)
+        ToolbarTool.SWITCH_INPUT_METHOD -> switchInputMethod()
+        ToolbarTool.SETTINGS -> openSettings()
     }
+
+    override fun openFunctions() = openPanel(PanelKind.FUNCTIONS)
 
     override fun openPanel(kind: PanelKind) {
         panel?.open(kind)
@@ -379,6 +394,11 @@ class QingjianInputMethodService :
     override fun setToggle(key: String, on: Boolean) {
         reopenPanel = panel?.openPanel
         Settings.preferences(this).edit().putBoolean(key, on).apply()
+    }
+
+    override fun setChoice(key: String, value: String) {
+        reopenPanel = panel?.openPanel
+        Settings.preferences(this).edit().putString(key, value).apply()
     }
 
     /** 面板开着时系统返回键先关面板。 */
@@ -429,6 +449,20 @@ class QingjianInputMethodService :
     override fun phrasesChanged() = engine.reloadPhrases(ClipboardStore.userDir(this))
 
     override fun toast(message: String) = Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
+
+    override fun voiceNeedsSetup() = needsSetup(getString(R.string.voice_needs_setup), VoiceSettingsActivity::class.java)
+
+    /**
+     * 要先配好才能用的功能（语音、快捷翻译）：在工具栏的位置放一句提示，点它打开 [page]；
+     * 不只弹 toast：toast 一闪就过，也没有去设置的路。键盘没建起来时退回 toast。
+     */
+    private fun needsSetup(message: String, page: Class<*>) {
+        val bar = panel?.bar ?: return toast(message)
+        closePanel()
+        bar.showNotice(message) {
+            startActivity(Intent(this, page).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+        }
+    }
 
     override fun composeText(text: String) {
         currentInputConnection?.setComposingText(text, 1)
@@ -504,7 +538,7 @@ class QingjianInputMethodService :
             return
         }
         if (!syncCloud(translate = true)) {
-            toast(getString(R.string.translate_no_cloud))
+            needsSetup(getString(R.string.translate_needs_setup), KeyboardSettingsActivity::class.java)
             return
         }
         closeEditor()

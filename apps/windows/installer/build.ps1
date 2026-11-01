@@ -35,18 +35,17 @@ if ($Sign) {
 }
 
 # 0) 产品数据缺一样就停：与 .iss 的 [Files] 和 data-bundle.sh 的数据包一致，免得编译几分钟后才在 iscc 那步报错，
-#    更免得少了码表 / 模型的包照样能装（以前这两样标了 skipifsourcedoesntexist，缺了也悄悄打包）。
+#    更免得少了码表的包照样能装（以前它标了 skipifsourcedoesntexist，缺了也悄悄打包）。本地整句模型不随包。
 $data = @(
     'data\generated\dict.qj',
     'data\generated\lm.qj',
     'data\generated\english.tsv',
     'data\generated\dicts\*.qj',
-    'data\generated\codes\*.qj',
-    'data\models\hanzhang-tongbian\hanzhang-tongbian-small.qjm'
+    'data\generated\codes\*.qj'
 ) + ('en', 'ja', 'zh', 'es', 'vi', 'de' | ForEach-Object { "data\generated\glossary-$_.qj" })
 $absent = @($data | Where-Object { -not (Test-Path (Join-Path $Repo $_)) })
 if ($absent.Count -gt 0) {
-    throw "缺产品数据：$($absent -join ', ')。先跑 tools\release\data-fetch.sh 下载（或从别的机器拷 data\generated 与 data\models）"
+    throw "缺产品数据：$($absent -join ', ')。先跑 tools\release\data-fetch.sh 下载（或从别的机器拷 data\generated）"
 }
 
 # 1) 构建产物：Server、DLL（64 / 32 位）、设置程序、旧版设置程序。

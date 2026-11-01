@@ -7,6 +7,7 @@ use qingjian_core::FuzzyRules;
 use qingjian_platform::{KeyHintMode, Scheme, code_schemes, code_tables};
 
 use super::shortcuts;
+use crate::i18n::{tr, tr_args};
 use crate::library::Kind;
 use crate::message::{Message, Popup};
 use crate::shortcut::Shortcut;
@@ -14,7 +15,7 @@ use crate::support::Feature;
 use crate::view::Page;
 use crate::view::parts::controls::{percent_slider, select, toggle_info, toggle_with};
 use crate::view::parts::lists::{entry_row, import_row};
-use crate::view::parts::menus::{CODE_OFF, code_options, scheme_options};
+use crate::view::parts::menus::{code_options, scheme_options};
 
 pub fn input(ui: &mut Ui<Message>, page: &Page) -> Result<Vec<NodeId>, RenderError> {
     let theme = &page.theme;
@@ -26,20 +27,20 @@ pub fn input(ui: &mut Ui<Message>, page: &Page) -> Result<Vec<NodeId>, RenderErr
     let options = scheme_options(page);
     let current = match general.custom_shuangpin() {
         // 配置里写的方案找不到（目录删了）时照写 id，引擎这时按全拼
-        Some(id) => options
-            .iter()
-            .find(|(_, key)| *key == id)
-            .map_or_else(|| format!("{id}（找不到）"), |(label, _)| label.clone()),
+        Some(id) => options.iter().find(|(_, key)| *key == id).map_or_else(
+            || tr_args("input.missing", &[("id", &id)]),
+            |(label, _)| label.clone(),
+        ),
         None => scheme.label().to_owned(),
     };
     let names: Vec<&str> = options.iter().map(|(label, _)| label.as_str()).collect();
     let control = select(ui, page, Popup::Scheme, (&current, &names), 160.0, false)?;
     let mut rows = vec![
-        SettingRow::new("拼音")
+        SettingRow::new(tr("input.pinyin"))
             .info(if Feature::Schemes.here() {
-                "双拼下表达式和问字用 Shift + V、Shift + U"
+                tr("input.pinyin_info")
             } else {
-                "双拼与注音下 v、u、i 是按键，表达式和问字改用 Shift + V、Shift + U 进"
+                tr("input.pinyin_info_keys")
             })
             .control(control)
             .build(ui, theme)?,
@@ -48,18 +49,38 @@ pub fn input(ui: &mut Ui<Message>, page: &Page) -> Result<Vec<NodeId>, RenderErr
         rows.push(toggle_info(
             ui,
             page,
-            "输入框显示按键",
-            Some("输入框里显示敲的字母，候选窗口里照旧是全拼"),
+            tr("input.raw_preedit"),
+            Some(tr("input.raw_preedit_info")),
             ("general", "shuangpin_raw_preedit"),
             general.shuangpin_raw_preedit,
+            false,
+        )?);
+        if Feature::ShuangpinRawWindow.here() {
+            rows.push(toggle_info(
+                ui,
+                page,
+                tr("input.raw_window"),
+                Some(tr("input.raw_window_info")),
+                ("general", "shuangpin_raw_window"),
+                general.shuangpin_raw_window,
+                false,
+            )?);
+        }
+        rows.push(toggle_info(
+            ui,
+            page,
+            tr("input.full_pinyin"),
+            Some(tr("input.full_pinyin_info")),
+            ("general", "shuangpin_full_pinyin"),
+            general.shuangpin_full_pinyin,
             false,
         )?);
     }
     rows.push(toggle_info(
         ui,
         page,
-        "分次选词先不上屏",
-        Some("分几次选的词整段选完再上屏，退格可重选"),
+        tr("input.hold_selections"),
+        Some(tr("input.hold_selections_info")),
         ("general", "hold_selections"),
         general.hold_selections,
         false,
@@ -69,18 +90,18 @@ pub fn input(ui: &mut Ui<Message>, page: &Page) -> Result<Vec<NodeId>, RenderErr
         let code = general.code();
         // 配置里写的方案找不到（目录删了）时照写 id，让人知道选的是什么
         let current = match &code {
-            None => CODE_OFF.to_owned(),
-            Some(id) => schemes
-                .iter()
-                .find(|entry| entry.id == *id)
-                .map_or_else(|| format!("{id}（找不到）"), |entry| entry.label.clone()),
+            None => tr("common.off").to_owned(),
+            Some(id) => schemes.iter().find(|entry| entry.id == *id).map_or_else(
+                || tr_args("input.missing", &[("id", &id)]),
+                |entry| entry.label.clone(),
+            ),
         };
         let options = code_options(page);
         let names: Vec<&str> = options.iter().map(|(label, _)| label.as_str()).collect();
         let control = select(ui, page, Popup::Code, (&current, &names), 160.0, false)?;
         rows.push(
-            SettingRow::new("形码")
-                .info("和拼音同时开就是混输")
+            SettingRow::new(tr("input.code"))
+                .info(tr("input.code_info"))
                 .control(control)
                 .build(ui, theme)?,
         );
@@ -96,11 +117,11 @@ pub fn input(ui: &mut Ui<Message>, page: &Page) -> Result<Vec<NodeId>, RenderErr
             rows.push(code_rule(
                 ui,
                 page,
-                "满码唯一自动上屏",
+                tr("input.auto_commit"),
                 "auto_commit",
                 entry.auto_commit,
             )?);
-            rows.push(code_rule(ui, page, "顶字", "top", entry.top)?);
+            rows.push(code_rule(ui, page, tr("input.top"), "top", entry.top)?);
         }
     }
     // 字根图只有 86 五笔有
@@ -108,14 +129,26 @@ pub fn input(ui: &mut Ui<Message>, page: &Page) -> Result<Vec<NodeId>, RenderErr
     if (scheme.is_shuangpin() || roots) && Feature::KeyHint.here() {
         rows.extend(key_hint(ui, page)?);
     }
-    out.push(section_title(ui, theme, "方案")?);
+    out.push(section_title(ui, theme, tr("input.section_scheme"))?);
     out.push(group(ui, theme, &rows)?);
 
     // 拼音关着时模糊音没有意义
     let pinyin_off = scheme == Scheme::Off;
     let fuzzy = fuzzy(ui, page, pinyin_off)?;
-    out.push(section_title(ui, theme, "模糊音")?);
+    out.push(section_title(ui, theme, tr("input.section_fuzzy"))?);
     out.push(group(ui, theme, &[fuzzy])?);
+
+    let correction = toggle_info(
+        ui,
+        page,
+        tr("input.spelling_correction"),
+        Some(tr("input.spelling_correction_info")),
+        ("general", "spelling_correction"),
+        general.spelling_correction,
+        pinyin_off,
+    )?;
+    out.push(section_title(ui, theme, tr("input.section_correction"))?);
+    out.push(group(ui, theme, &[correction])?);
 
     if Feature::AuxCode.here() {
         out.extend(aux_code(ui, page)?);
@@ -137,8 +170,8 @@ fn key_hint(ui: &mut Ui<Message>, page: &Page) -> Result<[NodeId; 3], RenderErro
         false,
     )?;
     // Linux 上只有 Wayland 原生版画得了键盘（fcitx 面板画不了）
-    let info = Feature::KeyHint.describe("候选窗口旁显示键位");
-    let mode = SettingRow::new("键位提示")
+    let info = Feature::KeyHint.describe(tr("input.key_hint_info"));
+    let mode = SettingRow::new(tr("input.key_hint"))
         .info(&info)
         .control(control)
         .build(ui, theme)?;
@@ -146,7 +179,7 @@ fn key_hint(ui: &mut Ui<Message>, page: &Page) -> Result<[NodeId; 3], RenderErro
     let size = percent_slider(
         ui,
         page,
-        ("键位提示大小", ("general", "key_hint_size")),
+        (tr("input.key_hint_size"), ("general", "key_hint_size")),
         general.key_hint_size(),
         (60.0, 150.0),
         off,
@@ -154,7 +187,10 @@ fn key_hint(ui: &mut Ui<Message>, page: &Page) -> Result<[NodeId; 3], RenderErro
     let opacity = percent_slider(
         ui,
         page,
-        ("键位提示透明度", ("general", "key_hint_opacity")),
+        (
+            tr("input.key_hint_opacity"),
+            ("general", "key_hint_opacity"),
+        ),
         general.key_hint_opacity(),
         (30.0, 100.0),
         off,
@@ -173,8 +209,8 @@ fn aux_code(ui: &mut Ui<Message>, page: &Page) -> Result<Vec<NodeId>, RenderErro
         toggle_info(
             ui,
             page,
-            "启用",
-            Some("拼音后敲分号，再敲码筛选候选"),
+            tr("input.aux_enabled"),
+            Some(tr("input.aux_enabled_info")),
             ("aux_code", "enabled"),
             aux.enabled,
             false,
@@ -182,7 +218,7 @@ fn aux_code(ui: &mut Ui<Message>, page: &Page) -> Result<Vec<NodeId>, RenderErro
         toggle_with(
             ui,
             page,
-            "候选上显示码",
+            tr("input.aux_show"),
             ("general", "aux_code_show"),
             general.aux_code_show,
             !aux.enabled,
@@ -190,7 +226,7 @@ fn aux_code(ui: &mut Ui<Message>, page: &Page) -> Result<Vec<NodeId>, RenderErro
         toggle_with(
             ui,
             page,
-            "码删空后留在辅码",
+            tr("input.aux_keep_empty"),
             ("general", "aux_code_keep_empty"),
             general.aux_code_keep_empty,
             !aux.enabled,
@@ -200,11 +236,11 @@ fn aux_code(ui: &mut Ui<Message>, page: &Page) -> Result<Vec<NodeId>, RenderErro
             ui,
             page,
             Shortcut::AuxCodeKey,
-            "拼音打完敲它进辅码；微软、搜狗双拼里分号先当韵母",
+            tr("input.aux_key_info"),
             !aux.enabled,
         )?,
     ];
-    out.push(section_title(ui, theme, "辅码")?);
+    out.push(section_title(ui, theme, tr("input.section_aux"))?);
     out.push(group(ui, theme, &rows)?);
 
     let library = &page.settings.library;
@@ -216,9 +252,8 @@ fn aux_code(ui: &mut Ui<Message>, page: &Page) -> Result<Vec<NodeId>, RenderErro
         .chain(library.codes.iter().map(|entry| (entry, true)))
         .chain(library.aux_schemes.iter().map(|entry| (entry, false)))
     {
-        let info = (!removable && entry.stem == code_tables::STROKE).then_some(
-            "横 h、竖 s、撇 p、点与捺 n、折 z；单字取前四笔加最后一笔，词取每个字的第一笔",
-        );
+        let info =
+            (!removable && entry.stem == code_tables::STROKE).then_some(tr("input.stroke_info"));
         rows.push(entry_row(
             ui,
             page,
@@ -233,10 +268,10 @@ fn aux_code(ui: &mut Ui<Message>, page: &Page) -> Result<Vec<NodeId>, RenderErro
         ui,
         page,
         Kind::CodeTable,
-        "导入码表",
-        "接受 Rime 的 .dict.yaml（词、码两列）与 .qj；码表要自己取得，青简不随包分发第三方形码表",
+        tr("input.import_code_table"),
+        tr("input.import_code_table_info"),
     )?);
-    out.push(section_title(ui, theme, "码表")?);
+    out.push(section_title(ui, theme, tr("input.section_code_tables"))?);
     out.push(group(ui, theme, &rows)?);
     Ok(out)
 }
@@ -249,7 +284,10 @@ fn aux_scheme(ui: &mut Ui<Message>, page: &Page) -> Result<NodeId, RenderError> 
     let current = aux
         .pick(options.iter().map(|entry| entry.stem.as_str()))
         .and_then(|id| options.iter().find(|entry| entry.stem == id))
-        .map_or_else(|| "没有码表".to_owned(), |entry| entry.name.clone());
+        .map_or_else(
+            || tr("input.no_code_table").to_owned(),
+            |entry| entry.name.clone(),
+        );
     let control = select(
         ui,
         page,
@@ -258,8 +296,8 @@ fn aux_scheme(ui: &mut Ui<Message>, page: &Page) -> Result<NodeId, RenderError> 
         160.0,
         !aux.enabled || options.is_empty(),
     )?;
-    SettingRow::new("辅码方案")
-        .info("选一套辅码")
+    SettingRow::new(tr("input.aux_scheme"))
+        .info(tr("input.aux_scheme_info"))
         .control(control)
         .build(ui, &page.theme)
 }

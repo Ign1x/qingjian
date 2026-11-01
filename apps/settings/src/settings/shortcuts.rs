@@ -34,6 +34,13 @@ impl Settings {
         if Feature::HighlightKeys.here() {
             self.write("shortcut", "highlight_keys", defaults.highlight_keys.key());
         }
+        if Feature::ExtraCandidateNavigation.here() {
+            self.write(
+                "shortcut",
+                "extra_candidate_navigation",
+                defaults.extra_candidate_navigation,
+            );
+        }
         if Feature::ExtraPageKeys.here() {
             self.write_list("shortcut", "extra_page_keys", &[]);
         }
@@ -42,6 +49,14 @@ impl Settings {
         }
         if Feature::ToggleTraditional.here() {
             self.write("shortcut", "toggle_traditional", "");
+        }
+        if Feature::CommitKeys.here() {
+            self.write(
+                "shortcut",
+                "commit_candidate",
+                defaults.commit_candidate.key_string(),
+            );
+            self.write("shortcut", "commit_raw", defaults.commit_raw.key_string());
         }
         self.recording = None;
     }

@@ -1,7 +1,7 @@
 ---
 title: 数据文件与日志
 order: 2
-description: 青简数据文件夹的位置、每个文件记的是什么、运行日志的位置，以及换用自己的本地整句模型。
+description: 青简数据文件夹的位置、每个文件记的是什么、搬到另一台电脑、运行日志的位置，以及换用自己的本地整句模型。
 ---
 
 青简记下的东西概括在 [隐私](../help/privacy.md#本机记了什么)；本页列出具体的文件。
@@ -46,6 +46,14 @@ description: 青简数据文件夹的位置、每个文件记的是什么、运�
 
 想让输入习惯从头开始，删掉 `user` 开头的这些表（`user-glossary-*`、`user-vocab.tsv` 除外）；生词本在设置的「生词本」页清空。
 
+## 搬到另一台电脑
+
+「设置 → 高级」的「导入、导出设置」把设置存成一个 `.toml` 文件，在另一台电脑上导入：
+
+- 导出的文件不含自定义短语（在「自定义短语」页另行导入导出）、AI 服务的密钥和悬浮状态条在屏幕上的位置；导入时这几样保留这台电脑原来的。
+- 导入会整份换掉其余设置，换之前把原来的配置另存为同目录的 `config.before-import.toml`，导错了可以拷回去。文件里的设置读不通时什么都不改。
+- 输入习惯、自造词、导入的词库等数据文件不在里面；要一起搬，在两台电脑都完全退出青简后拷整个数据文件夹（同一版本之间）。
+
 ## 运行日志
 
 - **macOS**：`~/Library/Logs/Qingjian/`，输入法为「qingjian.log.日期」，设置窗口为「qingjian-settings.日期.log」。
@@ -53,17 +61,20 @@ description: 青简数据文件夹的位置、每个文件记的是什么、运�
 - **Linux**：`~/.local/state/qingjian/logs`（设置了 `XDG_STATE_HOME` 时在它下面）。
 
 「设置 → 高级 → 日志文件」的「打开日志目录」直接打开它；「打包到桌面」把日志连同设置（抹去密钥）打成一个 zip，反馈时附上，见 [反馈问题](../help/feedback.md)。
-按天分文件，保留 7 天。缺省不记录输入的内容，打开「详细日志」后才逐键记录。
+按天分文件，保留 7 天。缺省不记录输入的内容，只记在哪个应用里打字、每段敲了几个键、上屏了几个字这类计数；打开「详细日志」后才逐键记录。
+
+Windows 后台的启动、受控退出及 Rust panic 位置都写入现有 `server.日期.log`，不另建日志文件。panic 正文不会写入。外部强制终止或原生异常仍可能来不及留下记录。
 
 ## 换用自己的本地整句模型
 
-本地整句模型（含章·通变）随包附带。要换用自己训练的模型，把 `hanzhang-tongbian-small.qjm` 放进数据文件夹的 `models/hanzhang-tongbian/`，重启输入法后优先使用：
+本地整句模型含章·通变在 macOS 与 Windows 上从「设置 → 实验功能」下载到下面的目录，Linux 版随包附带。要换用自己训练的模型，把 `hanzhang-tongbian-small.qjm` 放进数据文件夹的 `models/hanzhang-tongbian/`，重启输入法后优先使用：
 
 - **macOS**：`~/Library/Application Support/Qingjian/models/hanzhang-tongbian/`
 - **Windows**：`%APPDATA%\Qingjian\models\hanzhang-tongbian\`
 - **Linux**：`~/.local/share/qingjian/models/hanzhang-tongbian/`
 
-- 含章·知微（`hanzhang-zhiwei-small.qjm`，放在 `models/hanzhang-zhiwei/`）不再随包，在「设置 → 实验功能」下载，或自己放进这个目录后在实验功能里打开（`[model] name = "zhiwei"`）；它会参考光标前的几十个字重排候选。知意下载后在 `models/zhiyi/`（Windows 与 Linux 是 `models/zhiyi-onnx/`）。
+- 知意下载后在 `models/zhiyi/`（Windows 与 Linux 是 `models/zhiyi-onnx/`）。含章·知微已下线，`models/hanzhang-zhiwei/` 不再读取，可以删掉。
+- 知意输入法的词库模型（`zh.ngram`）目前不随包，只有 Windows 版会读：放进 `%APPDATA%\Qingjian\models\zhiyi-ngram\` 后重启输入法，整句和候选排序都会参考它；它认识而词库没收的词（摸鱼、老梗这类）也能打出来。放进去后第一次启动会多等一秒左右，在同一目录生成 `zh.words.qj`；之后直接读这个文件，换了模型或升级词库时会自动重新生成，删掉也没关系。
 - 旧版用过的 `model-p2c/` 与 `model/` 文件夹仍可读取；同一模型的新文件夹优先。
 - 直接导出的 `model.safetensors`、`config.json`、`vocab.json` 三个文件也能识别；同一文件夹里两种都有时优先用 `.qjm`。
 

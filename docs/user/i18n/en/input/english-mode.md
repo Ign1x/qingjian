@@ -121,7 +121,7 @@ If the 中 / 英 indicator on the taskbar is easy to miss, you can open a floati
 | `符` | | Open the [symbol panel](punctuation.md#Symbol-panel) |
 | ⚙ | | Open Settings |
 
-Drag it anywhere on the screen; its position is remembered. Its look follows the system's light or dark appearance. Adjust its size under 状态条大小 (Status bar size) (60%–150%); it doesn't follow the candidate font size.
+Drag it anywhere on the screen; it stops flush against the taskbar and the screen edges, and its position is remembered. Its look follows the system's light or dark appearance. Adjust its size under 状态条大小 (Status bar size) (60%–150%); it doesn't follow the candidate font size.
 It only appears while Qingjian is the current input method: it hides when you switch to another input method or the system's English keyboard and comes back when you switch back.
 It hides automatically while a full-screen app (a game, full-screen video, a presentation) is in front, and returns when you leave full screen. You can also show or hide it at any time from the right-click menu of the 中 / 英 icon on the taskbar.
 Each time it appears, it's moved back into the visible area of the screen. The status bar can also change its look with the theme; see [Custom themes](../advanced/custom-themes.md#Floating-status-bar-(Windows)).

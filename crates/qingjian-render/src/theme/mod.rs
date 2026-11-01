@@ -35,7 +35,7 @@ use file::{ColorRef, FontRef, LockedAppearance, SCHEMA, ThemeFile};
 type EmbeddedFiles = &'static [(&'static str, &'static [u8])];
 
 /// 内置主题：id、源文件与图片，按设置界面列出的顺序；第一个是缺省主题。
-const BUILTINS: [(&str, &str, EmbeddedFiles); 7] = [
+const BUILTINS: [(&str, &str, EmbeddedFiles); 8] = [
     (
         "qingjian",
         include_str!("../../themes/qingjian/theme.json"),
@@ -51,6 +51,7 @@ const BUILTINS: [(&str, &str, EmbeddedFiles); 7] = [
         include_str!("../../themes/wechat/theme.json"),
         &[],
     ),
+    ("glass", include_str!("../../themes/glass/theme.json"), &[]),
     (
         "sakura",
         include_str!("../../themes/sakura/theme.json"),
@@ -307,8 +308,12 @@ pub struct Theme {
     /// 用深色那一套值。
     dark: bool,
 
-    /// 图片与字体素材（主题目录里的），同一主题的浅色 / 深色共用。
-    assets: Arc<Assets>,
+    /// 图片与字体素材，同一主题的浅色 / 深色共用。用户主题读目录时就填好；
+    /// 内置主题第一次画到才从 `embedded` 解码：内置主题有好几个带图的，而一次只画一个。
+    assets: Arc<OnceLock<Assets>>,
+
+    /// 内置主题编进程序的图片；别的主题为空。
+    embedded: EmbeddedFiles,
 
     /// 字族表与命名样式，同一主题的浅色 / 深色共用。
     families: Arc<FontFamilies>,
@@ -367,6 +372,7 @@ impl Theme {
             file: Arc::new(file),
             dark,
             assets: Arc::default(),
+            embedded: &[],
         };
         Ok(theme.with_dark(dark))
     }
@@ -376,7 +382,7 @@ impl Theme {
         let json = std::fs::read_to_string(dir.join("theme.json"))?;
         let mut theme = Self::from_json(&json, dark)?;
         let inherited = extends::base_id(&json).map_or(&[][..], |id| builtin_files(&id));
-        theme.assets = Arc::new(Assets::load(&theme.file, dir, inherited));
+        theme.assets = Arc::new(OnceLock::from(Assets::load(&theme.file, dir, inherited)));
         Ok(theme)
     }
 
@@ -386,6 +392,7 @@ impl Theme {
             file: Arc::clone(&self.file),
             dark: self.locked_dark().unwrap_or(dark),
             assets: Arc::clone(&self.assets),
+            embedded: self.embedded,
             families: Arc::clone(&self.families),
             sizes: self.sizes,
             animations: self.animations,
@@ -457,7 +464,17 @@ impl Theme {
 
     /// 随主题带的字体文件（已检查在主题目录里）。
     pub fn font_files(&self) -> &[PathBuf] {
-        self.assets.fonts()
+        self.assets().fonts()
+    }
+
+    fn assets(&self) -> &Assets {
+        self.assets.get_or_init(|| {
+            if self.embedded.is_empty() {
+                Assets::default()
+            } else {
+                Assets::embedded(&self.file, self.embedded)
+            }
+        })
     }
 
     fn default_builtin() -> &'static Theme {
@@ -490,12 +507,12 @@ impl Theme {
 
     /// 主题里写的图片路径对应的位图；没有、没读进来或是 SVG 时为 `None`。
     pub(crate) fn image(&self, path: &str) -> Option<Arc<Pixmap>> {
-        self.assets.image(path)
+        self.assets().image(path)
     }
 
     /// 主题里写的 SVG 图片；没有、没读进来或不是 SVG 时为 `None`。
     pub(crate) fn svg(&self, path: &str) -> Option<Arc<SvgImage>> {
-        self.assets.svg(path)
+        self.assets().svg(path)
     }
 
     /// 命名文字样式（点）。
@@ -536,7 +553,7 @@ fn builtins() -> &'static [Theme] {
                 let mut theme = Theme::from_json(source, false)
                     .unwrap_or_else(|error| panic!("内置主题 {id} 解析失败：{error}"));
                 debug_assert_eq!(theme.id(), *id, "内置主题 id 与目录名不一致");
-                theme.assets = Arc::new(Assets::embedded(&theme.file, files));
+                theme.embedded = files;
                 theme
             })
             .collect()

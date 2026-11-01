@@ -162,7 +162,7 @@ class CandidateGrid(
         val slot = side.height() / 3
         ink.text(canvas, "返回", 16f, palette.text, cx, side.top + slot * 0.5f)
         keyPaint.color = palette.text
-        KeyIcons.draw(canvas, Key.Backspace, cx, side.top + slot * 1.5f, ink.dp(24f), keyPaint, false)
+        KeyIcons.draw(canvas, Key.Backspace, cx, side.top + slot * 1.5f, ink.dp(24f), keyPaint)
         ink.text(canvas, "重输", 16f, palette.text, cx, side.top + slot * 2.5f)
         for (i in 1..2) ink.line(canvas, side.left, side.top + slot * i, side.right, side.top + slot * i, palette.faint)
     }

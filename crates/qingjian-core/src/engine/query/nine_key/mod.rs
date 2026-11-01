@@ -80,6 +80,7 @@ impl Engine {
             rest,
             decoded_keys: true,
             shuangpin_raw_preedit: false,
+            shuangpin_raw_window: false,
             typed_display,
             typed_case: None,
             pinyin_choices,
@@ -115,6 +116,7 @@ impl Engine {
                 weight: self.learner.weight(hit.text),
                 penalty: 0.0,
                 tone_cost: 0,
+                split: false,
             });
         }
         for prefix_len in (1..count).rev() {
@@ -137,6 +139,7 @@ impl Engine {
                     weight: self.learner.weight(hit.text),
                     penalty: 0.0,
                     tone_cost: 0,
+                    split: false,
                 });
             }
         }

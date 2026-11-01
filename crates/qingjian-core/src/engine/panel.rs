@@ -81,8 +81,7 @@ impl Engine {
             };
             let catalogued = KEYWORDS
                 .lookup(&key)
-                .iter()
-                .chain(self.emoji.as_ref().map_or(&[][..], |t| t.lookup(&key)));
+                .chain(self.emoji.iter().flat_map(|t| t.lookup(&key)));
             for text in catalogued {
                 if let Some(item) = CATALOG.item(text) {
                     push(item.clone());
@@ -94,7 +93,7 @@ impl Engine {
             ] {
                 for text in table.lookup(&key) {
                     push(CATALOG.item(text).cloned().unwrap_or_else(|| Candidate {
-                        text: text.clone(),
+                        text: text.to_owned(),
                         kind,
                         syllables: Vec::new(),
                         reading: Some(word.text.clone()),

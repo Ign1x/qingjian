@@ -30,7 +30,7 @@ impl ChoiceScorer {
         candidates: &[&str],
     ) -> Result<Sequence, NeuralError> {
         let mut ids = vec![CLS];
-        let context = self.encode(context)?;
+        let context = self.encode(context);
         ids.extend(&context[context.len().saturating_sub(CONTEXT_TOKENS)..]);
         ids.push(SEP);
         let mut units = vec![0; ids.len()];
@@ -43,7 +43,7 @@ impl ChoiceScorer {
         for candidate in candidates {
             markers.push(ids.len() as u32);
             ids.push(MASK);
-            let tokens = self.encode(&format!(" {candidate}"))?;
+            let tokens = self.encode(&format!(" {candidate}"));
             ids.extend(tokens.iter().take(CANDIDATE_TOKENS));
         }
         ids.push(SEP);

@@ -15,9 +15,11 @@
 
 mod context;
 mod conversion;
+mod diagnosis;
 mod interpolation;
 mod language_model;
 mod personal;
+mod phrase_model;
 mod pieces;
 mod scorer;
 mod search_input;
@@ -29,14 +31,16 @@ mod viterbi;
 
 pub use context::Context;
 pub use conversion::Conversion;
+pub use diagnosis::{Loss, Parts, diagnose};
 pub use interpolation::Interpolation;
 pub use language_model::{LanguageModel, NoLanguageModel};
 pub use personal::Personal;
+pub use phrase_model::PhraseModel;
 pub use pieces::text_pieces;
 pub use scorer::SentenceScorer;
 pub use search_input::SearchInput;
 pub use sentence_word::SentenceWord;
-pub use span::{MAX_SPAN_CACHE_ENTRIES, SpanCache, SpanWord};
+pub use span::{MAX_SPAN_CACHE_ENTRIES, SpanCache, SpanWord, kept_hits};
 pub(crate) use text_segment::is_han;
 pub use text_segment::{MAX_TEXT_WORD_CHARS, segment_text};
 pub use user_ngram::UserNgram;
@@ -98,9 +102,19 @@ impl Default for SearchLimits {
     }
 }
 
+/// 按词频排在格子名额之后、出字分又比留下的都高的词，再多收几个：剪枝丢的正确词九成是单字，
+/// 词频排第 7～15（霸 / 截 / 键），选词模型按上文却很看好它们。没有模型时出字分恒 0，一个也不收。
+pub const EMITTED_SPAN_EXTRAS: usize = 3;
+
+/// 找这几个词时往名额后面看多远（按词频）。
+pub const EMITTED_SPAN_POOL: usize = 24;
+
 /// 注音声调代价（[`crate::zhuyin::tone::cost`]）每一点扣的分：次要读音 / 表里没有的字词频减半，
 /// 对不上声调的（代价 16）扣到几乎不进路径；格子选词也按它打折，ㄕ 一声的 师 才挤得进 是 时 事 前面。
 pub const TONE_PENALTY: f64 = std::f64::consts::LN_2;
+
+/// 要的整句路径多于束宽时（给选词模型整句重排），每个词留几条来路：只留最优一条的话末尾几条路径只差最后一个词。
+pub const NBEST_HISTORIES: usize = 4;
 
 /// 语言模型不认识、只能按词库词频兜底的词扣多少分：模型见过的词更可信。
 pub const FALLBACK_PENALTY: f64 = -4.0;
@@ -131,6 +145,8 @@ pub fn transition_log_prob(
     word: &str,
     fallback: f64,
 ) -> f64 {
-    let base = model.log_prob(context.previous, word).unwrap_or(fallback);
+    let base = model
+        .log_prob_trigram(context.earlier, context.previous, word)
+        .unwrap_or(fallback);
     personal.blend(context, word, base)
 }

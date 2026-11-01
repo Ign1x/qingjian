@@ -7,7 +7,7 @@ mod numbers;
 
 pub use cloud::CloudStats;
 pub use input::InputStats;
-pub use numbers::{group_digits, hanzi_text, scale_line, tokens_text};
+pub use numbers::{compact, group_digits, hanzi_text, scale_line, tokens_text};
 
 use std::path::PathBuf;
 
@@ -18,6 +18,7 @@ use qingjian_platform::GeneralConfig;
 use qingjian_predict::{API_USAGE_FILE, ApiUsageHours, ApiUsageStats};
 use qingjian_translate::LevelTable;
 
+use crate::i18n::tr;
 use crate::system::paths;
 
 pub struct Stats {
@@ -78,14 +79,14 @@ impl Stats {
 }
 
 pub fn language_name(language: Language) -> &'static str {
-    match language {
-        Language::Chinese => "中文",
-        Language::English => "英语",
-        Language::Japanese => "日语",
-        Language::Spanish => "西班牙语",
-        Language::Vietnamese => "越南语",
-        Language::German => "德语",
-    }
+    tr(match language {
+        Language::Chinese => "languages.zh",
+        Language::English => "languages.en",
+        Language::Japanese => "languages.ja",
+        Language::Spanish => "languages.es",
+        Language::Vietnamese => "languages.vi",
+        Language::German => "languages.de",
+    })
 }
 
 /// 词汇等级表：macOS 在 `Qingjian.app/Contents/Resources/`，其他平台在随包根的 `assets/levels/`。

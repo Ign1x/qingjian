@@ -1,12 +1,10 @@
 //! 交给交互层的输入事件，与窗口库无关：宿主把系统事件翻成它们（坐标已是像素，原点在根节点左上角）。
 
-mod key_code;
-mod key_press;
+mod key;
 mod modifiers;
 mod text_input;
 
-pub use key_code::KeyCode;
-pub use key_press::KeyPress;
+pub use key::{KeyCode, KeyPress};
 pub use modifiers::Modifiers;
 pub use text_input::TextInput;
 

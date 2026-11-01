@@ -3,10 +3,12 @@
 //! 其中的普通符号由 [`is_emoji`] 筛掉、改归符号表；口语叫法、颜文字、符号三张表编进程序（`builtin`）。
 
 pub(crate) mod builtin;
+mod items;
 mod property;
 mod skin_tone;
 mod table;
 
+pub use items::Items;
 pub use property::is_emoji;
 pub use skin_tone::skin_tone_variants;
 pub use table::EmojiTable;

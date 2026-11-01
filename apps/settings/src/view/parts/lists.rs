@@ -7,8 +7,10 @@ use bamboo_slip::taffy::{
 use bamboo_slip::{Button, Checkbox, RenderError, SettingRow, Ui, Visual, info_with_link};
 use qingjian_dictionary::GENERAL_DICTIONARY;
 
+use crate::i18n::{tr, tr_args};
 use crate::library::{Entry, Kind};
 use crate::message::Message;
+use crate::stats::compact;
 use crate::view::Page;
 use crate::view::parts::actions::with_notice;
 
@@ -60,7 +62,7 @@ pub fn entry_row(
         None => checkbox,
     };
     let detail = if entry.broken {
-        "文件坏了，打不开".to_owned()
+        tr("lists.broken").to_owned()
     } else if entry.license.is_empty() {
         count(entry.entries)
     } else {
@@ -69,7 +71,7 @@ pub fn entry_row(
     let detail = text(ui, page, &detail)?;
     let mut trailing = vec![detail];
     if removable {
-        trailing.push(Button::new("移除").build(
+        trailing.push(Button::new(tr("lists.remove")).build(
             ui,
             theme,
             ("remove", kind, entry.stem.as_str()),
@@ -196,9 +198,9 @@ pub fn import_row(
 ) -> Result<NodeId, RenderError> {
     let running = page.settings.import.running() == Some(kind);
     let button = Button::new(if running {
-        "导入中…"
+        tr("lists.importing")
     } else {
-        "选择文件…"
+        tr("lists.choose_files")
     })
     .disabled(page.settings.import.running().is_some())
     .build(ui, &page.theme, ("import", kind), Message::Import(kind))?;
@@ -243,11 +245,9 @@ fn text(ui: &mut Ui<Message>, page: &Page, text: &str) -> Result<NodeId, RenderE
 
 /// 条数：上万的写成「3.2 万条」。
 fn count(entries: usize) -> String {
-    if entries >= 10_000 {
-        let tens = (entries as f64 / 1000.0).round() / 10.0;
-        format!("{tens} 万条")
-    } else {
-        format!("{entries} 条")
+    match compact(entries as u64) {
+        Some((number, unit)) => tr_args("lists.entries_large", &[("n", &number), ("unit", &unit)]),
+        None => tr_args("lists.entries", &[("n", &entries)]),
     }
 }
 
@@ -257,6 +257,7 @@ mod tests {
 
     #[test]
     fn counts_read_naturally() {
+        bamboo_slip_i18n::pin_locale("zh-Hans");
         assert_eq!(count(865), "865 条");
         assert_eq!(count(32_456), "3.2 万条");
         assert_eq!(count(87_000), "8.7 万条");

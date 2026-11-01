@@ -56,7 +56,6 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
         bundled_codes_dir: Some(root.join("data/generated/codes")),
         bundled_schemes_dir: find_bundled_schemes(&root),
         aux_code: config.aux_code.clone(),
-        levels_dir: Some(root.join("assets/levels")),
         user_dir: Some(user_dir.clone()),
         input_log: config.general.input_log,
         log_dir: Some(paths::log_dir()),
@@ -73,12 +72,14 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
     engine.set_fuzzy(config.fuzzy);
     // 拼音侧与形码侧在 `configure_schemes` 里一起装配（双拼 / 用户双拼 / 注音 / 形码与混输都在那）
     engine.set_shuangpin_raw_preedit(config.general.shuangpin_raw_preedit);
+    engine.set_shuangpin_full_pinyin(config.general.shuangpin_full_pinyin);
     engine.set_hold_selections(config.general.hold_selections);
     engine.set_show_tones(config.general.show_tones);
     engine.set_context_memory(config.model.context_memory_seconds);
     engine.set_shift_letter_compose(config.general.shift_letter.compose());
     engine.set_learning(config.general.learning);
     engine.set_chinese_first(config.general.chinese_first);
+    engine.set_spelling_correction(config.general.spelling_correction);
     engine.set_emoji_limit(usize::from(config.general.emoji.get()));
     engine.set_kaomoji_limit(usize::from(config.general.kaomoji.get()));
     engine.set_symbol_limit(usize::from(config.general.symbols.get()));

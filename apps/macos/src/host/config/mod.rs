@@ -25,6 +25,8 @@ impl Host {
         self.engine.set_mode_keys(config.shortcut.mode);
         self.engine.set_chinese_first(config.general.chinese_first);
         self.engine
+            .set_spelling_correction(config.general.spelling_correction);
+        self.engine
             .set_emoji_limit(usize::from(config.general.emoji.get()));
         self.engine
             .set_kaomoji_limit(usize::from(config.general.kaomoji.get()));
@@ -54,6 +56,10 @@ impl Host {
         self.engine
             .set_shuangpin_raw_preedit(config.general.shuangpin_raw_preedit);
         self.engine
+            .set_shuangpin_raw_window(config.general.shuangpin_raw_window);
+        self.engine
+            .set_shuangpin_full_pinyin(config.general.shuangpin_full_pinyin);
+        self.engine
             .set_hold_selections(config.general.hold_selections);
         self.engine
             .set_context_memory(config.model.context_memory_seconds);
@@ -76,6 +82,7 @@ impl Host {
         self.page_keys = config.general.page_keys();
         self.extra_page_keys = config.shortcut.extra_page_keys;
         self.highlight_keys = config.shortcut.highlight_keys;
+        self.extra_candidate_navigation = config.shortcut.extra_candidate_navigation;
         self.punct_commits = config.general.punct_commits;
         self.preedit_mode = config.general.preedit;
         self.translation_pos = config.general.translation_pos;
@@ -90,9 +97,11 @@ impl Host {
         self.window.set_layout(config.general.layout);
         if self.layout != config.general.layout
             || self.horizontal_grid != config.general.horizontal_grid
+            || self.grid_page_keys != config.general.grid_page_keys
         {
             self.layout = config.general.layout;
             self.horizontal_grid = config.general.horizontal_grid;
+            self.grid_page_keys = config.general.grid_page_keys;
             self.session.collapse();
         }
         self.window.set_font(&config.general.font);

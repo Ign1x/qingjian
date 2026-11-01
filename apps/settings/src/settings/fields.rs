@@ -3,6 +3,7 @@
 use bamboo_slip::TextEdit;
 
 use super::Settings;
+use crate::i18n::tr;
 use crate::message::FieldId;
 
 impl Settings {
@@ -52,15 +53,12 @@ impl Settings {
             FieldId::ApiKey if text.is_empty() => {}
             // 密码框看不见内容，粘贴多了（带上了终端提示符、命令）用户发现不了
             FieldId::ApiKey if text.chars().any(|c| !c.is_ascii_graphic()) => {
-                self.notice = Some((
-                    "cloud",
-                    "密钥没有保存：里面有空格或非英文字符，多半是粘贴时多带了别的内容".to_owned(),
-                ));
+                self.notice = Some(("cloud", tr("cloud.bad_key").to_owned()));
             }
             FieldId::ApiKey => {
                 qingjian_platform::logs::secrets::register(&text);
                 self.write("predict", id.key(), text);
-                self.notice = Some(("cloud", "密钥已保存".to_owned()));
+                self.notice = Some(("cloud", tr("cloud.key_saved").to_owned()));
             }
         }
         self.reset_field(id);

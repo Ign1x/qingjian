@@ -2,6 +2,8 @@
 
 use serde::{Deserialize, Serialize};
 
+use crate::i18n::tr;
+
 /// `[general] numpad_digit`；macOS 不使用这项设置。
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -29,8 +31,8 @@ impl NumpadDigit {
     /// 设置界面的名称。
     pub fn label(self) -> &'static str {
         match self {
-            Self::Select => "选择候选",
-            Self::Direct => "直接输入数字",
+            Self::Select => tr("numpad_digit.select"),
+            Self::Direct => tr("numpad_digit.direct"),
         }
     }
 }

@@ -94,6 +94,31 @@ fn tab_and_backtab_page_boundaries_and_current_page_selection() {
         assert_eq!(key(&mut router, 0x21, None, normal).2.page, 0);
     }
 }
+/// #250：候选窗上滚轮翻页、点翻页箭头，和翻页键一样到头就停。
+#[test]
+fn wheel_and_page_arrows_turn_pages_like_page_keys() {
+    use crate::dispatch::CandidateMouse;
+
+    let mut router = router(4);
+    let normal = KeyModifiers::default();
+    router.handle_candidate_mouse(CandidateMouse::Page(1));
+    assert_eq!(router.self_drawn_frame().page, 0, "没在打字时滚轮不动");
+    compose(&mut router, "qq", normal);
+    router.handle_candidate_mouse(CandidateMouse::Page(1));
+    assert_eq!(router.self_drawn_frame().page, 1);
+    router.handle_candidate_mouse(CandidateMouse::Page(5));
+    assert_eq!(router.self_drawn_frame().page, 2);
+    router.handle_candidate_mouse(CandidateMouse::Click(qingjian_render::HitTarget::Page(-1)));
+    let frame = router.self_drawn_frame();
+    assert_eq!((frame.page, frame.highlight), (1, 0));
+    let expected = frame.candidates.items[0].text.clone();
+    assert_eq!(
+        key(&mut router, b'1' as u32, Some('1'), normal).1,
+        Some(expected),
+        "滚过去之后数字键选的是这一页"
+    );
+}
+
 #[test]
 fn shift_tab_precedes_prediction_and_english_commit() {
     let mut router = router(1);
@@ -364,6 +389,43 @@ fn horizontal_grid_page_keys_turn_screens() {
     assert_eq!((frame.highlight, frame.page), (0, 0));
 }
 
+/// 开了「翻页键展开」（`[general] grid_page_keys`，#805）：横排单行时翻页键展开成矩阵、高亮移到下一行，展开后方向键按矩阵走、
+/// 翻页键一次翻一屏；数字键选高亮所在那一行。
+#[test]
+fn page_keys_expand_the_grid() {
+    let mut router = router(2);
+    let normal = KeyModifiers::default();
+    router.config.layout = LayoutMode::Horizontal;
+    router.config.page_keys = ('-', '=');
+    router.config.grid_page_keys = true;
+    compose(&mut router, "qq", normal);
+    let frame = key(&mut router, 0xBB, Some('='), normal).2;
+    assert_eq!((frame.columns, frame.highlight, frame.page), (2, 2, 1));
+    let frame = key(&mut router, 0x22, None, normal).2;
+    assert_eq!((frame.columns, frame.highlight, frame.page), (2, 8, 4));
+    let frame = key(&mut router, 0x26, None, normal).2;
+    assert_eq!((frame.highlight, frame.page), (6, 3));
+    assert_eq!(
+        key(&mut router, 0x32, Some('2'), normal).1.as_deref(),
+        Some("第8项")
+    );
+}
+
+/// 「翻页键展开」关着（缺省）：横排下翻页键照旧整页翻、不展开。
+#[test]
+fn page_keys_without_the_switch_still_turn_pages() {
+    let mut router = router(2);
+    let normal = KeyModifiers::default();
+    router.config.layout = LayoutMode::Horizontal;
+    compose(&mut router, "qq", normal);
+    let frame = key(&mut router, 0x22, None, normal).2;
+    assert_eq!((frame.columns, frame.highlight, frame.page), (0, 0, 1));
+    assert_eq!(
+        key(&mut router, 0x0D, None, normal).1.as_deref(),
+        Some("qq")
+    );
+}
+
 /// 开关关着时横排按键与以前一样：↑ ↓ 逐个移高亮（不展开），← → 移拼音光标，Alt + ← 归应用。
 #[test]
 fn horizontal_grid_off_keeps_old_keys() {
@@ -549,5 +611,35 @@ fn auto_space_follows_commits_and_backspace() {
     assert_eq!(
         key(&mut router, 0x33, Some('3'), normal).0,
         KeyOutcome::Passthrough
+    );
+}
+
+/// 上屏键换过（`[shortcut] commit_candidate = "enter"`、`commit_raw = "shift+enter"`）：回车上屏高亮候选、
+/// Shift + 回车原样上屏字母，让出去的空格组句中吃掉不做事；一个符号键也能当上屏键。
+#[test]
+fn rebound_commit_keys_commit_and_free_space_does_nothing() {
+    use qingjian_platform::{CommitKey, CommitKeys};
+    let normal = KeyModifiers::default();
+    let shift = KeyModifiers {
+        shift: true,
+        ..normal
+    };
+    let mut r = router(4);
+    r.config.commit_keys = CommitKeys {
+        candidate: CommitKey::ENTER,
+        raw: CommitKey::Enter { shift: true },
+    };
+    compose(&mut r, "qq", normal);
+    assert_eq!(key(&mut r, 0x0D, None, normal).1.as_deref(), Some("第1项"));
+    compose(&mut r, "qq", normal);
+    assert_eq!(key(&mut r, 0x0D, None, shift).1.as_deref(), Some("qq"));
+    compose(&mut r, "qq", normal);
+    let (outcome, commit, _) = key(&mut r, 0x20, Some(' '), normal);
+    assert_eq!((outcome, commit), (KeyOutcome::Consumed, None));
+    assert_eq!(r.engine.composition().text(), "qq");
+    r.config.commit_keys.candidate = CommitKey::Symbol(';');
+    assert_eq!(
+        key(&mut r, 0xBA, Some(';'), normal).1.as_deref(),
+        Some("第1项")
     );
 }

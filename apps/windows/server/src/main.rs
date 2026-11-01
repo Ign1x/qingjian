@@ -2,7 +2,10 @@
 //! release 编成 GUI 子系统（登录自启静默跑，日志走文件）；debug 保留控制台看 stderr。
 #![cfg_attr(all(windows, not(debug_assertions)), windows_subsystem = "windows")]
 
+mod panic_log;
+
 use std::path::{Path, PathBuf};
+use std::process::ExitCode;
 
 use qingjian_core::{Engine, Language};
 use qingjian_platform::{Config, ConfigError, LogLevel, resources};
@@ -157,10 +160,10 @@ fn attach_parent_console() {
 #[cfg(not(windows))]
 fn attach_parent_console() {}
 
-fn main() {
+fn main() -> ExitCode {
     let mut arguments = std::env::args().skip(1);
     if arguments.next().as_deref() == Some(qingjian_render::preview::FLAG) {
-        std::process::exit(theme_preview(arguments.next()));
+        return ExitCode::from(u8::try_from(theme_preview(arguments.next())).unwrap_or(1));
     }
     load_env();
 
@@ -168,6 +171,13 @@ fn main() {
     let template = write_config_template();
     let config = load_config();
     let _log_guard = init_logging(&config);
+    panic_log::install();
+    tracing::info!(pid = std::process::id(), "Server process started");
+    #[cfg(windows)]
+    let Some(_instance) = qingjian_windows_server::ipc::instance::Instance::acquire() else {
+        tracing::info!("another qingjian-server is already running, exiting");
+        return ExitCode::SUCCESS;
+    };
     match template {
         Some(Ok(true)) => tracing::info!("已写出配置模板"),
         Some(Err(error)) => tracing::warn!(%error, "写配置模板失败"),
@@ -202,7 +212,6 @@ fn main() {
         bundled_codes_dir: bundled_codes_dir.clone(),
         bundled_schemes_dir: dispatch::find_bundled_schemes(&root),
         aux_code: config.aux_code.clone(),
-        levels_dir: Some(root.join("assets/levels")),
         user_dir: user_dir(),
         input_log: config.general.input_log,
         ..AssemblySpec::new(&dict)
@@ -211,7 +220,7 @@ fn main() {
         Ok(engine) => engine,
         Err(error) => {
             tracing::error!(%error, "样例词库也装配失败");
-            std::process::exit(1);
+            return ExitCode::FAILURE;
         }
     };
     engine.set_fuzzy(config.fuzzy);
@@ -229,6 +238,7 @@ fn main() {
     engine.set_aux_show(config.general.aux_code_show);
     engine.set_show_tones(config.general.show_tones);
     engine.set_chinese_first(config.general.chinese_first);
+    engine.set_spelling_correction(config.general.spelling_correction);
     engine.set_emoji_limit(usize::from(config.general.emoji.get()));
     engine.set_kaomoji_limit(usize::from(config.general.kaomoji.get()));
     engine.set_symbol_limit(usize::from(config.general.symbols.get()));
@@ -238,6 +248,8 @@ fn main() {
     engine.set_shift_letter_compose(config.general.shift_letter.compose());
     engine.set_auto_space(config.general.auto_space);
     engine.set_shuangpin_raw_preedit(config.general.shuangpin_raw_preedit);
+    engine.set_shuangpin_raw_window(config.general.shuangpin_raw_window);
+    engine.set_shuangpin_full_pinyin(config.general.shuangpin_full_pinyin);
     engine.set_hold_selections(config.general.hold_selections);
     engine.set_context_memory(config.model.context_memory_seconds);
     engine.log_session(env!("CARGO_PKG_VERSION"), "windows");
@@ -287,7 +299,9 @@ fn main() {
         "青简 Windows Server 就绪"
     );
 
-    serve(router);
+    let code = serve(router);
+    tracing::info!(pid = std::process::id(), ?code, "Server process stopped");
+    code
 }
 
 /// 日志目录 `%LOCALAPPDATA%\Qingjian\logs` 给 AppContainer 应用（任务栏搜索 / 设置）写权限：
@@ -315,7 +329,7 @@ fn grant_appcontainer_log_access() {
 
 /// 起 UI 线程作为候选窗口 / 状态条的输出端（失败退化为不画），再在命名管道上服务到进程结束。
 #[cfg(windows)]
-fn serve(mut router: Router) {
+fn serve(mut router: Router) -> ExitCode {
     use qingjian_windows_server::ipc::{Work, pipe};
     use qingjian_windows_server::ui::UiHandle;
     grant_appcontainer_log_access();
@@ -342,11 +356,13 @@ fn serve(mut router: Router) {
     }
     if let Err(error) = pipe::serve_pipe(pipe::DEFAULT_PIPE_NAME, &mut router, work_tx, work_rx) {
         tracing::error!(%error, "命名管道服务退出");
-        std::process::exit(1);
+        return ExitCode::FAILURE;
     }
+    ExitCode::SUCCESS
 }
 
 #[cfg(not(windows))]
-fn serve(_router: Router) {
+fn serve(_router: Router) -> ExitCode {
     tracing::warn!("命名管道传输仅 Windows 提供；本平台只装配 Engine 供测试");
+    ExitCode::SUCCESS
 }

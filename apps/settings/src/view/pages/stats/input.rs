@@ -8,8 +8,9 @@ use qingjian_learning::figures::{
 };
 
 use super::{
-    NONE_YET, card, cards, charts, detail, full_date, levels, note, percent, vocabulary_line,
+    card, cards, charts, detail, full_date, levels, none_yet, note, percent, vocabulary_line,
 };
+use crate::i18n::{tr, tr_args};
 use crate::message::Message;
 use crate::stats::{InputStats, group_digits, hanzi_text, scale_line};
 use crate::view::Page;
@@ -25,14 +26,14 @@ pub fn input(
     let mut out = Vec::new();
 
     let row = [
-        usage_card(ui, page, "今天", &stats.today_usage())?,
-        usage_card(ui, page, "近 7 天", &stats.recent())?,
-        usage_card(ui, page, "本月", &stats.month())?,
-        usage_card(ui, page, "累计", &total)?,
+        usage_card(ui, page, tr("stats.today"), &stats.today_usage())?,
+        usage_card(ui, page, tr("stats.week"), &stats.recent())?,
+        usage_card(ui, page, tr("stats.month"), &stats.month())?,
+        usage_card(ui, page, tr("stats.total"), &total)?,
     ];
     out.push(cards(ui, page, &row)?);
 
-    out.push(section_title(ui, theme, "近一年")?);
+    out.push(section_title(ui, theme, tr("stats.section_year"))?);
     out.push(charts::calendar(
         ui,
         page,
@@ -42,7 +43,7 @@ pub fn input(
         |_, hanzi| hanzi_amount(hanzi),
     )?);
 
-    out.push(section_title(ui, theme, "过去 24 小时")?);
+    out.push(section_title(ui, theme, tr("stats.section_hours"))?);
     out.push(charts::hours(
         ui,
         page,
@@ -52,13 +53,17 @@ pub fn input(
         |_, hanzi| hanzi_amount(hanzi),
     )?);
 
-    out.push(section_title(ui, theme, "输入详情")?);
+    out.push(section_title(ui, theme, tr("stats.section_input"))?);
     let rows = details(ui, page, stats, &total)?;
     out.push(group(ui, theme, &rows)?);
 
     match vocabulary {
         Some((language, vocabulary)) => {
-            out.push(section_title(ui, theme, &format!("词汇（{language}）"))?);
+            out.push(section_title(
+                ui,
+                theme,
+                &tr_args("stats.vocabulary_title", &[("language", language)]),
+            )?);
             let mut rows = vec![note(ui, page, &vocabulary_line(vocabulary))?];
             if !vocabulary.levels.is_empty() {
                 rows.push(levels(ui, page, vocabulary)?);
@@ -66,8 +71,8 @@ pub fn input(
             out.push(group(ui, theme, &rows)?);
         }
         None => {
-            out.push(section_title(ui, theme, "词汇")?);
-            let off = note(ui, page, "学习语言关着，不统计词汇")?;
+            out.push(section_title(ui, theme, tr("stats.section_vocabulary"))?);
+            let off = note(ui, page, tr("stats.vocabulary_off"))?;
             out.push(group(ui, theme, &[off])?);
         }
     }
@@ -82,65 +87,77 @@ fn details(
 ) -> Result<Vec<NodeId>, RenderError> {
     let theme = &page.theme;
     let (days, since) = stats.active_days();
-    let best = best_day(&stats.days).map_or(NONE_YET.to_owned(), |(date, day)| {
+    let best = best_day(&stats.days).map_or(none_yet(), |(date, day)| {
         format!("{} · {}", full_date(date), hanzi_text(day.hanzi))
     });
-    let average = daily_average(&stats.days).map_or(NONE_YET.to_owned(), hanzi_text);
-    let speed = |value: Option<f64>| value.map_or(NONE_YET.to_owned(), |v| format!("{v:.0} 字/分"));
-    let fastest = fastest_day(&stats.days).map_or(NONE_YET.to_owned(), |(date, v)| {
-        format!("{} · {v:.0} 字/分", full_date(date))
+    let average = daily_average(&stats.days).map_or(none_yet(), hanzi_text);
+    let speed = |value: Option<f64>| {
+        value.map_or(none_yet(), |v| {
+            tr_args("stats.speed", &[("n", &format!("{v:.0}"))])
+        })
+    };
+    let fastest = fastest_day(&stats.days).map_or(none_yet(), |(date, v)| {
+        tr_args(
+            "stats.fastest",
+            &[("date", &full_date(date)), ("n", &format!("{v:.0}"))],
+        )
     });
-    let rate = |value: Option<f64>| value.map_or(NONE_YET.to_owned(), percent);
-    let code = keys_per_hanzi(total).map_or(NONE_YET.to_owned(), |v| format!("{v:.1} 键/字"));
-    const SPEED: &str = "每分钟上屏的字数，停顿超过 5 秒不算";
+    let rate = |value: Option<f64>| value.map_or(none_yet(), percent);
+    let code = keys_per_hanzi(total).map_or(none_yet(), |v| {
+        tr_args("stats.keys_per_char", &[("n", &format!("{v:.1}"))])
+    });
+    let speed_info = tr("stats.speed_info");
     let mut rows = vec![
-        detail(ui, page, "最多的一天", None, &best)?,
-        detail(ui, page, "有输入的日子平均", None, &average)?,
+        detail(ui, page, tr("stats.best_day"), None, &best)?,
+        detail(ui, page, tr("stats.daily_average"), None, &average)?,
         detail(
             ui,
             page,
-            "今天速度",
-            Some(SPEED),
+            tr("stats.today_speed"),
+            Some(speed_info),
             &speed(stats.today_speed()),
         )?,
         detail(
             ui,
             page,
-            "平均速度",
-            Some(SPEED),
+            tr("stats.average_speed"),
+            Some(speed_info),
             &speed(stats.average_speed()),
         )?,
-        detail(ui, page, "最快的一天", Some(SPEED), &fastest)?,
         detail(
             ui,
             page,
-            "首选率",
-            Some("从候选里选词时，选的就是第一个的比例"),
+            tr("stats.fastest_day"),
+            Some(speed_info),
+            &fastest,
+        )?,
+        detail(
+            ui,
+            page,
+            tr("stats.first_choice"),
+            Some(tr("stats.first_choice_info")),
             &rate(first_choice_rate(total)),
         )?,
         detail(
             ui,
             page,
-            "一次打对",
-            Some("选词上屏前没按过退格、没删过的比例"),
+            tr("stats.clean"),
+            Some(tr("stats.clean_info")),
             &rate(clean_rate(total)),
         )?,
         detail(
             ui,
             page,
-            "平均码长",
-            Some("每个汉字平均敲几键，含拼音分隔符，不含退格"),
+            tr("stats.code_length"),
+            Some(tr("stats.code_length_info")),
             &code,
         )?,
     ];
     let scale = scale_line(total.hanzi);
-    let mut row = SettingRow::new(&scale).info(
-        "数的是上屏的文字：选一个词算一个中文词，整句按词切开数；英文候选、原样上屏的英文词与英文译词算英文词。\
-         速度、首选率、码长从这一版起记。只在这台电脑上数",
-    );
+    let mut row = SettingRow::new(&scale).info(tr("stats.counting_info"));
     let since_line;
     if let Some(date) = since {
-        since_line = format!("自 {date} 起，有输入的 {days} 天");
+        since_line = tr_args("stats.since", &[("date", &date), ("days", &days)]);
         row = row.detail(&since_line);
     }
     rows.push(row.build(ui, theme)?);
@@ -160,15 +177,18 @@ fn usage_card(
         title,
         &hanzi_text(usage.hanzi),
         &[
-            format!("中文词 {}", group_digits(usage.words)),
-            format!("英文词 {}", group_digits(usage.english_words)),
+            tr_args("stats.chinese_words", &[("n", &group_digits(usage.words))]),
+            tr_args(
+                "stats.english_words",
+                &[("n", &group_digits(usage.english_words))],
+            ),
         ],
     )
 }
 
 fn hanzi_amount(hanzi: u64) -> String {
     if hanzi == 0 {
-        "没有输入".to_owned()
+        tr("stats.no_input").to_owned()
     } else {
         hanzi_text(hanzi)
     }

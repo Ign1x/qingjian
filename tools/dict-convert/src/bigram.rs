@@ -456,20 +456,32 @@ pub fn convert(
     // 让词级排序不把它当模型不认识的词扣分、能与同音词（请柬）平起平坐，又不压过 请见 这种整句路径
     for path in brand {
         let mut added = 0usize;
-        for line in std::fs::read_to_string(path)?.lines() {
+        for (index, line) in std::fs::read_to_string(path)?.lines().enumerate() {
             if line.is_empty() || line.starts_with('#') {
                 continue;
             }
             let mut fields = line.split('\t');
-            if let (Some(text), Some(_), Some(count)) =
-                (fields.next(), fields.next(), fields.next())
-                && let Some(&id) = vocabulary.ids.get(text.trim())
-                && let Ok(count) = count.trim().parse::<u32>()
-            {
-                unigram[id as usize] = u64::from(count);
-                bigram.insert(u64::from(id), (count / BRAND_START_SHARE).max(1));
-                added += 1;
-            }
+            let (Some(text), Some(_), Some(count)) = (fields.next(), fields.next(), fields.next())
+            else {
+                continue;
+            };
+            let Ok(count) = count.trim().parse::<u32>() else {
+                continue;
+            };
+            // 词表里没有说明词库重新生成时漏了 --extra-words 这个文件，悄悄跳过的话模型里也跟着没有（#807 的 C盘 / U盘）
+            let Some(&id) = vocabulary.ids.get(text.trim()) else {
+                return Err(ConvertError::Format {
+                    path: path.clone(),
+                    line: index + 1,
+                    reason: format!(
+                        "{} is not in the dictionary (was dict.tsv generated with --extra-words for this file?)",
+                        text.trim()
+                    ),
+                });
+            };
+            unigram[id as usize] = u64::from(count);
+            bigram.insert(u64::from(id), (count / BRAND_START_SHARE).max(1));
+            added += 1;
         }
         tracing::info!(path = %path.display(), words = added, "品牌词一元与句首二元已写入");
     }
@@ -642,6 +654,43 @@ mod tests {
             .filter_map(|p| p.file_name().and_then(|n| n.to_str()).map(str::to_owned))
             .collect();
         assert_eq!(names, ["dict.tsv", "law.tsv"]);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn brand_words_missing_from_the_dictionary_stop_the_build() {
+        let dir = std::env::temp_dir().join(format!(
+            "qingjian-dict-convert-brand-{}",
+            std::process::id()
+        ));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let dict = dir.join("dict.tsv");
+        std::fs::write(&dict, "磁盘\tci pan\t249\n青简\tqing jian\t210\n").unwrap();
+        let corpus = dir.join("corpus.txt");
+        std::fs::write(&corpus, "磁盘满了\n").unwrap();
+        let brand = dir.join("mixed.tsv");
+        let out = dir.join("out");
+        std::fs::create_dir_all(&out).unwrap();
+
+        std::fs::write(&brand, "青简\tqing jian\t200\n").unwrap();
+        let built = convert(
+            std::slice::from_ref(&corpus),
+            &dict,
+            &[],
+            std::slice::from_ref(&brand),
+            1,
+            100,
+            &out,
+        );
+        assert!(built.is_ok(), "{built:?}");
+
+        std::fs::write(&brand, "# 注释\n青简\tqing jian\t200\nC盘\tc pan\t8000\n").unwrap();
+        let built = convert(&[corpus], &dict, &[], &[brand], 1, 100, &out);
+        assert!(
+            matches!(built, Err(ConvertError::Format { line: 3, .. })),
+            "{built:?}"
+        );
         let _ = std::fs::remove_dir_all(&dir);
     }
 }

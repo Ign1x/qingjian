@@ -14,10 +14,14 @@ pub fn init() {
                 .with(layer)
                 .try_init();
         }
-        let previous = std::panic::take_hook();
-        std::panic::set_hook(Box::new(move |info| {
-            tracing::error!(%info, "panic");
-            previous(info);
+        // 不记正文、也不接回默认 hook（它会打出正文）：切片越界之类的消息会带上用户打的字
+        std::panic::set_hook(Box::new(|info| {
+            let location = info.location();
+            tracing::error!(
+                file = location.map(|location| location.file()),
+                line = location.map(|location| location.line()),
+                "panic; payload omitted"
+            );
         }));
     });
 }

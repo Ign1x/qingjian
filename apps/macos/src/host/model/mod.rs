@@ -21,7 +21,7 @@ use super::*;
 
 impl Host {
     /// 在后台线程加载选的模型并预热（第一次前向要编译 Metal 内核，几百毫秒），加载完由 [`Self::attach_loaded_model`] 接上。
-    /// 选的知微、知意还没下载就用通变；一个模型文件都没有就什么都不做。
+    /// 选的模型还没下载就不用模型，不换成另一个。
     pub(super) fn load_local_model(&mut self, wanted: LocalModel) {
         if self.model_loader.is_some()
             || self.engine.has_sentence_scorer()
@@ -29,55 +29,36 @@ impl Host {
         {
             return;
         }
-        if wanted == LocalModel::Zhiyi {
-            match paths::zhiyi_model_dir() {
-                Some(dir) => return self.load_zhiyi_model(dir),
-                None => tracing::warn!("选了知意但没下载，改用含章·通变"),
-            }
-        }
-        let zhiwei = (wanted == LocalModel::Zhiwei)
-            .then(paths::user_zhiwei_model_path)
-            .flatten();
-        if wanted == LocalModel::Zhiwei && zhiwei.is_none() {
-            tracing::warn!("选了含章·知微但没下载，改用含章·通变");
-        }
-        // 没选知微时通变优先：冻结集 8322 句上比字级模型的重排高 0.69 个点、延迟还低（docs/notes/model-eval.md）
-        let (path, p2c) = match zhiwei {
-            Some(path) => (path, false),
-            None => match paths::p2c_model_path() {
-                Some(path) => (path, true),
-                None => match paths::model_path() {
-                    Some(path) => (path, false),
-                    None => {
-                        tracing::info!("没有本地模型文件，不重排");
-                        return;
-                    }
-                },
+        match wanted {
+            LocalModel::Zhiyi => match paths::zhiyi_model_dir() {
+                Some(dir) => self.load_zhiyi_model(dir),
+                None => tracing::warn!("选了知意但没下载，不用模型"),
             },
-        };
+            LocalModel::Tongbian => match paths::p2c_model_path() {
+                Some(path) => self.load_tongbian_model(path),
+                None => tracing::warn!("选了含章·通变但没下载，不用模型"),
+            },
+        }
+    }
+
+    /// 含章·通变（P2C）：预热走一次真正的打分，第一次前向要编译 Metal 内核，几百毫秒。
+    fn load_tongbian_model(&mut self, path: std::path::PathBuf) {
         let (tx, rx) = channel::<Result<LoadedModel, NeuralError>>();
         let spawned = std::thread::Builder::new()
             .name("qingjian-model-load".to_owned())
             .spawn(move || {
                 let started = std::time::Instant::now();
-                // 预热要走各自真正的前向：第一次前向要编译 Metal 内核，几百毫秒
                 let loaded = CharScorer::load(&path).and_then(|scorer| {
-                    if p2c {
-                        let scorer = P2cScorer::new(scorer)
-                            .ok_or(NeuralError::Corrupt("含章·通变模型缺少 <sep> 分隔符"))?;
-                        scorer.0.score_p2c("ni", &["你"])?;
-                        Ok(Box::new(scorer) as Box<dyn SentenceScorer>)
-                    } else {
-                        scorer.score("", &["的"])?;
-                        Ok(Box::new(scorer) as Box<dyn SentenceScorer>)
-                    }
+                    let scorer = P2cScorer::new(scorer)
+                        .ok_or(NeuralError::Corrupt("含章·通变模型缺少 <sep> 分隔符"))?;
+                    scorer.0.score_p2c("ni", &["你"])?;
+                    Ok(Box::new(scorer) as Box<dyn SentenceScorer>)
                 });
                 if loaded.is_ok() {
                     tracing::info!(
                         path = %path.display(),
-                        kind = if p2c { "含章·通变" } else { "含章·知微" },
                         total_ms = started.elapsed().as_millis(),
-                        "本地模型已加载并预热"
+                        "含章·通变已加载并预热"
                     );
                 }
                 let _ = tx.send(loaded.map(LoadedModel::Sentence));

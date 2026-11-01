@@ -2,9 +2,10 @@
 
 use bamboo_slip::taffy::NodeId;
 use bamboo_slip::{RenderError, SettingRow, Stepper, Ui, group, section_title};
-use qingjian_core::{ENGLISH_CANDIDATES_MAX, LEARNING_LANGUAGES, TraditionalVariant};
+use qingjian_core::{ENGLISH_CANDIDATES_MAX, TraditionalVariant, learning_languages};
 use qingjian_platform::{EmojiCount, MAX_PAGE_SIZE, NumpadDigit};
 
+use crate::i18n::tr;
 use crate::message::{Message, Popup};
 use crate::support::Feature;
 use crate::view::Page;
@@ -26,11 +27,12 @@ pub fn candidates(ui: &mut Ui<Message>, page: &Page) -> Result<Vec<NodeId>, Rend
             Message::set("general", "page_size", (size - 1) as i64),
             Message::set("general", "page_size", (size + 1) as i64),
         )?;
-    let language = LEARNING_LANGUAGES
+    let languages = learning_languages();
+    let language = languages
         .iter()
         .find(|(code, _)| *code == general.learning_language)
         .map_or(general.learning_language.as_str(), |(_, label)| label);
-    let names: Vec<&str> = LEARNING_LANGUAGES.iter().map(|(_, name)| *name).collect();
+    let names: Vec<&str> = languages.iter().map(|(_, name)| *name).collect();
     let language = select(
         ui,
         page,
@@ -51,22 +53,22 @@ pub fn candidates(ui: &mut Ui<Message>, page: &Page) -> Result<Vec<NodeId>, Rend
         false,
     )?;
     let mut rows = vec![
-        SettingRow::new("每页候选数")
+        SettingRow::new(tr("candidates.page_size"))
             .control(stepper)
             .build(ui, theme)?,
-        SettingRow::new("译文")
-            .info("不显示时生词标记也关掉")
+        SettingRow::new(tr("candidates.translation"))
+            .info(tr("candidates.translation_info"))
             .control(language)
             .build(ui, theme)?,
-        SettingRow::new("输出字形")
-            .info("软件 → 軟件")
+        SettingRow::new(tr("candidates.traditional"))
+            .info(tr("candidates.traditional_info"))
             .control(traditional)
             .build(ui, theme)?,
         toggle_info(
             ui,
             page,
-            "译词显示词性",
-            Some("如 v. develop"),
+            tr("candidates.translation_pos"),
+            Some(tr("candidates.translation_pos_info")),
             ("general", "translation_pos"),
             general.translation_pos,
             general.learning_language_off(),
@@ -84,8 +86,8 @@ pub fn candidates(ui: &mut Ui<Message>, page: &Page) -> Result<Vec<NodeId>, Rend
         )?;
         rows.insert(
             1,
-            SettingRow::new("小键盘数字")
-                .info("组句中按小键盘数字")
+            SettingRow::new(tr("candidates.numpad_digit"))
+                .info(tr("candidates.numpad_digit_info"))
                 .control(numpad)
                 .build(ui, theme)?,
         );
@@ -94,14 +96,14 @@ pub fn candidates(ui: &mut Ui<Message>, page: &Page) -> Result<Vec<NodeId>, Rend
         rows.push(toggle_info(
             ui,
             page,
-            "拼音行显示声调",
-            Some("如 gān'gà"),
+            tr("candidates.show_tones"),
+            Some(tr("candidates.show_tones_info")),
             ("general", "show_tones"),
             general.show_tones,
             false,
         )?);
     }
-    out.push(section_title(ui, theme, "显示")?);
+    out.push(section_title(ui, theme, tr("candidates.section_display"))?);
     out.push(group(ui, theme, &rows)?);
 
     let rows = vec![
@@ -109,36 +111,36 @@ pub fn candidates(ui: &mut Ui<Message>, page: &Page) -> Result<Vec<NodeId>, Rend
             ui,
             page,
             Popup::Emoji,
-            "emoji",
-            "kaixin → 开心 😄",
+            tr("candidates.emoji"),
+            tr("candidates.emoji_info"),
             general.emoji,
         )?,
         count(
             ui,
             page,
             Popup::Kaomoji,
-            "颜文字",
-            "ku → 哭 (T_T)",
+            tr("candidates.kaomoji"),
+            tr("candidates.kaomoji_info"),
             general.kaomoji,
         )?,
         count(
             ui,
             page,
             Popup::Symbols,
-            "符号",
-            "yuedengyu → 约等于 ≈，alpha → α",
+            tr("candidates.symbols"),
+            tr("candidates.symbols_info"),
             general.symbols,
         )?,
     ];
-    out.push(section_title(ui, theme, "候选后面")?);
+    out.push(section_title(ui, theme, tr("candidates.section_extras"))?);
     out.push(group(ui, theme, &rows)?);
 
     let rows = vec![
         toggle_info(
             ui,
             page,
-            "学习输入习惯",
-            Some("关掉后不再学新习惯"),
+            tr("candidates.learning"),
+            Some(tr("candidates.learning_info")),
             ("general", "learning"),
             general.learning,
             false,
@@ -146,28 +148,28 @@ pub fn candidates(ui: &mut Ui<Message>, page: &Page) -> Result<Vec<NodeId>, Rend
         toggle_info(
             ui,
             page,
-            "本地整句模型",
-            Some("在本机排整句，不联网"),
+            tr("candidates.local_model"),
+            Some(tr("candidates.local_model_info")),
             ("model", "enabled"),
             config.model.enabled,
             false,
         )?,
     ];
-    out.push(section_title(ui, theme, "排序")?);
+    out.push(section_title(ui, theme, tr("candidates.section_ranking"))?);
     out.push(group(ui, theme, &rows)?);
 
     let rows = vec![
         toggle_info(
             ui,
             page,
-            "打拼音时也给英文词",
+            tr("candidates.english_in_chinese"),
             Some("hello、compa → company"),
             ("general", "english_in_chinese"),
             general.english_in_chinese,
             false,
         )?,
-        SettingRow::new("英文候选最多几个")
-            .info("1 时只留最靠前的一条")
+        SettingRow::new(tr("candidates.english_max"))
+            .info(tr("candidates.english_max_info"))
             .control(english_max_stepper(
                 ui,
                 page,
@@ -175,8 +177,8 @@ pub fn candidates(ui: &mut Ui<Message>, page: &Page) -> Result<Vec<NodeId>, Rend
                 !general.english_in_chinese,
             )?)
             .build(ui, theme)?,
-        SettingRow::new("英文词最高排到第几位")
-            .info("有中文候选时；1 为不限")
+        SettingRow::new(tr("candidates.english_position"))
+            .info(tr("candidates.english_position_info"))
             .control(english_min_stepper(
                 ui,
                 page,
@@ -187,13 +189,13 @@ pub fn candidates(ui: &mut Ui<Message>, page: &Page) -> Result<Vec<NodeId>, Rend
         toggle_with(
             ui,
             page,
-            "中文排在英文词前面",
+            tr("candidates.chinese_first"),
             ("general", "chinese_first"),
             general.chinese_first,
             !general.english_in_chinese,
         )?,
     ];
-    out.push(section_title(ui, theme, "英文词")?);
+    out.push(section_title(ui, theme, tr("candidates.section_english"))?);
     out.push(group(ui, theme, &rows)?);
     Ok(out)
 }
@@ -245,14 +247,13 @@ fn count(
     example: &str,
     current: EmojiCount,
 ) -> Result<NodeId, RenderError> {
+    let labels: Vec<String> = (0..=EmojiCount::MAX).map(EmojiCount::label).collect();
+    let options: Vec<&str> = labels.iter().map(String::as_str).collect();
     let control = select(
         ui,
         page,
         popup,
-        (
-            EmojiCount::LABELS[usize::from(current.get())],
-            &EmojiCount::LABELS,
-        ),
+        (&EmojiCount::label(current.get()), &options),
         120.0,
         false,
     )?;

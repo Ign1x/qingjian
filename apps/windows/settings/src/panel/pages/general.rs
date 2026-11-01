@@ -1,5 +1,7 @@
 //! 「通用」页：学习语言、每页候选数、输入方案、英文模式候选。
 
+use std::sync::LazyLock;
+
 use qingjian_platform::{EmojiCount, MAX_PAGE_SIZE, NumpadDigit, Scheme, ShiftLetter, SwitchKey};
 use windows_reactor::{
     Callback, CheckBox, ChildrenControl, ComboBox, ContentControl, NumberBox, Orientation,
@@ -27,22 +29,13 @@ pub(crate) const TRADITIONAL: [(&str, &str); 4] = [
     ("繁体（通用字形）", "standard"),
 ];
 
-/// 输入方案：界面名 + 配置写法，直接照 [`Scheme::ALL`] 建，不另抄一份。
-/// 数组长度取自 `ALL`，以后加方案时这里数组对不上就编不过。
-pub(crate) const SCHEMES: [(&str, &str); Scheme::ALL.len()] = [
-    (Scheme::ALL[0].label(), Scheme::ALL[0].key()),
-    (Scheme::ALL[1].label(), Scheme::ALL[1].key()),
-    (Scheme::ALL[2].label(), Scheme::ALL[2].key()),
-    (Scheme::ALL[3].label(), Scheme::ALL[3].key()),
-    (Scheme::ALL[4].label(), Scheme::ALL[4].key()),
-    (Scheme::ALL[5].label(), Scheme::ALL[5].key()),
-    (Scheme::ALL[6].label(), Scheme::ALL[6].key()),
-    (Scheme::ALL[7].label(), Scheme::ALL[7].key()),
-    (Scheme::ALL[8].label(), Scheme::ALL[8].key()),
-    (Scheme::ALL[9].label(), Scheme::ALL[9].key()),
-    (Scheme::ALL[10].label(), Scheme::ALL[10].key()),
-    (Scheme::ALL[11].label(), Scheme::ALL[11].key()),
-];
+/// 输入方案：界面名 + 配置写法，直接照 [`Scheme::ALL`] 建，不另抄一份。界面名随界面语言，第一次用到时才建。
+pub(crate) static SCHEMES: LazyLock<Vec<(&str, &str)>> = LazyLock::new(|| {
+    Scheme::ALL
+        .iter()
+        .map(|scheme| (scheme.label(), scheme.key()))
+        .collect()
+});
 
 pub(crate) fn string_combo(
     options: &'static [(&str, &str)],
@@ -99,7 +92,7 @@ pub(crate) fn view(settings: &Settings, context: &mut ViewContext<Settings>) -> 
              双拼下 v、u、i 是音节键，表达式与问字模式改用 Shift+V、Shift+U 进（微软、搜狗、紫光方案的 ; 键是 ing）；\
              注音下 v、u、i 也是按键，只能用 ? 开头进。",
             string_combo(
-                &SCHEMES,
+                SCHEMES.as_slice(),
                 g.scheme().key(),
                 context.callback(Message::Scheme),
             ),

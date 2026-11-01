@@ -4,9 +4,7 @@ mod aux_code;
 mod candidate_menu;
 mod chaizi;
 mod cloud;
-mod cloud_trigger;
 mod code;
-mod code_keys;
 mod correction;
 mod custom;
 mod email;
@@ -18,6 +16,7 @@ mod held;
 mod learning;
 mod lookup;
 mod nine_key;
+mod p2c_placement;
 mod panel;
 mod polyphone;
 mod privacy;
@@ -28,6 +27,7 @@ mod shuangpin;
 mod spacing;
 mod spelling;
 mod traditional;
+mod umlaut;
 mod vocabulary;
 mod voice;
 mod zhuyin;
@@ -38,7 +38,7 @@ use std::sync::{Arc, Mutex};
 
 use super::*;
 
-use crate::candidate::{PartOfSpeech, Sense, Translation};
+use crate::candidate::{Candidate, CandidateKind, PartOfSpeech, Sense, Translation};
 use crate::shuangpin::Scheme;
 
 const SAMPLE: &str = "开发\tkai fa\t9000\n开发者\tkai fa zhe\t3000\n开饭\tkai fan\t800\n开放\tkai fang\t20000\n西安\txi an\t4000\n先\txian\t10000\n下\txia\t8000\n想\txiang\t9000\n开\tkai\t20000\n咖啡\tka fei\t5000\n不\tbu\t1000\n";

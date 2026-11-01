@@ -242,6 +242,8 @@ impl Router {
         self.engine.set_show_tones(config.general.show_tones);
         self.engine.set_chinese_first(config.general.chinese_first);
         self.engine
+            .set_spelling_correction(config.general.spelling_correction);
+        self.engine
             .set_emoji_limit(usize::from(config.general.emoji.get()));
         self.engine
             .set_kaomoji_limit(usize::from(config.general.kaomoji.get()));
@@ -259,18 +261,21 @@ impl Router {
         self.engine
             .set_shuangpin_raw_preedit(config.general.shuangpin_raw_preedit);
         self.engine
+            .set_shuangpin_raw_window(config.general.shuangpin_raw_window);
+        self.engine
+            .set_shuangpin_full_pinyin(config.general.shuangpin_full_pinyin);
+        self.engine
             .set_hold_selections(config.general.hold_selections);
         self.engine
             .set_context_memory(config.model.context_memory_seconds);
         let previous = self.config.render_settings();
-        let grid_keys = self.config.grid_keys();
         let next = RouterConfig::from(config);
         self.reload_mode(&next);
         let themes_stamp = self.config.themes_stamp;
         self.config = next;
         self.config.themes_stamp = themes_stamp;
-        // 矩阵这套键不生效了（排布切走 / 开关关掉）：展开着的矩阵收回去，等下一帧照单行画
-        if grid_keys && !self.config.grid_keys() {
+        // 两个展开开关都不生效了（排布切走 / 开关关掉）：展开着的矩阵收回去，等下一帧照单行画
+        if !self.config.grid_keys() && !self.config.page_keys_expand() {
             self.collapse_grid();
         }
         let settings = self.config.render_settings();

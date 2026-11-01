@@ -10,8 +10,8 @@ use qingjian_core::{GRID_ROWS, PANEL_COLUMNS};
 
 use super::CandidateView;
 use crate::candidates::PanelMouse;
+use crate::candidates::PanelTabs;
 use crate::candidates::frame::Frame;
-use crate::candidates::panel_tabs::PanelTabs;
 
 /// 面板尺寸固定，换组换分类窗口不跳：一行 [`PANEL_COLUMNS`] 个方格、[`GRID_ROWS`] 行，内容少的分类下面留空。
 /// 颜文字这类宽条目少放几格（列数由 Core 按内容定），格子拉宽、总宽不变。

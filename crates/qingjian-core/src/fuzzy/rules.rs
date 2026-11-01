@@ -120,11 +120,16 @@ impl FuzzyRules {
         }))
     }
 
+    /// 打完的音节 `typed` 按当前规则的全部写法，第一个是它自己（`zi` 开 z-zh 是 zi、zhi）。
+    pub fn readings(&self, typed: &str) -> Vec<String> {
+        self.alternatives(SyllablePattern::complete(typed))
+    }
+
     /// `syllable` 是不是 `typed` 按当前规则的一种模糊写法（不含它自己）。
     pub fn is_variant(&self, typed: &str, syllable: &str) -> bool {
         canonical_syllable(typed) != canonical_syllable(syllable)
             && self
-                .alternatives(SyllablePattern::complete(typed))
+                .readings(typed)
                 .iter()
                 .any(|form| canonical_syllable(form) == canonical_syllable(syllable))
     }

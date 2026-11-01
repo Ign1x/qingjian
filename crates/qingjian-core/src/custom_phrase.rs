@@ -1,8 +1,14 @@
 //! 自定义短语配置及共享校验、预览；由 Core 匹配，平台负责编辑与展示。
 
+use std::borrow::Cow;
 use std::ops::RangeInclusive;
 
+use jiff::Zoned;
+use jiff::civil::Weekday;
+
 use serde::{Deserialize, Serialize};
+
+use crate::i18n::{tr, tr_args};
 
 /// 输入码最长几个字母。
 pub const MAX_CODE_LEN: usize = 32;
@@ -48,7 +54,7 @@ impl TryFrom<StoredPhrase> for CustomPhrase {
         let weight = match (stored.weight, stored.position) {
             (Some(weight), _) => weight,
             (None, Some(position @ 1..=9)) => DEFAULT_WEIGHT + 1 - position,
-            (None, Some(_)) => return Err("候选位置须为 1–9".into()),
+            (None, Some(_)) => return Err(tr("phrases.position").into()),
             (None, None) => DEFAULT_WEIGHT,
         };
         Ok(Self {
@@ -64,6 +70,69 @@ fn enabled() -> bool {
     true
 }
 
+/// 短语里的时间变量（#800），出候选时按当时的本地时间换掉，候选窗里显示的就是要上屏的：
+/// `{year}` 四位年；`{month}` `{day}` `{hour}` 不补零；`{minute}` `{second}` 补到两位（读成「9 时 05 分」）；
+/// `{weekday}` 是「一」到「日」（写成「星期{weekday}」）。`{{` `}}` 输出花括号本身，认不出的 `{…}` 原样留着。
+pub fn expand_variables<'a>(text: &'a str, now: &Zoned) -> Cow<'a, str> {
+    if !text.contains(['{', '}']) {
+        return Cow::Borrowed(text);
+    }
+    let mut out = String::with_capacity(text.len());
+    let mut rest = text;
+    while let Some(i) = rest.find(['{', '}']) {
+        out.push_str(&rest[..i]);
+        let tail = &rest[i..];
+        if let Some(after) = tail.strip_prefix("{{") {
+            out.push('{');
+            rest = after;
+            continue;
+        }
+        if let Some(after) = tail.strip_prefix("}}") {
+            out.push('}');
+            rest = after;
+            continue;
+        }
+        let value = tail
+            .strip_prefix('{')
+            .and_then(|body| body.split_once('}'))
+            .and_then(|(name, after)| Some((variable(name, now)?, after)));
+        match value {
+            Some((value, after)) => {
+                out.push_str(&value);
+                rest = after;
+            }
+            None => {
+                out.push_str(&tail[..1]);
+                rest = &tail[1..];
+            }
+        }
+    }
+    out.push_str(rest);
+    Cow::Owned(out)
+}
+
+fn variable(name: &str, now: &Zoned) -> Option<String> {
+    Some(match name {
+        "year" => now.year().to_string(),
+        "month" => now.month().to_string(),
+        "day" => now.day().to_string(),
+        "hour" => now.hour().to_string(),
+        "minute" => format!("{:02}", now.minute()),
+        "second" => format!("{:02}", now.second()),
+        "weekday" => match now.weekday() {
+            Weekday::Monday => "一",
+            Weekday::Tuesday => "二",
+            Weekday::Wednesday => "三",
+            Weekday::Thursday => "四",
+            Weekday::Friday => "五",
+            Weekday::Saturday => "六",
+            Weekday::Sunday => "日",
+        }
+        .to_owned(),
+        _ => return None,
+    })
+}
+
 /// 设置界面里填的权重：去掉首尾空白后须是 [`WEIGHTS`] 里的整数。
 pub fn parse_weight(input: &str) -> Result<u32, String> {
     input
@@ -75,7 +144,10 @@ pub fn parse_weight(input: &str) -> Result<u32, String> {
 }
 
 fn weight_error() -> String {
-    format!("权重须为 {}–{} 的整数", WEIGHTS.start(), WEIGHTS.end())
+    tr_args(
+        "phrases.weight",
+        &[("min", WEIGHTS.start()), ("max", WEIGHTS.end())],
+    )
 }
 
 /// 保存和加载使用同一校验，不覆盖冲突条目。
@@ -83,16 +155,16 @@ pub fn validate_phrases(phrases: &[CustomPhrase]) -> Result<(), String> {
     let mut seen = std::collections::BTreeSet::new();
     for phrase in phrases {
         if !valid_code(&phrase.code) {
-            return Err(format!("输入码须为 1–{MAX_CODE_LEN} 个小写英文字母"));
+            return Err(tr_args("phrases.code", &[("max", &MAX_CODE_LEN)]));
         }
         if !WEIGHTS.contains(&phrase.weight) {
             return Err(weight_error());
         }
         if phrase.text.is_empty() {
-            return Err("自定义短语不能为空".into());
+            return Err(tr("phrases.empty").into());
         }
         if !seen.insert((&phrase.code, &phrase.text)) {
-            return Err(format!("输入码 {} 下已经有这条短语", phrase.code));
+            return Err(tr_args("phrases.duplicate", &[("code", &phrase.code)]));
         }
     }
     Ok(())
@@ -121,6 +193,26 @@ pub fn merge_replacements<'a>(
         phrases.push(CustomPhrase::new(code, text));
     }
     phrases
+}
+
+/// 导入的短语并进现有列表：原样接在后面（保留权重与开关），已有同码同文本的跳过。返回合并结果与新加了几条。
+pub fn merge_imported(
+    base: &[CustomPhrase],
+    imported: impl IntoIterator<Item = CustomPhrase>,
+) -> (Vec<CustomPhrase>, usize) {
+    let mut phrases = base.to_vec();
+    let mut added = 0;
+    for phrase in imported {
+        if phrases
+            .iter()
+            .any(|p| p.code == phrase.code && p.text == phrase.text)
+        {
+            continue;
+        }
+        phrases.push(phrase);
+        added += 1;
+    }
+    (phrases, added)
 }
 
 /// 候选菜单里的「置顶」：让 `text` 成为输入码 `code` 下排第一的短语。权重取这个码别的短语里最高的加一
@@ -202,9 +294,59 @@ impl CustomPhrase {
 #[cfg(test)]
 mod tests {
     use super::{
-        CustomPhrase, DEFAULT_WEIGHT, merge_replacements, parse_weight, pin, unpin,
-        validate_phrases,
+        CustomPhrase, DEFAULT_WEIGHT, expand_variables, merge_imported, merge_replacements,
+        parse_weight, pin, unpin, validate_phrases,
     };
+
+    #[test]
+    fn time_variables_expand_and_braces_escape() {
+        // 固定偏移不查时区库：CI 的 Linux 容器里没有 tzdata，按 `Asia/Shanghai` 解析会失败
+        let now = jiff::civil::date(2026, 3, 8)
+            .at(9, 5, 7, 0)
+            .to_zoned(jiff::tz::TimeZone::fixed(jiff::tz::offset(8)))
+            .unwrap();
+        assert_eq!(
+            expand_variables(
+                "今天是{year}年{month}月{day}日 {hour}:{minute}:{second}，星期{weekday}",
+                &now
+            ),
+            "今天是2026年3月8日 9:05:07，星期日"
+        );
+        assert_eq!(
+            expand_variables("{{year}} {unknown} }", &now),
+            "{year} {unknown} }"
+        );
+        assert!(matches!(
+            expand_variables("没有变量", &now),
+            std::borrow::Cow::Borrowed(_)
+        ));
+    }
+
+    #[test]
+    fn imports_keep_weights_and_skip_what_is_already_there() {
+        let base = vec![
+            CustomPhrase::new("ee", "："),
+            CustomPhrase::new("dz", "地址"),
+        ];
+        let imported = vec![
+            CustomPhrase {
+                weight: 50,
+                enabled: false,
+                ..CustomPhrase::new("ee", "；")
+            },
+            CustomPhrase {
+                weight: 99,
+                ..CustomPhrase::new("dz", "地址")
+            },
+        ];
+        let (merged, added) = merge_imported(&base, imported.clone());
+        assert_eq!(added, 1);
+        assert_eq!(
+            merged,
+            vec![base[0].clone(), base[1].clone(), imported[0].clone()]
+        );
+        validate_phrases(&merged).unwrap();
+    }
 
     #[test]
     fn replacements_follow_the_users_phrases() {

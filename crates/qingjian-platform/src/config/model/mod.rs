@@ -8,12 +8,12 @@ use serde::{Deserialize, Serialize};
 
 /// 配置文件 `[model]` 分节：本地整句模型的开关。
 ///
-/// 本地模型在本机给候选重新排序，全程离线、不联网，与云联想互不影响（本地先出、云端到了另占它自己的格）。
-/// 选的模型还没下载时退回随包的含章·通变。
+/// 本地模型在本机给整句候选重新排序或直接造句，全程离线、不联网，与云联想互不影响（本地先出、云端到了另占它自己的格）。
+/// 选的模型还没下载时不用模型（Linux 随包带通变）。
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct LocalModelConfig {
-    /// 开着就加载模型、给整句重排。
+    /// 开着就加载模型、给整句重排或造句。缺省关：只按词库与语言模型排序，最快也最省电。
     pub enabled: bool,
 
     /// 用哪个模型。
@@ -29,7 +29,7 @@ pub struct LocalModelConfig {
 impl Default for LocalModelConfig {
     fn default() -> Self {
         Self {
-            enabled: true,
+            enabled: false,
             name: LocalModel::default(),
             zhiyi_tier: ZhiyiTier::default(),
             context_memory_seconds: qingjian_core::DEFAULT_FRESH_SECONDS,

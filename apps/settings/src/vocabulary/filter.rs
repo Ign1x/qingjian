@@ -4,6 +4,8 @@ use jiff::civil::Date;
 use qingjian_core::FRESH_UNTIL;
 use qingjian_learning::VocabularyEntry;
 
+use crate::i18n::tr;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum Filter {
     #[default]
@@ -21,10 +23,10 @@ impl Filter {
 
     pub fn label(self) -> &'static str {
         match self {
-            Self::All => "全部",
-            Self::Fresh => "生词",
-            Self::Recent => "近 7 天新见",
-            Self::Known => "认识了",
+            Self::All => tr("vocabulary.filter_all"),
+            Self::Fresh => tr("vocabulary.fresh"),
+            Self::Recent => tr("vocabulary.filter_recent"),
+            Self::Known => tr("vocabulary.known"),
         }
     }
 

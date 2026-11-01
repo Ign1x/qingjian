@@ -20,7 +20,7 @@ Kotlin 的 `InputMethodService` 壳 + Rust 的 `libqingjian_android.so`。Androi
   - `keyboard/`：自绘键盘。`KeyboardView` 管触摸，`SideColumn` 九宫格拼音列，`BottomActionsView` 全面屏底部操作条，`Haptics` 震动，`SwipeTrail` 一笔滑行的判定、轨迹与交 Rust 的 JSON；
     `layout/` 键位与排版（`Key`、`KeyboardLayout` 键位表、`KeyboardMetrics`），`paint/` 绘制（`KeyPainter`、`KeyIcons`）。
   - `theme/`：配色。`Palette` 键盘与面板（由 Rust 按设置里的主题推出来），`Appearance` 深浅色，`TextSize` 候选字号档，`AppColors` App 页面（不跟主题）。
-  - `panel/`：盖住候选条与键盘的面板。`FunctionPanel` / `KeyboardPickerPanel` / `CatalogPanel`（符号与表情）各一种，`PanelKind` 面板种类，`PanelActions` 是面板能做的事（服务实现）；
+  - `panel/`：盖住候选条与键盘的面板。`FunctionPanel` / `ToolbarPanel`（定制工具栏）/ `KeyboardPickerPanel` / `CatalogPanel`（符号与表情）各一种，`PanelKind` 面板种类，`PanelActions` 是面板能做的事（服务实现）；
     `base/` 是共用的底子（`PanelView` 表头与滚动、`Tabs`、`ScrollState`、`Ink` 画笔、`PanelIcons`），`clipboard/` 剪贴板与常用语（`ClipboardPanel`、拆词 `PiecesPanel`），
     `editor/` 浮在键盘上方接管打字的编辑条（`FloatingEditor`、常用语编辑框 `PhraseEditor`）。
     `VoicePanel` 是说话时盖上的语音面板。
@@ -30,7 +30,7 @@ Kotlin 的 `InputMethodService` 壳 + Rust 的 `libqingjian_android.so`。Androi
   - `candidates/`：键盘上方那一条。`CandidateBarView` 在三种样子之间切：`CandidateStrip` 候选（贴 `StripSource` 给的位图，拼音行钉住、候选随滚动）、
     `Toolbar` 工具栏（浮在键盘上的圆角卡片，面板表头同样是浮起卡片）、`ResizeHandle` 调高度手柄。
   - `popup/`：`ChoicePopup` 长按气泡，候选条（译词）与数字键（字母 / 数字）共用。
-  - `settings/`：`Settings` 设置快照与 `BottomAction`；App 各页分三块：`home/` 启动页（`MainActivity` + 三个 `AppPage`：`HomePage` / `VocabularyPage` / `MePage`），
+  - `settings/`：`Settings` 设置快照、`BottomAction` 与工具栏能放的 `ToolbarTool`；App 各页分三块：`home/` 启动页（`MainActivity` + 三个 `AppPage`：`HomePage` / `VocabularyPage` / `MePage`），
     `page/` 二级页（`KeyboardSettingsActivity` / `AppearanceActivity` / `DictionariesActivity` / `StatsActivity` / `AdvancedActivity` / `AboutActivity` / `VoiceSettingsActivity` 继承 `PageActivity`），`widget/` 控件积木（`SettingsWidgets`、`TabBar`、`Wash` 渐变底、`BarChart` 柱状图、`ThemePreview` 主题预览）。
 
 ## 构建

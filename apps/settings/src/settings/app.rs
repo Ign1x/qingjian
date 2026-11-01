@@ -7,8 +7,8 @@ use bamboo_slip::taffy::NodeId;
 use bamboo_slip::{App, FamilyList, FamilyTable, Key, RenderError, TextPainter, Ui, Waker};
 
 use super::{SIZES, Settings};
-use qingjian_platform::LocalModel;
 
+use crate::i18n::tr;
 use crate::jobs::model_download::Pack;
 use crate::library::{self, Library};
 use crate::message::{FieldId, Message, Popup, SizeKind};
@@ -36,11 +36,15 @@ impl App for Settings {
         if !matches!(
             message,
             Message::Run(_)
+                | Message::ImportConfig
+                | Message::ExportConfig
                 | Message::TestCloud
                 | Message::CheckUpdate
                 | Message::DownloadModel(_)
                 | Message::Import(_)
                 | Message::VocabularyExport(_)
+                | Message::ImportPhrases
+                | Message::ExportPhrases
         ) {
             self.notice = None;
         }
@@ -101,12 +105,18 @@ impl App for Settings {
                     });
                 }
             }
+            Message::ImportPhrases => self.import_phrases(),
+            Message::ExportPhrases => self.export_phrases(),
+            Message::ImportConfig => self.import_config(),
+            Message::ExportConfig => self.export_config(),
             Message::Import(kind) => {
                 match self
                     .import
                     .start(kind, self.code_target(), self.waker.clone())
                 {
-                    Ok(true) => self.notice = Some((kind.slot(), "正在导入…".to_owned())),
+                    Ok(true) => {
+                        self.notice = Some((kind.slot(), tr("common.importing").to_owned()))
+                    }
                     Ok(false) => {}
                     Err(error) => self.notice = Some((kind.slot(), error)),
                 }
@@ -158,7 +168,9 @@ impl App for Settings {
                     let started = self.update.start(&self.config.update, self.waker.clone());
                     self.notice = Some((
                         "update",
-                        started.err().unwrap_or_else(|| "正在检查…".to_owned()),
+                        started
+                            .err()
+                            .unwrap_or_else(|| tr("about.checking").to_owned()),
                     ));
                 }
             }
@@ -168,13 +180,14 @@ impl App for Settings {
                 }
             }
             Message::CancelDownload => self.download.cancel(),
+            Message::UseModel(model) => self.use_model(model),
             Message::RemoveModel(model) => {
                 if remove_armed != Some(model) {
                     self.remove_armed = Some(model);
                 } else if let Some(pack) = Pack::of(model) {
-                    // 先换回通变再删，输入法不会去读删了一半的目录
+                    // 先关掉再删，输入法不会去读删了一半的目录
                     if self.config.model.name == model {
-                        self.write("model", "name", LocalModel::Tongbian.key());
+                        self.use_model(None);
                     }
                     if let Err(error) = pack.remove() {
                         self.notice = Some(("download", error));
@@ -189,7 +202,7 @@ impl App for Settings {
                         .cloud_test
                         .start(&self.config.predict, self.waker.clone())
                     {
-                        Ok(()) => "正在测试…".to_owned(),
+                        Ok(()) => tr("cloud.testing").to_owned(),
                         Err(error) => error,
                     };
                     self.notice = Some(("cloud", text));
@@ -294,7 +307,7 @@ impl App for Settings {
         changed |= self.download.stage().is_some();
         if let Some(model) = self.download.finished() {
             // 下好了直接用上它：用户点下载就是想用
-            self.write("model", "name", model.key());
+            self.use_model(Some(model));
         }
         if let Some(text) = self.update.finish(&self.config.update) {
             self.notice = Some(("update", text));

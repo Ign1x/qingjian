@@ -187,7 +187,7 @@ fn every_key_the_settings_app_writes_is_read_by_the_ime() {
     std::fs::create_dir_all(&dir).unwrap();
     let path = dir.join("config.toml");
     let _ = std::fs::remove_file(&path);
-    let mut settings = Settings::load(path.clone()).unwrap();
+    let mut settings = Settings::load(path.clone());
     let mut text = TextPainter::new(FontLibrary::system("zh-CN").unwrap());
     settings.setup(&mut text);
     let mut harness = Harness {

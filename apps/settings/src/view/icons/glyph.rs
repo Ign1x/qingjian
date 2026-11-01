@@ -20,6 +20,7 @@ pub enum Glyph {
     Experimental,
     About,
     Search,
+    Translate,
 }
 
 impl Icon for Glyph {
@@ -173,6 +174,15 @@ impl Icon for Glyph {
             Glyph::Search => {
                 pen.circle(7.0, 7.0, 4.75, false);
                 pen.line(&[(10.5, 10.5), (14.0, 14.0)]);
+            }
+            // 「文」：点、横、交叉的撇捺；「A」：两条斜边与一横，压在右下
+            Glyph::Translate => {
+                pen.line(&[(4.75, 1.5), (4.75, 2.75)]);
+                pen.line(&[(1.5, 3.5), (8.0, 3.5)]);
+                pen.line(&[(2.75, 3.75), (7.75, 9.0)]);
+                pen.line(&[(6.75, 3.75), (1.75, 9.0)]);
+                pen.line(&[(8.5, 14.5), (11.5, 7.0), (14.5, 14.5)]);
+                pen.line(&[(9.6, 11.75), (13.4, 11.75)]);
             }
         }
         let width = 1.5 * pen.unit;

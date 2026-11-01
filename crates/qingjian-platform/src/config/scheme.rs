@@ -11,6 +11,8 @@ use std::str::FromStr;
 
 use qingjian_core::ShuangpinScheme;
 
+use crate::i18n::tr;
+
 /// 拼音侧方案。
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub enum Scheme {
@@ -60,14 +62,14 @@ impl Scheme {
         }
     }
 
-    /// 界面上的名字。`const` 的理由同上。
-    pub const fn label(self) -> &'static str {
+    /// 界面上的名字（随界面语言）。
+    pub fn label(self) -> &'static str {
         match self {
-            Self::Pinyin => "全拼",
+            Self::Pinyin => tr("scheme.pinyin"),
             Self::Shuangpin(scheme) => scheme.label(),
-            Self::Custom => "自定义双拼",
-            Self::Zhuyin => "大千注音",
-            Self::Off => "关（只用形码）",
+            Self::Custom => tr("scheme.custom"),
+            Self::Zhuyin => tr("scheme.zhuyin"),
+            Self::Off => tr("scheme.off"),
         }
     }
 
@@ -164,8 +166,9 @@ mod tests {
 
     #[test]
     fn scheme_name_always_says_something() {
-        assert_eq!(scheme_name(Scheme::Pinyin, None, None), "全拼");
-        assert_eq!(scheme_name(Scheme::Zhuyin, None, None), "大千注音");
+        bamboo_slip_i18n::pin_locale("zh-Hans");
+        assert_eq!(scheme_name(Scheme::Pinyin, None, None), tr("scheme.pinyin"));
+        assert_eq!(scheme_name(Scheme::Zhuyin, None, None), tr("scheme.zhuyin"));
         assert_eq!(
             scheme_name(Scheme::Pinyin, None, Some("虎码")),
             "虎码 + 全拼"
@@ -179,7 +182,7 @@ mod tests {
             scheme_label(Scheme::Custom, Some("我的双拼"), None),
             "我的双拼"
         );
-        assert_eq!(scheme_name(Scheme::Custom, None, None), "全拼");
+        assert_eq!(scheme_name(Scheme::Custom, None, None), tr("scheme.pinyin"));
         assert_eq!(scheme_label(Scheme::Custom, None, None), "");
     }
 

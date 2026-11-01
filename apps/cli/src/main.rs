@@ -36,6 +36,9 @@ use qingjian_translate::Glossary;
 use crate::args::Args;
 use crate::error::CliError;
 
+/// 知意用几个线程，与 Windows Server 一致。
+const ZHIYI_THREADS: usize = 2;
+
 fn main() {
     if let Err(error) = run() {
         eprintln!("error: {error}");
@@ -53,6 +56,7 @@ fn run() -> Result<(), CliError> {
     tracing::info!(total_ms = started.elapsed().as_millis(), "Engine 就绪");
     engine.set_english_mode(args.english_mode);
     engine.set_chinese_first(args.chinese_first);
+    engine.set_spelling_correction(!args.no_spelling_correction);
     engine.set_show_tones(args.show_tones);
     engine.set_emoji_limit(usize::from(args.emoji_limit));
     tuning::apply(&mut engine, &args.tune)?;
@@ -310,6 +314,7 @@ fn build_engine(args: &Args) -> Result<Engine, CliError> {
     let packed = std::path::PathBuf::from("data/generated/lm.qj");
     let unigram = std::path::PathBuf::from("data/generated/lm-unigram.tsv");
     let bigram = std::path::PathBuf::from("data/generated/lm-bigram.tsv");
+    let mut bigram_model = None;
     if packed.is_file() || (unigram.is_file() && bigram.is_file()) {
         let started = Instant::now();
         let model = if packed.is_file() {
@@ -323,7 +328,7 @@ fn build_engine(args: &Args) -> Result<Engine, CliError> {
             load_ms = started.elapsed().as_millis(),
             "语言模型已加载"
         );
-        engine = engine.with_language_model(Box::new(model));
+        bigram_model = Some(model);
     }
     if let Some(dir) = &args.neural {
         let started = Instant::now();
@@ -356,6 +361,56 @@ fn build_engine(args: &Args) -> Result<Engine, CliError> {
                 args.neural_context,
             )
         };
+    }
+    if let (Some(dir), Some(runtime)) = (&args.zhiyi_onnx, &args.onnx_runtime) {
+        let started = Instant::now();
+        let scorer = qingjian_neural::zhiyi::ChoiceScorer::load_onnx(dir, runtime, ZHIYI_THREADS)?;
+        engine.set_choice_model(Some(Arc::new(scorer)));
+        engine.set_choice_tier(args.zhiyi_tier.choice_tier());
+        tracing::info!(
+            load_ms = started.elapsed().as_millis(),
+            tier = args.zhiyi_tier.key(),
+            "知意选词重排已启用"
+        );
+    }
+    if let Some(path) = &args.ngram {
+        let started = Instant::now();
+        let model = qingjian_lm::TrigramModel::open(path)?;
+        tracing::info!(
+            unigrams = model.unigram_count(),
+            bigrams = model.bigram_count(),
+            trigrams = model.trigram_count(),
+            mb = model.bytes() >> 20,
+            load_ms = started.elapsed().as_millis(),
+            "三元模型已加载"
+        );
+        if !args.no_ngram_words {
+            let started = Instant::now();
+            let mut references = vec![engine.dictionary()];
+            references.extend(engine.extra_dictionaries());
+            let mut words = qingjian_dictionary::supplement(model.vocabulary(), &references)?;
+            tracing::info!(
+                entries = words.len(),
+                build_ms = started.elapsed().as_millis(),
+                "三元模型词表补词已生成"
+            );
+            words.set_secondary(true);
+            engine.set_model_words(Some(words));
+        }
+        engine.set_phrase_model(Some(Arc::new(model)));
+        // 整句词图另映射一份（同一文件，页面共用）：与二元模型插值
+        let trigram = Box::new(qingjian_lm::TrigramModel::open(path)?);
+        engine = engine.with_language_model(match bigram_model.take() {
+            Some(bigram) => Box::new(qingjian_lm::MixedModel::new(
+                trigram,
+                Box::new(bigram),
+                qingjian_lm::TRIGRAM_WEIGHT,
+            )),
+            None => trigram,
+        });
+    }
+    if let Some(model) = bigram_model {
+        engine = engine.with_language_model(Box::new(model));
     }
     if let Some(path) = &args.eval_p2c {
         let scorer = qingjian_neural::CharScorer::load(path)?;
@@ -425,6 +480,9 @@ fn build_engine(args: &Args) -> Result<Engine, CliError> {
         Some(layout) => engine.set_shuangpin_layout(Some(layout)),
         None => engine.set_shuangpin(scheme.shuangpin()),
     }
+    engine.set_shuangpin_full_pinyin(
+        args.shuangpin_full_pinyin || config.general.shuangpin_full_pinyin,
+    );
     engine.set_zhuyin_mode(scheme == Scheme::Zhuyin);
     engine.set_nine_key(args.nine_key);
     // 拼音侧关掉且形码开着才是「只用形码」；两边都关着时留拼音兜底

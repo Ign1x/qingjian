@@ -39,14 +39,14 @@ mod voice;
 
 use std::collections::HashMap;
 use std::sync::Arc;
-use std::time::{Duration, Instant};
+use std::time::Instant;
 
-use qingjian_dictionary::{AuxCodeLookup, Dictionary, Match, WordList};
+use qingjian_dictionary::{AuxCodeLookup, Dictionary, WordList};
 
 pub use alignment::Alignment;
 pub use annotation::AnnotationReport;
 pub use aux_code::is_valid_aux_code_key;
-pub use choice::{ChoiceModel, ChoiceTier};
+pub use choice::{CharTable, ChoiceModel, ChoiceScore, ChoiceTier};
 pub use commit::{LastCommit, Transition};
 pub use gloss::{FilledGloss, GlossFiller, NoGlossFiller};
 pub use input_log::{
@@ -63,6 +63,7 @@ pub use prediction::{
 
 pub use query::Query;
 pub use raw::RawPreedit;
+pub use rescoring::Wake;
 pub use session::EngineSession;
 pub use statistics::{BOOKS, Book, NoUsageMeter, Usage, UsageMeter, UsageSummary, book_scale};
 pub use timings::Timings;
@@ -71,22 +72,17 @@ pub use vocabulary::{
     Encounter, FRESH_UNTIL, LevelCount, NoVocabularyTracker, VocabularySummary, VocabularyTracker,
 };
 
-use crate::candidate::{Candidate, CandidateKind, CandidateList, Language};
+use crate::candidate::Language;
 use crate::code_scheme::CodeScheme;
 use crate::composition::Composition;
-use crate::correction::{self, Correction, TypoCosts, typo};
+use crate::correction::{Correction, TypoCosts};
 use crate::emoji::EmojiTable;
-use crate::english;
-use crate::fuzzy::{Expanded, FuzzyRules};
+use crate::fuzzy::FuzzyRules;
 use crate::history::InputHistory;
 use crate::panel::{NoPanelHistory, PanelHistory, SymbolPanel};
 use crate::parser::{self, ParseError, Segmentation};
 use crate::punctuation::Punctuation;
-use crate::ranking::{self, Scored};
-use crate::sentence::{
-    self, Conversion, Interpolation, LanguageModel, NoLanguageModel, SentenceScorer,
-};
-use crate::shortcut;
+use crate::sentence::{self, Interpolation, LanguageModel, NoLanguageModel, SentenceScorer};
 use crate::shuangpin::Layout;
 use crate::traditional::Traditional;
 
@@ -105,6 +101,9 @@ pub struct Engine {
     /// 附加词库（领域词库、用户导入的），与主词库一起查词、一起进整句词图；不参与语言模型（它们没有 bigram，
     /// 走词频兜底）。壳按用户目录 `dicts/` 与配置 `[dictionaries]` 装配。
     extra_dictionaries: Vec<Dictionary>,
+
+    /// 从三元模型词表补出的词（补充词库），壳在接上三元模型时装配。单放一格：附加词库随导入 / 开关整个换掉，它不跟着换。
+    model_words: Option<Dictionary>,
 
     /// 内置的符号、emoji 名字（尖括号、笑死），带上 emoji 表时启用：词库里没有它们，不收就打不出这个词、也就配不上符号。
     companion_words: Option<&'static Dictionary>,
@@ -140,6 +139,9 @@ pub struct Engine {
     /// 中英混输时中文候选总在英文词前面（缺省关：拼音不像话的输入英文词排第一，常在中文模式里打英文词的人靠它）。
     chinese_first: bool,
 
+    /// 拼写纠错（整段一处编辑的纠正与整句里的敲错边，含个人敲错表）开不开，配置 `[general] spelling_correction`，缺省开。
+    spelling_correction: bool,
+
     /// 中文模式下英文候选（精确词 + 补全）最多几个（配置 `[general] english_max_in_chinese`，缺省 4）。
     english_max_in_chinese: usize,
 
@@ -168,8 +170,14 @@ pub struct Engine {
     /// 异步重打分：后台线程里的打分器，壳在停顿后送任务、轮询结果（见 [`rescoring`]）。
     rescorer: Option<rescoring::RescoreWorker>,
 
+    /// 接的打分器是生成器（[`SentenceScorer::generates`]，含章·通变）：整句以生成为主、不重排词图路径。
+    generative: bool,
+
     /// 「前文 + 整句文本 → 神经分」缓存，同步与异步打分共用。
     neural_cache: std::cell::RefCell<rescoring::NeuralCache>,
+
+    /// 后台模型交结果时叫醒壳（[`Engine::set_rescoring_wake`]），两个后台线程共用。
+    wake: rescoring::WakeSlot,
 
     /// 选词模型（试验）：候选窗前几条交给它重排一次，见 [`choice`]。
     choice: Option<choice::ChoiceRanker>,
@@ -219,6 +227,12 @@ pub struct Engine {
 
     /// 最近一次查询里选词模型排过这页的记录（`rerank_choices` 写，`query` 开头清零），写进输入日志。
     last_choice: std::cell::Cell<Option<input_log::ChoiceNote>>,
+
+    /// 最近一次查询里选词模型给各候选的分（`rerank_choices` 写，`query` 开头清空），给评测看。
+    last_choice_scores: std::cell::RefCell<Vec<choice::ChoiceScore>>,
+
+    /// 这次查询里敲错边读出、当备选插进来的整句（[`Engine::plain_sentence`]）：选词重排不拿它们比。
+    corrected_alternates: std::cell::RefCell<Vec<String>>,
 
     /// 这段组句里第一次退格前的缓冲区：上屏时与最终键串不同就记一条 `retype`。
     retype_snapshot: Option<String>,
@@ -277,6 +291,9 @@ pub struct Engine {
     /// 整句转换的格子候选缓存：跨按键复用，学习数据一变就清（见 [`Self::forget_span_cache`]）。
     span_cache: std::cell::RefCell<sentence::SpanCache>,
 
+    /// 短语级语言模型（知意的三元 n-gram）：选词重排里给整段候选打 ln P，没接时用二元模型逐词累加。
+    phrase_model: Option<std::sync::Arc<dyn sentence::PhraseModel>>,
+
     /// 本次会话经我们上屏的文本，按应用分开记；应用不给光标前文时给模型当前文。
     history: InputHistory,
 
@@ -297,6 +314,12 @@ pub struct Engine {
 
     /// 双拼方案下 preedit 显示原始按键（如 `ljse`）还是展开成全拼（`lan'se`）。
     shuangpin_raw_preedit: bool,
+
+    /// 双拼方案下候选窗口的拼音行显示原始按键还是全拼，与 [`Self::shuangpin_raw_preedit`] 各管各的。
+    shuangpin_raw_window: bool,
+
+    /// 双拼方案下同时接受全拼（以及同一输入里两种打法的混用），见 [`crate::shuangpin`] 的混输一节。
+    shuangpin_full_pinyin: bool,
 
     /// 注音模式开关，開著時緩衝區裡是注音大千鍵位，查詞前先解成拼音（見 [`crate::zhuyin`]）。
     zhuyin: bool,
@@ -446,6 +469,10 @@ const RESCORE_PATHS: usize = 6;
 /// 长输入最多给几条整句候选（重排后的前几条路径）：一条不够用，长句错一个字就得拆开重打。
 const SENTENCE_CANDIDATES: usize = 3;
 
+/// 接了选词模型时长输入给几条整句候选：词图交出前这么多条不同的整句，由选词模型带上文整句重排，
+/// 重排后只显示前 [`SENTENCE_CANDIDATES`] 条（`trim_sentence_alternates`）。
+const CHOICE_SENTENCE_CANDIDATES: usize = 16;
+
 /// 结构上打平的切分（`shang ou` / `shan gou`）最多比几种，见 [`Engine::sentence_segmentation`]。
 const TIED_SEGMENTATIONS: usize = 3;
 
@@ -454,6 +481,10 @@ const ALTERNATE_MIN_SYLLABLES: usize = 4;
 
 /// 短于这么多字母的不让模型直接生成整句：那么短的输入词级候选够用，生成的几十毫秒不值。
 const MIN_GENERATED_LETTERS: usize = 6;
+
+/// 接了生成器时，拼音干净且至少这么多音节，生成的整句才排在词图前面；更短的词图在前（带着个人习惯），生成的排第二。
+/// 短输入上生成器不懂个人习惯，会盖掉用户常打的词；门槛怎么定的见 `docs/notes/crate-notes.md`（qingjian-core「生成器」）。
+const GENERATED_LEAD_MIN_SYLLABLES: usize = 6;
 
 /// 神经重打分的缺省权重 λ（见 `Engine::neural_weight`）：整句评测集上 0.5 到 1.0 一样好、0.75 最高（见 docs/notes/neural-rescoring.md），
 /// 取 0.5 给个人 n-gram 留余量；回放里看到的「λ 大整句掉」是那把尺子的偏差。
@@ -470,6 +501,7 @@ impl Engine {
         Self {
             dictionary,
             extra_dictionaries: Vec::new(),
+            model_words: None,
             companion_words: None,
             translator: Box::new(NoTranslator),
             english_translator: Box::new(NoTranslator),
@@ -483,6 +515,7 @@ impl Engine {
             custom_phrases: Vec::new(),
             english_in_chinese: true,
             chinese_first: false,
+            spelling_correction: true,
             english_max_in_chinese: ENGLISH_CANDIDATES_MAX,
             english_min_position: 1,
             auto_space: false,
@@ -492,6 +525,8 @@ impl Engine {
             language_model: Box::new(NoLanguageModel),
             sentence_scorer: None,
             rescorer: None,
+            generative: false,
+            wake: rescoring::WakeSlot::default(),
             neural_cache: std::cell::RefCell::new(rescoring::NeuralCache::default()),
             choice: None,
             choice_tier: choice::ChoiceTier::default(),
@@ -504,12 +539,15 @@ impl Engine {
             neural_context: RESCORE_CONTEXT_CHARS,
             correction_cache: std::cell::RefCell::new(None),
             span_cache: std::cell::RefCell::new(sentence::SpanCache::default()),
+            phrase_model: None,
             recent_commits: Vec::new(),
             logger: input_log::MutedLogger::new(Box::new(NoInputLogger)),
             private: false,
             log_sequence: 0,
             last_rescored: std::cell::Cell::new(false),
             last_choice: std::cell::Cell::new(None),
+            last_choice_scores: std::cell::RefCell::default(),
+            corrected_alternates: std::cell::RefCell::default(),
             retype_snapshot: None,
             held: Vec::new(),
             hold_selections: true,
@@ -535,6 +573,8 @@ impl Engine {
             fuzzy: FuzzyRules::default(),
             shuangpin: None,
             shuangpin_raw_preedit: false,
+            shuangpin_raw_window: false,
+            shuangpin_full_pinyin: false,
             zhuyin: false,
             nine_key: false,
             code: None,
@@ -621,7 +661,7 @@ fn marked_rest(rest: &str) -> String {
         return String::new();
     }
     match segment_longest_prefix(rest) {
-        Ok((segmentations, tail)) => query::join_marked(&segmentations, tail),
+        Ok((segmentations, tail)) => query::join_spelled(&segmentations, tail),
         Err(_) => rest.to_owned(),
     }
 }
@@ -657,6 +697,11 @@ fn choice_key(scope: &str, len: usize) -> String {
 }
 
 /// 切分里非末尾的简拼音节数，见 `ranking::Scored::abbreviated`。
+/// 这种切分每个音节都完整：敲的拼音照原样就读得通。这时首选只按原样读，拼写纠错的读法只当备选。
+fn reads_as_typed(segmentation: &Segmentation) -> bool {
+    segmentation.incomplete_count() == 0
+}
+
 fn abbreviated_count(patterns: &[qingjian_dictionary::SyllablePattern<'_>]) -> usize {
     patterns
         .iter()

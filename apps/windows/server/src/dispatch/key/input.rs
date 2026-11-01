@@ -3,7 +3,7 @@
 use qingjian_core::candidate::arrows::{self, Arrow, ArrowAction, Focus};
 use qingjian_core::{CandidateKind, QUESTION_PREFIX, punctuation};
 use qingjian_platform::protocol::KeyEvent;
-use qingjian_platform::{HighlightKeys, NumpadDigit};
+use qingjian_platform::{CommitRoute, HighlightKeys, NumpadDigit};
 
 use super::{Effect, codes, with_prefix};
 use crate::dispatch::Router;
@@ -20,6 +20,9 @@ impl Router {
             return Effect::Changed(None);
         }
         if let Some(effect) = self.apply_panel_key(event) {
+            return effect;
+        }
+        if let Some(effect) = self.apply_commit_key(event) {
             return effect;
         }
         let combo = self.config.predict;
@@ -102,6 +105,28 @@ impl Router {
         with_prefix(flushed, effect, c)
     }
 
+    /// 组句中换过的上屏键（`[shortcut] commit_candidate` / `commit_raw`，怎么分见 `CommitKeys::route`）；
+    /// 注音的空格是一声、回车有自己的规则，不参与。返回 `None` 照原来的分派走。
+    fn apply_commit_key(&mut self, event: &KeyEvent) -> Option<Effect> {
+        if !self.composing() || self.engine.is_zhuyin_mode() {
+            return None;
+        }
+        let route = self.config.commit_keys.route(event);
+        if route == CommitRoute::Keep {
+            return None;
+        }
+        // 只有一个 `?`：上屏键就是「把这个 ? 上屏」，与空格、回车一样
+        if route != CommitRoute::Unbound && self.engine.bare_question() {
+            let english = event.modifiers.caps || event.modifiers.english_mode;
+            return Some(Effect::Changed(Some(self.restore_bare_question(english))));
+        }
+        Some(match route {
+            CommitRoute::Candidate => Effect::Changed(Some(self.commit_highlighted())),
+            CommitRoute::Raw => Effect::Changed(Some(self.engine.take_raw())),
+            CommitRoute::Unbound | CommitRoute::Keep => Effect::Navigated,
+        })
+    }
+
     /// 缓冲区里只有一个 `?`：清掉，还原成问号（按当前模式的全角设置转）。
     fn restore_bare_question(&mut self, english: bool) -> String {
         self.engine.clear();
@@ -181,7 +206,7 @@ impl Router {
             codes::DOWN if self.config.two_area_arrows() => self.two_area_key(Arrow::Down),
             codes::DOWN => {
                 // 横排矩阵开着：↓ 展开成矩阵 / 往下换行；否则按 highlight_keys 移高亮
-                if self.config.grid_keys() {
+                if self.grid_keys() {
                     self.move_rows(1);
                     Effect::Navigated
                 } else {
@@ -198,7 +223,7 @@ impl Router {
             }
             codes::UP if self.config.two_area_arrows() => self.two_area_key(Arrow::Up),
             codes::UP => {
-                if self.config.grid_keys() {
+                if self.grid_keys() {
                     // ↑ 顶在第一排再往上：回到第一个候选（不是毫无动作）
                     if !self.move_rows(-1) {
                         self.jump_to_first();
@@ -275,7 +300,7 @@ impl Router {
     /// 把「拼音行 + 候选栏」当成一条从左到右的序列走——拼音行在左边，所以 `→` 先走光标、
     /// 到末位溢出成选词，`←` 先退候选、到首位回光标（macOS 壳的 `move_cells` 是同一套规则）。
     fn horizontal_key(&mut self, step: isize) -> Effect {
-        if self.config.highlight_keys == HighlightKeys::UpDown && !self.config.grid_keys() {
+        if self.config.highlight_keys == HighlightKeys::UpDown && !self.grid_keys() {
             self.move_caret(step);
             return Effect::Changed(None);
         }

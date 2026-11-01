@@ -4,6 +4,7 @@ use std::thread::JoinHandle;
 
 use crate::sentence::SentenceScorer;
 
+use super::WakeSlot;
 use super::{GENERATE_BEAM, GENERATE_MAX_CHARS};
 
 /// 一次后台任务：两个条件与一批要打分的文本，外加可选的「直接按这段按键生成整句」。
@@ -46,7 +47,7 @@ pub(crate) struct RescoreWorker {
 }
 
 impl RescoreWorker {
-    pub fn spawn(scorer: Box<dyn SentenceScorer>) -> Self {
+    pub fn spawn(scorer: Box<dyn SentenceScorer>, wake: WakeSlot) -> Self {
         let (jobs, job_rx) = channel::<Job>();
         let (result_tx, results) = channel::<Scored>();
         let handle = std::thread::Builder::new()
@@ -89,6 +90,7 @@ impl RescoreWorker {
                     if result_tx.send(done).is_err() {
                         break;
                     }
+                    wake.ring();
                 }
             })
             .ok();

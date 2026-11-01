@@ -2,12 +2,14 @@ package app.qingjian.inputmethod.service.input
 
 import android.os.Handler
 import android.os.Looper
+import android.os.SystemClock
 import android.view.KeyEvent
 import android.view.inputmethod.InputConnection
 import app.qingjian.inputmethod.core.Engine
 import app.qingjian.inputmethod.core.InputOptions
 import app.qingjian.inputmethod.core.frame.Candidate
 import app.qingjian.inputmethod.core.frame.Frame
+import app.qingjian.inputmethod.keyboard.ShiftState
 import app.qingjian.inputmethod.keyboard.layout.Key
 import app.qingjian.inputmethod.keyboard.layout.KeyboardLayout
 import app.qingjian.inputmethod.settings.Settings
@@ -23,8 +25,8 @@ class Composer(private val engine: Engine, private val host: Host) {
     interface Host {
         val connection: InputConnection?
 
-        /** Shift 亮着；出过一个大写字母后由这边熄掉。 */
-        var shifted: Boolean
+        /** Shift 的状态；单次的出过一个大写字母后由这边熄掉。 */
+        var shift: ShiftState
 
         fun sendKey(keyCode: Int)
 
@@ -81,6 +83,11 @@ class Composer(private val engine: Engine, private val host: Host) {
 
     /** 日语罗马音：敲的字母进 Core 的罗马音缓冲区，不经拼音引擎。 */
     val japanese: Boolean get() = language == Language.JAPANESE
+
+    private val english: Boolean get() = language == Language.ENGLISH
+
+    /** 上次点 Shift 的时刻，两次点得够近就锁定。 */
+    private var lastShiftTap = 0L
 
     /** 键盘停在哪一页：字母、常用符号页（英文 !?#）、数字键盘（123）。 */
     enum class Page { LETTERS, SYMBOLS, NUMBERS }
@@ -141,27 +148,42 @@ class Composer(private val engine: Engine, private val host: Host) {
     /** 上一帧的候选。 */
     private var candidates: List<Candidate> = emptyList()
 
-    /** 滑完一笔（[input] 是轨迹与键位的 JSON）：同点字母，组句时解出的字母进组句，字母直接上屏时上屏解出的整串（Shift 亮着首字母大写）。 */
+    /**
+     * 滑完一笔（[input] 是轨迹与键位的 JSON）：同点字母，组句时解出的字母进组句，
+     * 字母直接上屏时上屏解出的整串（Shift 单次首字母大写，锁定全大写）。
+     */
     fun onSwipe(input: String) {
-        if (composing || (engine.ready && composesLetters && !host.shifted)) {
+        if (composing || (engine.ready && composesLetters && !host.shift.on)) {
             apply(engine.swipe(input))
             return
         }
         val letters = engine.decodeSwipe(input)
         if (letters.isEmpty()) return
-        commit(if (host.shifted) letters.replaceFirstChar { it.uppercase() } else letters)
-        host.shifted = false
+        commit(
+            when (host.shift) {
+                ShiftState.LOCKED -> letters.uppercase()
+                ShiftState.ONCE -> letters.replaceFirstChar { it.uppercase() }
+                ShiftState.OFF -> letters
+            },
+        )
+        consumeShift()
     }
 
     fun onKey(key: Key) {
         when (key) {
             is Key.Letter -> when {
-                composing || (engine.ready && composesLetters && !host.shifted) ->
+                // 英文的大小写跟着敲的走（`Compa` 出 Company），验证码这类大小写混着的串也在组句里敲
+                english && (composing || (engine.ready && composesLetters)) -> {
+                    apply(engine.push((if (host.shift.on) key.char.uppercaseChar() else key.char).code))
+                    consumeShift()
+                }
+
+                composing || (engine.ready && composesLetters && !host.shift.on) ->
                     apply(engine.push(key.char.code))
 
                 else -> {
-                    commit(if (host.shifted) key.label.uppercase() else key.label)
-                    host.shifted = false
+                    commit(if (host.shift.on) key.label.uppercase() else key.label)
+                    consumeShift()
                 }
             }
 
@@ -189,6 +211,8 @@ class Composer(private val engine: Engine, private val host: Host) {
                     !composing -> Unit
                     // 敲邮箱：@ 前的字母是用户名，原样落下，不顶首选
                     key.text == "@" && !zhuyin -> apply(engine.commitRaw())
+                    // 英文同空格：数字、标点前落下敲的字母，不换成候选（验证码、型号这类串不是词）
+                    english -> apply(engine.commitRaw())
                     else -> selectFirst()
                 }
                 // 中文标点键：Core 按设置转全角（引号成对、数字后的点保持半角）或原样
@@ -198,7 +222,8 @@ class Composer(private val engine: Engine, private val host: Host) {
 
             Key.Clear -> if (composing) apply(engine.clear())
 
-            Key.Shift -> if (!composing) host.shifted = !host.shifted
+            // 拼音、日语组句里的大写字母另有含义，组句中只有英文能换大小写
+            Key.Shift -> if (!composing || english) toggleShift()
 
             Key.Backspace ->
                 if (composing) apply(engine.backspace()) else host.sendKey(KeyEvent.KEYCODE_DEL)
@@ -350,10 +375,10 @@ class Composer(private val engine: Engine, private val host: Host) {
         }
     }
 
-    /** 长按空格左右滑：不在组句时按方向键挪光标；组句中先把敲的字母原样落下再挪。 */
+    /** 按住空格左右滑：不在组句时按方向键挪光标。 */
     fun moveCursor(steps: Int) {
-        if (steps == 0) return
-        if (composing) settle()
+        // 组句中不响应：会话没接 Core 的拼音光标、候选条也不画光标，落下拼音再挪会把没选的字母上屏
+        if (steps == 0 || composing) return
         val code = if (steps < 0) KeyEvent.KEYCODE_DPAD_LEFT else KeyEvent.KEYCODE_DPAD_RIGHT
         repeat(abs(steps)) { host.sendKey(code) }
     }
@@ -384,13 +409,20 @@ class Composer(private val engine: Engine, private val host: Host) {
         candidates = emptyList()
         completing = false
         engine.reset()
-        host.shifted = false
+        host.shift = ShiftState.OFF
         host.showSideItems(pinyinChoices)
         host.showComposition("", emptyList())
         if (page != Page.LETTERS) {
             page = Page.LETTERS
             host.showKeyboard()
         }
+    }
+
+    /** 数字类输入框（电话、数字、日期时间）：直接换到数字键盘，「返回」仍可回字母。 */
+    fun showNumbers() {
+        if (page == Page.NUMBERS) return
+        page = Page.NUMBERS
+        host.showKeyboard()
     }
 
     /** 引擎刚装好：补上输入方案与繁体开关。 */
@@ -415,6 +447,22 @@ class Composer(private val engine: Engine, private val host: Host) {
      * 回车、挪光标时把组句落下：拼音原样落下敲的字母；注音缓冲区里是大千键位的 ASCII，落下没意义，上屏首选（与桌面端回车一致）。
      */
     private fun settle() = if (zhuyin) selectFirst() else apply(engine.commitRaw())
+
+    /** 点 Shift：灭 → 单次；单次时紧接着再点 → 锁定，隔久了再点 → 灭；锁定时点 → 灭。 */
+    private fun toggleShift() {
+        val now = SystemClock.uptimeMillis()
+        host.shift = when (host.shift) {
+            ShiftState.OFF -> ShiftState.ONCE
+            ShiftState.ONCE -> if (now - lastShiftTap < DOUBLE_TAP_MS) ShiftState.LOCKED else ShiftState.OFF
+            ShiftState.LOCKED -> ShiftState.OFF
+        }
+        lastShiftTap = now
+    }
+
+    /** 出过一个字母：单次的 Shift 熄掉，锁定的留着。 */
+    private fun consumeShift() {
+        if (host.shift == ShiftState.ONCE) host.shift = ShiftState.OFF
+    }
 
     /** 空格 / 标点顶首选；没有候选（切不动）就原样上屏。 */
     private fun selectFirst() {
@@ -472,6 +520,9 @@ class Composer(private val engine: Engine, private val host: Host) {
 
     private companion object {
         const val SEPARATOR_DIGIT = '1'
+
+        /** 两次点 Shift 间隔在这以内算双击（锁定大写）。 */
+        const val DOUBLE_TAP_MS = 350L
 
         /** 云联想给的光标前后文：Engine 会按观察窗口再裁（前 64、后 32）。 */
         const val SURROUNDING_BEFORE = 64

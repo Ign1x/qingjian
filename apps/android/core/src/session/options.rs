@@ -8,7 +8,7 @@ use crate::frame::Frame;
 use crate::options::InputOptions;
 
 impl Session {
-    /// 换模糊音、标点全半角、中英混输、学习语言、学习开关、繁体字形、附加词库、分次选词这几项；组句中的候选跟着重算。
+    /// 换模糊音、标点全半角、中英混输、学习语言、学习开关、繁体字形、附加词库、分次选词、拼写纠错这几项；组句中的候选跟着重算。
     pub fn set_options(&mut self, options: &InputOptions) -> Frame {
         self.engine.set_fuzzy(options.fuzzy_rules());
         self.engine
@@ -19,6 +19,8 @@ impl Session {
         self.set_learning_language(options.learning_language());
         self.engine.set_learning(options.learning);
         self.engine.set_hold_selections(options.hold_selections);
+        self.engine
+            .set_spelling_correction(options.spelling_correction);
         self.traditional_variant = options.traditional_variant();
         if self.engine.traditional() != TraditionalVariant::Off {
             self.engine.set_traditional(self.traditional_variant);

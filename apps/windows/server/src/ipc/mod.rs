@@ -3,6 +3,8 @@
 
 mod handled;
 #[cfg(windows)]
+pub mod instance;
+#[cfg(windows)]
 pub mod pipe;
 mod work;
 

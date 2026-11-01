@@ -1,6 +1,9 @@
 //! 拼音以外的几种查询：表达式（`v`）、原样字母、英文模式、问字（`?`）。
 
-use super::*;
+use std::time::{Duration, Instant};
+
+use crate::engine::{ENGLISH_MODE_CANDIDATES, Learner};
+use crate::{Candidate, CandidateKind, CandidateList, Engine, Query, Timings, english, shortcut};
 
 impl Engine {
     /// 表达式模式（`v` 开头）：不解析拼音，候选是算式结果 / 中文数字，再加上整段是英文词的情况（`very`）。
@@ -30,6 +33,7 @@ impl Engine {
             rest,
             decoded_keys: self.shuangpin.is_some() || self.zhuyin,
             shuangpin_raw_preedit: false,
+            shuangpin_raw_window: false,
             typed_display: None,
             typed_case: None,
             pinyin_choices: Vec::new(),
@@ -77,6 +81,7 @@ impl Engine {
             rest,
             decoded_keys: self.shuangpin.is_some() || self.zhuyin,
             shuangpin_raw_preedit: false,
+            shuangpin_raw_window: false,
             typed_display: None,
             typed_case: None,
             pinyin_choices: Vec::new(),
@@ -127,6 +132,7 @@ impl Engine {
             rest,
             decoded_keys: self.shuangpin.is_some() || self.zhuyin,
             shuangpin_raw_preedit: false,
+            shuangpin_raw_window: false,
             typed_display: None,
             typed_case: None,
             pinyin_choices: Vec::new(),
@@ -192,6 +198,7 @@ impl Engine {
             rest,
             decoded_keys: self.shuangpin.is_some() || self.zhuyin,
             shuangpin_raw_preedit: false,
+            shuangpin_raw_window: false,
             typed_display: None,
             typed_case: None,
             pinyin_choices: Vec::new(),

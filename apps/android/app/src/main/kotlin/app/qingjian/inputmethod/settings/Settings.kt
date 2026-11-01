@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.SharedPreferences
 import app.qingjian.inputmethod.core.InputOptions
 import app.qingjian.inputmethod.core.store.SettingChoices
+import app.qingjian.inputmethod.keyboard.HapticStrength
 import app.qingjian.inputmethod.theme.Appearance
 import app.qingjian.inputmethod.theme.TextSize
 
@@ -17,7 +18,11 @@ data class Settings(
     val bottomLeft: BottomAction,
     val bottomRight: BottomAction,
     val haptic: Boolean,
+    /** 按键震动的轻重（#775）。 */
+    val hapticStrength: HapticStrength,
     val keyPopup: Boolean,
+    /** 键面字号档（#826），与候选字号分开。 */
+    val keyTextSize: TextSize,
     /** 候选出繁体（字形按 [InputOptions.traditionalVariant]）。 */
     val traditional: Boolean,
     /** 上次用的语言与中英键的另一边（[app.qingjian.inputmethod.service.input.Language] 的名字），没记过为 null。 */
@@ -29,10 +34,18 @@ data class Settings(
     val voiceHoldSpace: Boolean,
     /** 全键盘拼音与英文键盘上手指划过字母连成一串（缺省关）。 */
     val swipeInput: Boolean,
+    /** 在键上往上一划上屏键上角标的数字或符号（缺省开），不用长按出气泡。 */
+    val flickSymbols: Boolean,
+    /** 按住空格左右滑逐字挪光标（缺省开）；关了空格上横滑不响应。 */
+    val spaceCursor: Boolean,
+    /** 键位排法：缺省是 [Arrangement.STANDARD]，另一套挪动了几个键的位置，见 [Arrangement]。 */
+    val arrangement: Arrangement,
     /** 双拼方案（Core 的方案名，同 PC 的 `[general] shuangpin`），键盘选「双拼」时用。 */
     val shuangpinScheme: String,
     /** 双拼的 preedit 显示敲的键，不展开成全拼（同 PC 的 `shuangpin_raw_preedit`）。 */
     val shuangpinRawPreedit: Boolean,
+    /** 双拼键上印声韵母（缺省开）；关了键面同拼音全键盘。 */
+    val shuangpinHints: Boolean,
     /** 五笔与拼音混输（同 PC 五笔、拼音两边都开）。 */
     val wubiMixed: Boolean,
     /** 记剪贴板历史（复制的文字、图片存在本机）。 */
@@ -56,8 +69,16 @@ data class Settings(
     val appearance: Appearance,
     /** 候选字号档。 */
     val textSize: TextSize,
+    /** 工具栏中间那排放的工具，按勾的先后排（#777）。 */
+    val toolbar: List<ToolbarTool>,
 ) {
     enum class Layout { QWERTY, NINE_KEY, ZHUYIN, SHUANGPIN, WUBI }
+
+    /**
+     * 键位排法。改了按键位置的放进另一套，缺省那套一直不变（肌肉记忆）：
+     * [LEFT_THUMB] 让左手大拇指顺手：符号面板分类列放左边、「返回」在左下角。
+     */
+    enum class Arrangement { STANDARD, LEFT_THUMB }
 
     companion object {
         const val KEY_LAYOUT = "layout"
@@ -66,15 +87,21 @@ data class Settings(
         const val KEY_BOTTOM_LEFT = "bottom_left"
         const val KEY_BOTTOM_RIGHT = "bottom_right"
         const val KEY_HAPTIC = "haptic"
+        const val KEY_HAPTIC_STRENGTH = "haptic_strength"
         const val KEY_POPUP = "key_popup"
+        const val KEY_KEY_TEXT_SIZE = "key_text_size"
         const val KEY_TRADITIONAL = "traditional"
         const val KEY_LANGUAGE = "language"
         const val KEY_PARTNER = "language_partner"
         const val KEY_KEEP_CHINESE = "keep_chinese"
         const val KEY_VOICE_HOLD_SPACE = "voice_hold_space"
         const val KEY_SWIPE_INPUT = "swipe_input"
+        const val KEY_FLICK_SYMBOLS = "flick_symbols"
+        const val KEY_SPACE_CURSOR = "space_cursor"
+        const val KEY_ARRANGEMENT = "arrangement"
         const val KEY_SHUANGPIN = "shuangpin_scheme"
         const val KEY_SHUANGPIN_RAW = "shuangpin_raw_preedit"
+        const val KEY_SHUANGPIN_HINTS = "shuangpin_hints"
         const val KEY_WUBI_MIXED = "wubi_mixed"
         const val KEY_RECORD_CLIPBOARD = "record_clipboard"
         const val KEY_CLIPBOARD_LIMIT = "clipboard_limit"
@@ -88,6 +115,7 @@ data class Settings(
         const val KEY_TRADITIONAL_VARIANT = "traditional_variant"
         const val KEY_LEARNING = "learning"
         const val KEY_HOLD_SELECTIONS = "hold_selections"
+        const val KEY_SPELLING_CORRECTION = "spelling_correction"
         const val KEY_DOMAINS = "domains"
         const val KEY_DISABLED_DICTIONARIES = "disabled_dictionaries"
         const val KEY_GLOSS_FILL = "gloss_fill"
@@ -96,6 +124,7 @@ data class Settings(
         const val KEY_THEME = "theme"
         const val KEY_APPEARANCE = "appearance"
         const val KEY_TEXT_SIZE = "text_size"
+        const val KEY_TOOLBAR = "toolbar"
 
         /** 没选过时的主题，同 PC 的缺省主题。 */
         const val DEFAULT_THEME = "qingjian"
@@ -126,15 +155,22 @@ data class Settings(
                 bottomLeft = BottomAction.of(prefs.getString(KEY_BOTTOM_LEFT, null), BottomAction.SWITCH_INPUT_METHOD),
                 bottomRight = BottomAction.of(prefs.getString(KEY_BOTTOM_RIGHT, null), BottomAction.VOICE),
                 haptic = prefs.getBoolean(KEY_HAPTIC, true),
+                hapticStrength = HapticStrength.of(prefs.getString(KEY_HAPTIC_STRENGTH, null)),
                 keyPopup = prefs.getBoolean(KEY_POPUP, true),
+                keyTextSize = TextSize.of(prefs.getString(KEY_KEY_TEXT_SIZE, null)),
                 traditional = prefs.getBoolean(KEY_TRADITIONAL, false),
                 language = prefs.getString(KEY_LANGUAGE, null),
                 partner = prefs.getString(KEY_PARTNER, null),
                 keepChinese = prefs.getBoolean(KEY_KEEP_CHINESE, true),
                 voiceHoldSpace = prefs.getBoolean(KEY_VOICE_HOLD_SPACE, true),
                 swipeInput = prefs.getBoolean(KEY_SWIPE_INPUT, false),
+                flickSymbols = prefs.getBoolean(KEY_FLICK_SYMBOLS, true),
+                spaceCursor = prefs.getBoolean(KEY_SPACE_CURSOR, true),
+                arrangement = Arrangement.entries.firstOrNull { it.name == prefs.getString(KEY_ARRANGEMENT, null) }
+                    ?: Arrangement.STANDARD,
                 shuangpinScheme = prefs.getString(KEY_SHUANGPIN, null) ?: DEFAULT_SHUANGPIN,
                 shuangpinRawPreedit = prefs.getBoolean(KEY_SHUANGPIN_RAW, false),
+                shuangpinHints = prefs.getBoolean(KEY_SHUANGPIN_HINTS, true),
                 wubiMixed = prefs.getBoolean(KEY_WUBI_MIXED, false),
                 recordClipboard = prefs.getBoolean(KEY_RECORD_CLIPBOARD, true),
                 clipboardLimit = prefs.getInt(KEY_CLIPBOARD_LIMIT, SettingChoices.defaultClipboardLimit).coerceAtLeast(1),
@@ -148,6 +184,7 @@ data class Settings(
                     traditionalVariant = prefs.getString(KEY_TRADITIONAL_VARIANT, null) ?: SettingChoices.defaultTraditionalVariant,
                     learning = prefs.getBoolean(KEY_LEARNING, true),
                     holdSelections = prefs.getBoolean(KEY_HOLD_SELECTIONS, true),
+                    spellingCorrection = prefs.getBoolean(KEY_SPELLING_CORRECTION, true),
                     domains = prefs.getStringSet(KEY_DOMAINS, null)?.toSet() ?: SettingChoices.defaultDomains,
                     disabledDictionaries = prefs.getStringSet(KEY_DISABLED_DICTIONARIES, null).orEmpty().toSet(),
                     dictionariesStamp = prefs.getLong(KEY_DICTIONARIES_STAMP, 0),
@@ -159,6 +196,7 @@ data class Settings(
                 theme = prefs.getString(KEY_THEME, null) ?: DEFAULT_THEME,
                 appearance = Appearance.of(prefs.getString(KEY_APPEARANCE, null)),
                 textSize = TextSize.of(prefs.getString(KEY_TEXT_SIZE, null)),
+                toolbar = ToolbarTool.parse(prefs.getString(KEY_TOOLBAR, null)),
             )
         }
     }

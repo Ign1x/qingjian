@@ -24,6 +24,7 @@ use qingjian_learning::{LoggedEncounter, UsageStats, VocabularyBook, VocabularyE
 use qingjian_platform::GeneralConfig;
 use qingjian_translate::Glossary;
 
+use crate::i18n::{tr, tr_args};
 use crate::stats::language_name;
 use crate::system::paths;
 
@@ -200,11 +201,14 @@ impl Vocabulary {
     pub fn export(&self, format: Format, query: &str) -> Result<Option<PathBuf>, String> {
         let words = self.matching(query);
         if words.is_empty() {
-            return Err("没有可导出的词".to_owned());
+            return Err(tr("vocabulary.nothing_to_export").to_owned());
         }
-        let name = format!("青简生词本-{}.{}", self.today, format.extension());
+        let name = tr_args(
+            "vocabulary.file_name",
+            &[("date", &self.today), ("extension", &format.extension())],
+        );
         let Some(target) = rfd::FileDialog::new()
-            .set_title("导出生词本")
+            .set_title(tr("vocabulary.export_title"))
             .set_file_name(&name)
             .add_filter(format.label(), &[format.extension()])
             .save_file()
@@ -223,12 +227,15 @@ impl Vocabulary {
         let words: Vec<(&str, &VocabularyEntry)> =
             filled.iter().map(|(word, entry)| (*word, entry)).collect();
         let text = export::render(format, self.language_name(), &words);
-        std::fs::write(&target, text).map_err(|error| format!("写不进去：{error}"))?;
+        std::fs::write(&target, text)
+            .map_err(|error| tr_args("vocabulary.cant_write", &[("error", &error)]))?;
         Ok(Some(target))
     }
 
     fn save(&mut self) -> Result<(), String> {
-        self.book.save().map_err(|error| format!("没存上：{error}"))
+        self.book
+            .save()
+            .map_err(|error| tr_args("vocabulary.cant_save", &[("error", &error)]))
     }
 }
 

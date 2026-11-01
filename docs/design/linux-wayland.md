@@ -225,7 +225,7 @@ Wayland 前端两样都已接上：握手报 `grid` 与 `key_hint`，画横排�
   托盘用的切换命令（`Indicator`）、候选右键菜单（`Menu` / `MenuPick`）、共用客户端的点选、翻页与选区翻译，Fcitx5 / Fcitx4 插件仍报 v3、不用改（见协议对照）；
   `install.sh --frontend wayland`、systemd 用户服务（退出码 2 不重启）、deb / rpm 的 `qingjian-wayland` 包定义（容器里还没真打过、没跑 smoke）、用户文档；对着假合成器与假 Server 的黑盒测试。
 - **第二轮 Server 输入功能（已做）**：自动加空格、额外翻页键与高亮移动键、全半角与简繁快捷键、小键盘数字、缺省共用或按应用记中英、拼音行声调，
-  以及辅码及 v3 插件帧降级、形码与自定义双拼、实验模型（知意 CPU 两线程、含章·知微），fcitx 版与 Wayland 原生版共用；方案名随 `mode.scheme` 返回，用户方案与形码词库支持热加载。
+  以及辅码及 v3 插件帧降级、形码与自定义双拼、实验模型（知意 CPU 两线程、含章·通变），fcitx 版与 Wayland 原生版共用；方案名随 `mode.scheme` 返回，用户方案与形码词库支持热加载。
   横排矩阵与键位提示的数据也已接上，只对握手报了对应能力的会话提供；Wayland 前端的展示在第三轮接上，fcitx 版不走这条路。Linux 知意需要另装 ONNX Runtime 1.24+，缺失时回退含章。
 - **第二轮第二批（已做）**：前端接上 v4——鼠标点选与滚轮翻页（`Canvas::spot` → `Candidate` / `Page`）、
   候选右键菜单（`Renderer::render_menu` 与候选合成到同一个 popup，与 macOS / Windows 一样自绘）、中 / 英提示（`Renderer::render_status` 在 popup 里亮不到一秒）与主题里的模式、

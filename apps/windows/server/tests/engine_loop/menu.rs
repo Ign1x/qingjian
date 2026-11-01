@@ -6,6 +6,7 @@ use crate::support::*;
 
 #[test]
 fn right_click_offers_actions_and_a_pick_shows_a_notice_until_next_key() {
+    bamboo_slip_i18n::pin_locale("zh-Hans");
     let mut router = router();
     let sink = RecordingCandidates::default();
     router.set_candidate_sink(Box::new(sink.clone()));

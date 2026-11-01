@@ -109,13 +109,13 @@ if let Some(code) = self.code {
 scheme = "pinyin"   # pinyin | xiaohe | ziranma | microsoft | sogou | zhuyin | wubi86
 ```
 
-值就是现有 `ShuangpinScheme::key()`（`shuangpin/scheme.rs:32`）与 `zhuyin` 的统一。
+值就是现有 `ShuangpinScheme::key()`（`shuangpin/scheme/mod.rs`）与 `zhuyin` 的统一。
 旧键读取时兼容、写入时迁移，落地时把 `docs/plan/todo.md` 里挂着的「配置文件版本迁移」一起做掉。
 
 | 壳 | 落点 |
 |---|---|
 | Core | `engine/mod.rs` 的 `shuangpin` 与 `zhuyin` 收敛为一个字段；`engine/setup.rs:20-33` 的 setter 合并；阶段 1 已加的 `code: Option<CodeTable>` 改为随 `scheme` 装载（哪个码表由配置决定，Core 不需要 `CodeScheme` 枚举） |
-| 配置 | `crates/qingjian-platform/src/config/general.rs:50-97` |
+| 配置 | `crates/qingjian-platform/src/config/general/mod.rs` |
 | CLI | `apps/cli/src/args.rs:76` 加 `--wubi`；`apps/cli/src/main.rs:236-250` 应用；回放 `apps/cli/src/replay/mod.rs:95-116` 认新 scheme |
 | Windows 设置 | `apps/windows/settings/src/panel/pages/general.rs:14-20` 的 `SHUANGPIN` 列表扩成「输入方案」；`panel/message.rs:12-13`、`panel/component.rs:41-44` |
 | Windows Server | `server/src/main.rs:188-189` 启动应用；`dispatch/reload/mod.rs:107-108` 热加载；状态条 `dispatch/status/mod.rs:93-99` 用 `scheme.label()` |

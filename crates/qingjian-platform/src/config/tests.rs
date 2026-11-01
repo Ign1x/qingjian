@@ -21,6 +21,35 @@ fn partial_file_keeps_other_defaults() {
     assert_eq!(config.predict.min_interval_ms, 3000);
 }
 
+/// 含章·知微下线后，老配置里的 `name = "zhiwei"` 按通变读，不让整个配置读失败。
+#[test]
+fn retired_zhiwei_model_reads_as_tongbian() {
+    let config: Config = toml::from_str("[model]\nenabled = true\nname = \"zhiwei\"\n").unwrap();
+    assert!(config.model.enabled);
+    assert_eq!(config.model.name, LocalModel::Tongbian);
+}
+
+/// 设置程序启动时把下线的 `zhiwei` 改写成 `tongbian`，注释与别的键原样留着；已经是现在的取值就不碰文件。
+#[test]
+fn retired_zhiwei_is_rewritten_to_tongbian() {
+    let path = std::env::temp_dir().join("qingjian-config-retired-zhiwei-test.toml");
+    std::fs::write(
+        &path,
+        "[model]\n# 我的注释\nenabled = true\nname = \"zhiwei\"\n",
+    )
+    .unwrap();
+    assert!(Config::rewrite_retired_values(&path).unwrap());
+    let text = std::fs::read_to_string(&path).unwrap();
+    assert!(text.contains("# 我的注释"));
+    assert!(text.contains("name = \"tongbian\""));
+    assert!(text.contains("enabled = true"));
+    assert!(!Config::rewrite_retired_values(&path).unwrap());
+    std::fs::remove_file(&path).unwrap();
+    let missing = std::env::temp_dir().join("qingjian-config-retired-missing-test.toml");
+    assert!(!Config::rewrite_retired_values(&missing).unwrap());
+    assert!(!missing.exists());
+}
+
 #[test]
 fn emoji_reads_counts_and_old_switch() {
     let emoji = |value: &str| {

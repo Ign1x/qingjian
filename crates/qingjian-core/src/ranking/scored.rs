@@ -28,11 +28,15 @@ pub struct Scored<'a> {
 
     /// 注音敲了声调时的声调代价（[`crate::zhuyin::tone::cost`]，越小越对得上）；全拼 / 双拼 / 形码恒为 0。
     pub tone_cost: u8,
+
+    /// 靠把完整音节拆开才读得出（`shishan` 按 `shi s h an` 读出的 事实、按 `shi sha n` 读出的 是啥呢）：同一段输入有一种全是完整音节的切法时才算。
+    /// 有词的读音正好是敲的音节时，这类读法排到首音节的头一页单字之后（[`super::arrange`]），免得几百条把单字挤到翻不到的地方。
+    pub split: bool,
 }
 
 /// 预选键：结构项之后按用户选择次数与词库词频，命中太多时先用它砍到够排的量（不必算上下文得分）。
 /// 打包成一个整数、越大越靠前：单字母简拼一键命中几万条，逐条比元组太慢。
-/// 位从高到低：精确(1) 覆盖字母数(8) 简拼数的补(8) 末音节完整(1) 声调代价的补(8) 选择次数(32) 打折后词频(32) 原样命中(1) 字数的补(8)；
+/// 位从高到低：不是拆开的读法(1) 精确(1) 覆盖字母数(8) 简拼数的补(8) 末音节完整(1) 声调代价的补(8) 选择次数(32) 打折后词频(32) 原样命中(1) 字数的补(8)；
 /// 与 [`SortKey`] 的前几项同序，只是不拿文本做最后的平手项（预选边界上的平手谁留下无所谓）。
 pub type PreselectKey = u128;
 
@@ -48,6 +52,7 @@ pub type SortKey<'a> = (
     Reverse<i64>,
     bool,
     usize,
+    bool,
     &'a str,
 );
 
@@ -72,7 +77,8 @@ impl<'a> Scored<'a> {
         let chars = u128::from(u8::try_from(self.hit.text.chars().count()).unwrap_or(u8::MAX));
         let coverage = u128::from(u8::try_from(self.coverage).unwrap_or(u8::MAX));
         let abbreviated = u128::from(u8::try_from(self.abbreviated).unwrap_or(u8::MAX));
-        (u128::from(self.first_tier()) << 98)
+        (u128::from(!self.split) << 99)
+            | (u128::from(self.first_tier()) << 98)
             | (coverage << 90)
             | ((0xFF - abbreviated) << 82)
             | (u128::from(self.full_last) << 81)
@@ -95,6 +101,8 @@ impl<'a> Scored<'a> {
             Reverse((score * 1000.0).round() as i64),
             self.altered(),
             self.hit.text.chars().count(),
+            // 同一个词两种读法都命中时，去重留下不拆开的那条
+            self.split,
             self.hit.text,
         )
     }

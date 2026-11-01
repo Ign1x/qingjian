@@ -17,7 +17,7 @@ pub struct ModelDirs {
 }
 
 impl ModelDirs {
-    /// 选的知微、知意还没下载（或缺运行库）就用通变；一个模型文件都没有为 `None`。
+    /// 选的知意还没下载（或缺运行库）就用通变；一个模型文件都没有为 `None`。
     pub fn resolve(&self, wanted: LocalModel) -> Option<ModelFiles> {
         let user = self.user.as_deref();
         match wanted {
@@ -29,14 +29,6 @@ impl ModelDirs {
                 (None, _) => tracing::warn!("选了知意但没下载，改用含章·通变"),
                 (_, None) => tracing::warn!("找不到 ONNX Runtime，知意改用含章·通变"),
             },
-            LocalModel::Zhiwei => {
-                match user.and_then(|dir| {
-                    qingjian_neural::find_model(&dir.join("models/hanzhang-zhiwei"))
-                }) {
-                    Some(path) => return Some(ModelFiles::Sentence(path)),
-                    None => tracing::warn!("选了含章·知微但没下载，改用含章·通变"),
-                }
-            }
             LocalModel::Tongbian => {}
         }
         find_model(user, &self.bundled_root).map(ModelFiles::Sentence)
@@ -48,15 +40,12 @@ impl ModelDirs {
     }
 }
 
-/// P2C 优先，同类模型里用户目录优先；没有 P2C 才回退字级模型。
+/// 通变优先读用户目录，兼容旧的 `model-p2c/`；已下线的知微目录不再读取。
 pub fn find_model(user_dir: Option<&Path>, bundled_root: &Path) -> Option<PathBuf> {
     let candidates = [
         user_dir.map(|dir| dir.join("models/hanzhang-tongbian")),
         user_dir.map(|dir| dir.join("model-p2c")),
         Some(bundled_root.join("data/models/hanzhang-tongbian")),
-        user_dir.map(|dir| dir.join("models/hanzhang-zhiwei")),
-        user_dir.map(|dir| dir.join("model")),
-        Some(bundled_root.join("data/models/hanzhang-zhiwei")),
     ];
     candidates
         .into_iter()

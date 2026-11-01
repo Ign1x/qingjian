@@ -12,7 +12,7 @@ use qingjian_dictionary::{Dictionary, WordList};
 use qingjian_learning::{FrequencyLearner, InputLog, PanelUsage, UsageStats, VocabularyBook};
 use qingjian_platform::code_tables::AuxCodeSources;
 use qingjian_platform::{Config, extra_dictionaries};
-use qingjian_translate::{Glossary, LayeredTranslator, LevelTable, PersonalGlossary};
+use qingjian_translate::{Glossary, LayeredTranslator, PersonalGlossary};
 
 use crate::error::ServerError;
 
@@ -44,7 +44,7 @@ pub fn assemble(spec: &AssemblySpec) -> Result<Engine, ServerError> {
         engine = engine
             .with_usage_meter(Box::new(UsageStats::open(dir)))
             .with_panel_history(Box::new(PanelUsage::open(dir)))
-            .with_vocabulary_tracker(Box::new(load_vocabulary(dir, spec.levels_dir.as_deref())));
+            .with_vocabulary_tracker(Box::new(VocabularyBook::open(dir.join("user-vocab.tsv"))));
         if spec.input_log {
             let path = spec
                 .log_dir
@@ -174,33 +174,6 @@ pub(crate) fn load_glossary(
         );
     }
     Ok(LayeredTranslator::new(bundled, personal))
-}
-
-/// 词汇记录（`user-vocab.tsv`），有等级表就按级统计。
-fn load_vocabulary(user_dir: &Path, levels_dir: Option<&Path>) -> VocabularyBook {
-    let mut vocabulary = VocabularyBook::open(user_dir.join("user-vocab.tsv"));
-    let Some(levels_dir) = levels_dir else {
-        return vocabulary;
-    };
-    for language in [
-        Language::English,
-        Language::Japanese,
-        Language::Spanish,
-        Language::Vietnamese,
-        Language::German,
-    ] {
-        let path = levels_dir.join(format!("levels-{}.tsv", language.code()));
-        if !path.is_file() {
-            continue;
-        }
-        match LevelTable::from_path(&path) {
-            Ok(table) => vocabulary = vocabulary.with_levels(language, table),
-            Err(error) => {
-                tracing::warn!(path = %path.display(), %error, "词汇等级表读不了，不分级");
-            }
-        }
-    }
-    vocabulary
 }
 
 /// 几张 emoji 表合成一张；坏的跳过。

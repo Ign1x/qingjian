@@ -65,7 +65,7 @@
 - [x] bundle id 改为 `app.qingjian.inputmethod`（2026-09-06，域名 qingjian.app 注册后；`TISInputSourceID` 与连接名同步，旧 id `com.yenharvey.qingjian` 的输入源要在系统设置里删掉重加）
 - [x] 中英切换：Caps Lock 亮着 = 英文模式（默认小写、Shift 大写、标点半角）；按住 Shift 的大写字母直接透传；切换输入源时强制收窗
 - [x] 单击 Shift 切中英（2026-10-12）：复用 `[shortcut] switch_mode` 的 shift，偏好设置「快捷键」页勾选；勾上后单击 Shift 切中英、Caps Lock 退化成只管大小写。
-  IMK 拿不到修饰键的按下 / 抬起，用 30 ms 定时器轮询 `NSEvent::modifierFlags_class()` 做边沿检测（`host/mode_switch.rs`）；缺省不勾，Caps Lock 行为不变
+  IMK 拿不到修饰键的按下 / 抬起，用 30 ms 定时器轮询 `NSEvent::modifierFlags_class()` 做边沿检测（`host/mode/switch.rs`）；缺省不勾，Caps Lock 行为不变
 - [x] 英文模式候选（Core `english`，`Engine::set_english_mode`）：词表精确词 / 前缀补全 / 一处编辑纠正，Tab 与上下键选词（上下键动过之后空格也选），空格回车标点原样上屏；
   `[general] english_candidates` 可关；CLI `--english-mode`
 - [x] 按应用关英文候选（2026-09-05）：`[apps] english_candidates_off`，按 `bundleIdentifier` 认，缺省终端 / 编辑器 / IDE 名单，`*` 前缀匹配；
@@ -186,7 +186,8 @@
   - Android 壳里还写在 Kotlin、统一时要搬进 Rust 的规则：
     - [ ] 键位表与角标：`keyboard/layout/KeyboardLayout.kt`（全键盘、九宫格、注音大千、日语、数字键盘、符号页）
     - [ ] 尺寸与排版：`keyboard/layout/KeyboardMetrics.kt`（行高、按宽度分键、九宫格列宽）
-    - [ ] 滑行起判阈值：`keyboard/SwipeTrail.kt` 的 `START_KEYS`
+    - [ ] 滑行起判阈值：`keyboard/SwipeTrail.kt` 的 `START_KEYS`；上滑判定：`keyboard/KeyboardView.kt` 的 `FLICK_DP`（往上多远、不偏出本列）；Shift 双击锁定的间隔：`service/input/Composer.kt` 的 `DOUBLE_TAP_MS`
+    - [ ] 键位排法：`settings/Settings.kt` 的 `Arrangement`（左手便捷：符号面板分类列在左、返回在左下）
     - [ ] 写死的颜色并进主题推导：`ClipboardPanel` 代码高亮的数字色、`VocabularyPage` 生词标签色、`TranslateBar` / `ProcessTextActivity` 的失败红、`AdvancedActivity` 的危险操作红
   - 平板与 iPad 有两种形态：接实体键盘时只剩候选窗，按 PC 方式工作（翻页键、Shift 切换等手机上不搬的项要用上）；
     不接时是屏幕键盘，要适配全宽、浮动与分屏等宽度，面板在大屏上排多列

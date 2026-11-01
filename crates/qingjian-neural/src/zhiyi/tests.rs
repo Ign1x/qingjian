@@ -99,3 +99,62 @@ fn onnx_agrees_with_candle() {
         assert!((a[0] - b[0]).abs() < 1.0, "{keys}: {a:?} vs {b:?}");
     }
 }
+
+/// 自己的分词与 `tokenizers` 逐个 token 一致：几条边角输入，加上仓库 `docs/` 里每篇文档的每一行与全文
+/// （中英混排、代码、换行）。要设 `QINGJIAN_ZHIYI_DIR` 或 `QINGJIAN_ZHIYI_ONNX_DIR`，都没设就跳过。
+#[test]
+fn tokenizes_like_the_reference_tokenizer() {
+    let Some(dir) = std::env::var_os("QINGJIAN_ZHIYI_DIR")
+        .or_else(|| std::env::var_os("QINGJIAN_ZHIYI_ONNX_DIR"))
+        .map(PathBuf::from)
+    else {
+        eprintln!("没设知意的模型目录，跳过");
+        return;
+    };
+    let path = dir.join("tokenizer.json");
+    let ours = super::bpe::Bpe::load(&path).unwrap();
+    let reference = tokenizers::Tokenizer::from_file(&path).unwrap();
+    let mut texts: Vec<String> = [
+        "",
+        " ",
+        "  两个空格",
+        "今天天气很好",
+        " 上海",
+        "He said hello,  world!",
+        "第一行\n第二行\n\n\n第三行\t制表",
+        "<mask>前后 <mask>  <eos>x<pad>",
+        "▁▁已有的▁",
+        "emoji 😀👍🏽 与生僻字 𠀀𪚥 和 \u{200b}零宽",
+        r#"C:\Users\x\a.txt "引号" 'single'"#,
+    ]
+    .into_iter()
+    .map(String::from)
+    .collect();
+    let docs = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../docs");
+    let mut stack = vec![docs];
+    while let Some(dir) = stack.pop() {
+        for entry in std::fs::read_dir(dir).unwrap().flatten() {
+            let path = entry.path();
+            if path.is_dir() {
+                stack.push(path);
+            } else if path.extension().is_some_and(|e| e == "md") {
+                let text = std::fs::read_to_string(&path).unwrap();
+                texts.extend(text.lines().map(String::from));
+                texts.push(text);
+            }
+        }
+    }
+    let mut mismatches = 0;
+    for text in &texts {
+        let expected = reference.encode(text.as_str(), false).unwrap();
+        let got = ours.encode(text);
+        if got != expected.get_ids() {
+            mismatches += 1;
+            if mismatches <= 5 {
+                eprintln!("{text:?}\n  ours {got:?}\n  ref  {:?}", expected.get_ids());
+            }
+        }
+    }
+    eprintln!("对拍 {} 条，不一致 {mismatches} 条", texts.len());
+    assert_eq!(mismatches, 0);
+}

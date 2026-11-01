@@ -1,6 +1,7 @@
 # 从输入日志里人工挑的领域词 / 通用词：日志里选过 ≥2 次、词库与短语层都没有、且公开语料（LCCC + 中文维基）里出现过（隐私过滤：只在日志里出现的只留在个人词库）。
 # 次数是语料次数，与 dict.tsv 词频同一尺度；语料不足 20 次的输入法 / 开发术语（上屏、候选框、模糊音）按 20 计，免得排到最后。读音全部给定（行数 / 长句 / 这俩 是多音字）。词\t拼音\t次数
 # 2026-09-27 补：jieba 词表（MIT）top2万里词库缺失的高频词 + issue #98/#120/#121/#222 点名词。次数是 jieba 次数的折算值（过原点与 log-log 回归折算，公式 dict_freq = max(1, round(0.829 × jieba^1.082))，方法与对照例见 词库扩充记录.md），不是本机语料统计；读音逐字取 Unihan_Readings 三字段并集，多音字逐条人工判定（判定明细与理由见 00_meta/polyphone-judgments.tsv）。
+# 2026-10-28 补：行 hang（文字的一行）一类词，原来只有 一行 yi xing，yihang 打不出 一行。次数按同类词（行数、行距、本行）估，语料里有的重建时以语料为准；要重跑 bigram 才进语言模型。
 看看	kan kan	92841
 再也	zai ye	16113
 在此	zai ci	13722
@@ -470,3 +471,28 @@
 加减号	jia jian hao	500
 # 生僻字词（2026-10-13）：𰻝 在扩展 G，只能整词打出，定值按 20 的底值。
 𰻝𰻝面	biang biang mian	20
+一行	yi hang	300
+两行	liang hang	120
+几行	ji hang	120
+每行	mei hang	90
+这行	zhe hang	80
+那行	na hang	30
+首行	shou hang	60
+末行	mo hang	20
+空行	kong hang	50
+换行	huan hang	200
+多行	duo hang	60
+单行	dan hang	40
+整行	zheng hang	40
+行首	hang shou	30
+行尾	hang wei	30
+行号	hang hao	40
+行高	hang gao	30
+第一行	di yi hang	120
+第二行	di er hang	50
+上一行	shang yi hang	50
+下一行	xia yi hang	60
+一行行	yi hang hang	30
+逐行	zhu hang	40
+各行	ge hang	40
+一行字	yi hang zi	30

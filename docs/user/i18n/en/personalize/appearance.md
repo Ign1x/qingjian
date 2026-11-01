@@ -1,7 +1,7 @@
 ---
 title: Appearance and themes
 order: 1
-description: "The candidate window's seven built-in themes and light/dark modes, vertical and horizontal layouts, expanding horizontal layout into several rows, pinyin position and tones, fonts and sizes, transition animations."
+description: "The candidate window's seven built-in themes and light/dark modes, vertical and horizontal layouts, expanding horizontal layout into several rows (with arrow or paging keys), pinyin position and tones, fonts and sizes, transition animations, and the interface language of Settings."
 ---
 
 Change how the candidate window looks under 设置 → 外观 (Settings → Appearance); the top of the page shows a preview drawn with your current settings. A theme looks the same on macOS, Windows and the Linux Wayland native edition.
@@ -14,12 +14,13 @@ The Linux fcitx edition uses the Fcitx / IBus candidate panel, whose look is set
 | 青简绿 (Qingjian green, default) | Light green background, text colour unchanged |
 | 系统蓝 (System blue) | System blue background, white text |
 | 微信绿 (WeChat green) | WeChat green background, white text; AI candidates in blue |
+| 玻璃 (Glass) | Blue capsule, white text; the horizontal layout is a single capsule. On macOS the window is clear glass that shows what's behind it, and the text turns darker or lighter with the background; on Windows it has a near-white opaque background |
 | 樱花 (Sakura) | Pink-purple glass background, pink highlight block, serif candidates, part of speech and gloss on two lines; a character lying on the top left, with a cherry-blossom charm and ribbons |
 | 大肥鱼 (Big fat fish) | Blue-edged glass background with ripples, light-blue highlight block, gloss on its own line below the word; a whale maid lying on the top edge of the window, clinging to the right side in vertical layout |
 | 初音未来 (Hatsune Miku) | Cyan chamfered border and equalizer bars, cyan highlight block, gloss on its own line below the word; Hatsune Miku lying on the top edge of the window, clinging to the right side in vertical layout |
 | 波奇酱 (Bocchi) | Pink double border, cream background, an audio cable looped around the window, pink highlight block; Bocchi with her guitar lying on the top edge of the window, hiding on the left in vertical layout |
 
-Click a theme card to switch. 青简绿, 系统蓝 and 微信绿 each have a light and a dark version; choose follow system, light or dark under 外观 (Appearance) on the same page. 樱花, 大肥鱼, 初音未来 and 波奇酱 are light only.
+Click a theme card to switch. 青简绿, 系统蓝, 微信绿 and 玻璃 each have a light and a dark version; choose follow system, light or dark under 外观 (Appearance) on the same page. 樱花, 大肥鱼, 初音未来 and 波奇酱 are light only.
 With follow system, the Linux Wayland native edition follows the desktop's light/dark preference, and uses light mode when the desktop doesn't provide one.
 Themes only apply when 渲染引擎 (Rendering engine) is set to 青简渲染器 (Qingjian renderer, the default); the Linux Wayland native edition always draws with the Qingjian renderer, whatever this is set to.
 
@@ -42,6 +43,9 @@ On macOS, Windows and the Linux Wayland native edition, in horizontal layout, yo
 
 When unticked, keys in horizontal layout work as in vertical layout: `↑` / `↓` move the highlight one at a time and `←` / `→` move the pinyin cursor.
 
+A second tick box, 横排时翻页键也展开成多行 (Paging keys also expand to rows in horizontal layout) (unticked by default), is for people who would rather not reach for the arrow keys: when ticked, in horizontal layout the paging keys (main paging keys such as `-` `=`, any extra paging keys you ticked, `PageUp` / `PageDown`, `Tab` / `Shift + Tab`, clicking the arrows beside the page number, and on Windows scrolling the wheel over the candidates) expand the row into the grid like `↓` and move to the next (or previous) row; once expanded, each press turns a whole screen.
+Once expanded, `↑` `↓` `←` `→` move as in the grid described above, whether or not 横排时 ↑ / ↓ 展开成多行 is ticked.
+
 ## Showing tones on the pinyin line
 
 On macOS, Windows and Linux you can turn on 拼音行显示声调 (Show tones on the pinyin line) under 设置 → 候选 (Settings → Candidates): the pinyin at the top of the candidate window is marked with the tones of the highlighted candidate's reading (`ganga` with 尴尬 highlighted shows `gān'gà`), and abbreviated pinyin is replaced with the full reading.
@@ -58,3 +62,8 @@ In the Linux fcitx edition the tones appear on the pinyin line of the candidate 
 ## Motion
 
 With 过渡动画 (Transition animation) off, the highlight jumps straight into place and decorations that keep moving in a theme stop too. Animations also don't play when the system's Reduce Motion is on.
+
+## Interface language
+
+The “文A” item at the bottom left of the Settings window (showing the current language in its own name) sets the language of Settings and of the candidate window's menus and messages: Simplified Chinese, Traditional Chinese, English, Japanese, Spanish, Vietnamese or German, Simplified Chinese by default; choose 跟随系统 (Follow system) to use the system language (English if the system language isn't one of these).
+It only changes the interface text, not typing, candidates or translations.

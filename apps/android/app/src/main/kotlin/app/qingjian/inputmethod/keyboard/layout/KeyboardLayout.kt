@@ -86,21 +86,34 @@ object KeyboardLayout {
 
     /**
      * 双拼：键位同拼音全键盘，键上另印当前方案的声韵母（从 Core 取，见 [Shuangpin][app.qingjian.inputmethod.core.store.Shuangpin]）；
-     * 用 `;` 当韵母的方案二排末尾补一个 `;` 键。
+     * 用 `;` 当韵母的方案二排末尾补一个 `;` 键；微软双拼照手机上的习惯（搜狗等）把 `;` 放在 Shift 的位置，
+     * 点按永远是 `;`、上滑是 Shift（不按组句状态换含义），二排回到九个键。[hints] 关了不印声韵母，键面同拼音全键盘。
      */
-    fun shuangpin(keycaps: Map<Char, ShuangpinKeycap>, fullWidth: Boolean = true): List<List<Key>> {
-        fun row(chars: String, hints: String) = chars.mapIndexed { i, char ->
-            val keycap = keycaps[char]
-            Key.Letter(char, hints.getOrNull(i)?.toString().orEmpty(), keycap?.initial.orEmpty(), keycap?.finals.orEmpty())
+    fun shuangpin(
+        keycaps: Map<Char, ShuangpinKeycap>,
+        scheme: String,
+        fullWidth: Boolean = true,
+        hints: Boolean = true,
+    ): List<List<Key>> {
+        val semicolonShift = scheme == MICROSOFT_SHUANGPIN
+        fun letter(char: Char, hint: String, weight: Float = 1f, flickShift: Boolean = false): Key.Letter {
+            val keycap = keycaps[char]?.takeIf { hints }
+            return Key.Letter(char, hint, keycap?.initial.orEmpty(), keycap?.finals.orEmpty(), weight, flickShift)
         }
-        val middle = if (';' in keycaps) "asdfghjkl;" else "asdfghjkl"
+        fun row(chars: String, hints: String) = chars.mapIndexed { i, char -> letter(char, hints.getOrNull(i)?.toString().orEmpty()) }
+        val semicolon = ';' in keycaps
+        val shift = if (semicolon && semicolonShift) letter(';', "", weight = 1.5f, flickShift = true) else Key.Shift
+        val middle = if (semicolon && !semicolonShift) "asdfghjkl;" else "asdfghjkl"
         return listOf(
             row("qwertyuiop", TOP_HINTS),
             row(middle, MIDDLE_HINTS_ZH),
-            listOf(Key.Shift) + row("zxcvbnm", BOTTOM_HINTS) + Key.Backspace,
+            listOf(shift) + row("zxcvbnm", BOTTOM_HINTS) + Key.Backspace,
             lettersBottom(chinese = true, fullWidth),
         )
     }
+
+    /** 微软双拼在 Core 方案表里的名字（`Scheme::key`）。 */
+    private const val MICROSOFT_SHUANGPIN = "microsoft"
 
     fun nineKey(fullWidth: Boolean = true): List<List<Key>> = listOf(
         listOf(Key.Digit('1', "分词"), Key.Digit('2', "ABC"), Key.Digit('3', "DEF"), Key.Backspace),

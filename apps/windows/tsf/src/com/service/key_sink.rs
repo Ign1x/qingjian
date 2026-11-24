@@ -7,7 +7,9 @@
 use std::time::Instant;
 
 use windows::Win32::Foundation::{FALSE, LPARAM, WPARAM};
-use windows::Win32::UI::Input::KeyboardAndMouse::VK_CAPITAL;
+use windows::Win32::UI::Input::KeyboardAndMouse::{
+    VK_BACK, VK_CAPITAL, VK_LSHIFT, VK_RSHIFT, VK_SHIFT,
+};
 use windows::Win32::UI::TextServices::{ITfContext, ITfKeyEventSink_Impl};
 use windows::core::{BOOL, GUID, Ref, Result};
 
@@ -17,9 +19,11 @@ use super::TextService_Impl;
 use super::next::Next;
 use crate::client::KeyReply;
 use crate::com::composition::preedit_string;
-use crate::com::key::event::{digit_key, is_edit, is_letter, is_mode_letter, is_nav, to_key_event};
+use crate::com::key::event::{
+    digit_key, is_edit, is_letter, is_mode_letter, is_nav, to_key_event_with_modes,
+};
 use crate::com::key::preserved;
-use crate::com::log::log;
+use crate::com::log::{key_label, log};
 
 impl ITfKeyEventSink_Impl for TextService_Impl {
     /// 失焦：把敲了一半的拼音原样落定（对应 macOS 的 `commitComposition`）。切窗口时这条回调不触发，
@@ -36,11 +40,19 @@ impl ITfKeyEventSink_Impl for TextService_Impl {
         if self.keyboard_disabled(&pic) {
             return Ok(FALSE);
         }
-        let event = self.key_event(vk);
+        let event = self.key_event(vk, is_repeat(lparam));
         if let Some(eat) = self.preflight_digit(&pic, event) {
             return Ok(eat.into());
         }
-        Ok(self.would_eat(&event).into())
+        let eat = self.would_eat(&event);
+        // 不吃的键交给应用：用户的动作已经离开这段组句了，
+        // 「刚删空」到此作废（issue #932）。不清的话它会一直留着，
+        // 下一轮在组句外长按退格时第一记被吃、系统的自动重复被截断，
+        // 表现为「只删一个就不动了」。
+        if !eat {
+            self.shared.set_emptied_backspace(false);
+        }
+        Ok(eat.into())
     }
 
     fn OnKeyDown(&self, pic: Ref<ITfContext>, wparam: WPARAM, lparam: LPARAM) -> Result<BOOL> {
@@ -49,7 +61,7 @@ impl ITfKeyEventSink_Impl for TextService_Impl {
         if self.keyboard_disabled(&pic) {
             return Ok(FALSE);
         }
-        let event = self.key_event(vk);
+        let event = self.key_event(vk, is_repeat(lparam));
         if let Some(next) = self.pending_digit.borrow_mut().take() {
             return Ok(self.apply_key_outcome(pic, &event, next).into());
         }
@@ -85,6 +97,8 @@ impl ITfKeyEventSink_Impl for TextService_Impl {
         }
         let combo = if guid == preserved::GUID_TRANSLATE {
             self.translate_combo.get()
+        } else if guid == preserved::GUID_TRANSLATE_PANEL && !self.shared.composing() {
+            self.translate_panel_combo.get()
         } else if guid == preserved::GUID_PREDICT && self.shared.composing() {
             self.predict_combo.get()
         } else if guid == preserved::GUID_TRADITIONAL {
@@ -117,33 +131,86 @@ impl TextService_Impl {
         disabled
     }
 
-    fn key_event(&self, vk: u32) -> KeyEvent {
-        to_key_event(vk, self.mode_state.english())
+    /// `repeat` 是这一记是不是按住不放的自动重复（`lParam` bit 30）。退格用它区分
+    /// 「手一直按着」与「手一下一下点」，见 issue #932。
+    fn key_event(&self, vk: u32, repeat: bool) -> KeyEvent {
+        to_key_event_with_modes(vk, self.mode_state.english(), self.mode_state.vietnamese())
+            .with_repeat(repeat)
     }
 
     fn note_key_down(&self, vk: u32, lparam: LPARAM) {
+        let shift = is_shift(vk);
+        // 给 Chromium 系应用挪光标时模拟的 Shift（见 `key::inject`）不是用户按的
+        if shift && self.shared.take_injected_shift() {
+            return;
+        }
+        if !shift && self.key_tap.take_pending_shift() && self.mode_state.switch_keys().shift {
+            self.commit_pending();
+            self.mode_state.switch_chinese_foreign();
+            self.refresh_mode_indicator();
+            self.report_mode();
+        }
         self.key_tap
-            .key_down(vk, lparam, self.mode_state.switch_keys());
+            .key_down(vk, lparam, self.mode_state.tap_keys());
     }
 
     fn note_key_up(&self, vk: u32) {
         if vk == u32::from(VK_CAPITAL.0) {
             self.mode_state.notify();
         }
-        if self.key_tap.key_up(vk, self.mode_state.switch_keys()) {
-            self.set_english_mode(!self.mode_state.english());
+        if is_shift(vk) && self.shared.take_injected_shift() {
+            return;
         }
+        if self.key_tap.key_up(vk, self.mode_state.tap_keys()) {
+            if is_shift(vk) {
+                if !self.mode_state.third_enabled() {
+                    if self.mode_state.switch_keys().shift {
+                        self.set_english_mode(!self.mode_state.english());
+                    }
+                } else if self.key_tap.double_shift(true) {
+                    self.commit_pending();
+                    self.mode_state.switch_foreign();
+                    self.refresh_mode_indicator();
+                    self.report_mode();
+                }
+            } else if self.mode_state.third_enabled() {
+                self.commit_pending();
+                self.mode_state.switch_chinese_foreign();
+                self.refresh_mode_indicator();
+                self.report_mode();
+            } else {
+                self.set_english_mode(!self.mode_state.english());
+            }
+        }
+    }
+
+    /// 轮询取走超过 400 ms、没有第二下的 Shift；只有配置勾了单击 Shift 才切模式。
+    pub(super) fn resolve_pending_shift(&self) {
+        if !self.key_tap.resolve_shift() {
+            return;
+        }
+        if !self.mode_state.switch_keys().shift {
+            return;
+        }
+        self.commit_pending();
+        self.mode_state.switch_chinese_foreign();
+        self.refresh_mode_indicator();
+        self.report_mode();
     }
 
     /// 这个键吃不吃，与 Router 的分派对齐；`OnTestKeyDown` 用，无副作用。判定见 [`eats_key`]。
     ///
-    /// 带 Ctrl/Alt/Win 只有组句中的「修饰键 + 数字」送 Server（译词 / 删候选），其余归应用（翻译选中文字走保留键）；
+    /// 带 Ctrl/Alt/Win 只有组句中的「修饰键 + 数字」送 Server（译词 / 删候选）、组句中的 AI 与单字模式组合键、
+    /// 面板翻译框里的 Ctrl+A 送 Server（全选），其余归应用（翻译选中文字走保留键）；
     /// 字母只有「中文模式、没在组句、按住 Shift 的大写」归应用（`[general] shift_letter = "compose"` 时也吃，
     /// 让它起一段组句），其中 V / U / I 仍送 Server：双拼下是表达式 / 问字入口；
     /// 组句中功能键 / 方向键 / 可打印字符都吃；没在组句时数字 / 标点也先「测吃」送去转全角（中英各有一份开关），
     /// Server 不转的回 Passthrough 再放行；`?` 是问字前缀。
     /// 没在组句的数字另走 [`Self::preflight_digit`]：Passthrough 时 Test 就不吃。
     fn would_eat(&self, event: &KeyEvent) -> bool {
+        if self.shared.text_box() && is_select_all(event) {
+            return true;
+        }
         let input = self.input_settings.get().unwrap_or_default();
         eats_key(
             event,
@@ -151,12 +218,16 @@ impl TextService_Impl {
             self.shared.translating(),
             input.shift_letter_compose,
             input.english_candidates,
-        ) || (self.shared.composing()
-            && input.predict.is_some_and(|combo| {
-                event.virtual_key
-                    == preserved::key_event(combo, self.mode_state.english()).virtual_key
-                    && event.modifiers.chord() == combo.modifiers.into()
-            }))
+        ) || guard_backspace(event, self.shared.emptied_backspace())
+            || (self.shared.composing()
+                && [input.predict, input.single_chars, input.next_word]
+                    .into_iter()
+                    .flatten()
+                    .any(|combo| {
+                        event.virtual_key
+                            == preserved::key_event(combo, self.mode_state.english()).virtual_key
+                            && event.modifiers.chord() == combo.modifiers.into()
+                    }))
     }
 
     /// 没在组句的数字：在 Test 里先问 Server。
@@ -194,6 +265,8 @@ impl TextService_Impl {
     /// 不吃的键绝不碰组句（否则光标一移，组句会把拼音重插到别处）。
     fn handle_key(&self, pic: Ref<ITfContext>, event: KeyEvent) -> bool {
         if !self.would_eat(&event) {
+            // 不吃：交给应用，同 `OnTestKeyDown` 那条路一样把「刚删空」作废
+            self.shared.set_emptied_backspace(false);
             return false;
         }
         self.forward_key(pic, event)
@@ -210,7 +283,9 @@ impl TextService_Impl {
                 Some(_) => {
                     if !self.launch_grace_logged.get() {
                         self.launch_grace_logged.set(true);
-                        log("Server 迟迟未就绪：拉起宽限已过，字母放行（英文直通），连上后恢复");
+                        log(
+                            "server still not ready after the launch grace period: letters pass through until it connects",
+                        );
                     }
                     false
                 }
@@ -219,8 +294,8 @@ impl TextService_Impl {
             let eat = eats_without_server(&event, grace);
             if eat {
                 log(&format!(
-                    "没连上 Server，吃掉 vk={} char={:?}",
-                    event.virtual_key, event.character
+                    "server not connected, key swallowed: {}",
+                    key_label(event.virtual_key, event.character)
                 ));
             }
             return eat;
@@ -252,7 +327,20 @@ impl TextService_Impl {
                 } else {
                     String::new()
                 };
-                self.shared.set_composing(!response.frame.is_empty());
+                // 这一记退格之后组句是不是空的，决定下一记自动重复要不要吞掉交给 Server 判
+                //（issue #932）。
+                //
+                // 判据必须能跨连续的多记重复保持为真：第一记把组句删空之后，`follow_frame`
+                // 已经把 `composing` 设成 false，第二记进来时它不再是「之前在组句」，光看它
+                // 会在第二记就把保护清掉。
+                //
+                // 所以：还是退格、帧仍为空、且（之前在组句 **或** 上一记刚删空）→ 保持为真。
+                // 一旦帧非空（组句又有内容）或换成了别的键，就清掉。
+                let emptied = event.virtual_key == VK_BACK.0 as u32
+                    && response.frame.is_empty()
+                    && (self.shared.composing() || self.shared.emptied_backspace());
+                self.shared.set_emptied_backspace(emptied);
+                self.shared.follow_frame(&response.frame);
                 self.shared
                     .candidate_list()
                     .show(&response.frame, pic.ok().ok());
@@ -261,28 +349,37 @@ impl TextService_Impl {
                 let consumed = matches!(response.outcome, KeyOutcome::Consumed);
                 let m = event.modifiers;
                 log(&format!(
-                    "收键 vk={} ctrl={} alt={} shift={} caps={} en={} char={:?} candidates={} preedit={preedit:?} consumed={consumed}",
-                    event.virtual_key,
+                    "key {} ctrl={} alt={} shift={} caps={} en={} candidates={} preedit_len={} commit_len={} consumed={consumed}",
+                    key_label(event.virtual_key, event.character),
                     m.ctrl,
                     m.alt,
                     m.shift,
                     m.caps,
                     m.english_mode,
-                    event.character,
-                    response.frame.candidates.items.len()
+                    response.frame.candidates.items.len(),
+                    preedit.chars().count(),
+                    response
+                        .commit
+                        .as_deref()
+                        .map_or(0, |text| text.chars().count()),
                 ));
                 Next::Document {
                     commit: response.commit,
                     preedit,
                     consumed,
+                    caret: response.caret,
                 }
             }
             Ok(KeyReply::NeedSelection { request }) => {
-                log(&format!("翻译选中文字：Server 请读选区 request={request}"));
+                log(&format!(
+                    "translate selection: server asks to read the selection, request={request}"
+                ));
                 Next::ReadSelection { request }
             }
             Err(error) => {
-                log(&format!("转发按键失败，放行并断开，下一键重连: {error}"));
+                log(&format!(
+                    "forwarding the key failed, passing it through and reconnecting on the next key: {error}"
+                ));
                 *guard = None;
                 self.last_connect_failure.set(None);
                 self.shared.end_composing();
@@ -306,6 +403,7 @@ impl TextService_Impl {
                     consumed: false,
                     commit,
                     preedit,
+                    ..
                 },
                 Some(c),
             ) if insertable && preedit.is_empty() => {
@@ -314,7 +412,7 @@ impl TextService_Impl {
                 }
                 let mut text = commit.unwrap_or_default();
                 text.push(c);
-                self.update_document(pic, Some(text), String::new());
+                self.update_document(pic, Some(text), String::new(), None);
                 true
             }
             // 放行的功能键：Server 没动缓冲区，交还应用（应用处理这个键时光标可能会移）。
@@ -326,11 +424,14 @@ impl TextService_Impl {
             ) => false,
             (
                 Next::Document {
-                    commit, preedit, ..
+                    commit,
+                    preedit,
+                    caret,
+                    ..
                 },
                 _,
             ) => {
-                self.update_document(pic, commit, preedit);
+                self.update_document(pic, commit, preedit, caret);
                 true
             }
             // 读选区是异步的：先吃掉这个键，选区文本在回调里发给 Server。
@@ -343,6 +444,31 @@ impl TextService_Impl {
     }
 }
 
+fn is_shift(vk: u32) -> bool {
+    [VK_SHIFT, VK_LSHIFT, VK_RSHIFT]
+        .iter()
+        .any(|code| vk == u32::from(code.0))
+}
+
+/// 这一记退格要不要为了「删空保护」吃下来交给 Server 判。
+///
+/// 只在**上一记刚把组句删空**（`emptied`）时才吃：那之后的自动重复删的是应用里已上屏的字，
+/// 得拦下来（issue #932）。
+///
+/// 其余时候一概不吃 —— 没在组句时的退格本来就是删应用的字，吃掉了会打断系统的自动重复，
+/// 长按只删得掉一个字。
+fn guard_backspace(event: &KeyEvent, emptied: bool) -> bool {
+    event.virtual_key == VK_BACK.0 as u32 && event.repeat && emptied
+}
+
+/// 这一记是不是按住不放的自动重复：`lParam` 的 bit 30 表示「消息发出前这个键已经按着了」。
+///
+/// `tap.rs` 判 Shift 双击时用的是同一个位。退格靠它区分「手一直按着」和「手一下一下点」，
+/// 见 issue #932。手动连按每一记都不带这个位，隔多近都照删。
+fn is_repeat(lparam: LPARAM) -> bool {
+    (lparam.0 >> 30) & 1 != 0
+}
+
 /// Server 回的数字结果能否在 Test 阶段直接放行（不吃、不 InsertText）。
 fn digit_passthrough_native(next: &Next) -> bool {
     matches!(
@@ -351,6 +477,7 @@ fn digit_passthrough_native(next: &Next) -> bool {
             consumed: false,
             commit,
             preedit,
+            caret: None,
         } if preedit.is_empty() && commit.as_ref().is_none_or(|text| text.is_empty())
     ) || matches!(next, Next::Abort)
 }
@@ -371,6 +498,12 @@ fn eats_without_server(event: &KeyEvent, grace_active: bool) -> bool {
         && !event.modifiers.has_command_key()
         && is_letter(event.virtual_key)
         && !(event.modifiers.caps || event.modifiers.english_mode)
+}
+
+/// Ctrl+A：面板停在翻译框时交给 Server 全选框里的字。
+fn is_select_all(event: &KeyEvent) -> bool {
+    let modifiers = event.modifiers;
+    event.virtual_key == 0x41 && modifiers.ctrl && !modifiers.alt && !modifiers.win
 }
 
 /// 这个键吃不吃（[`TextService_Impl::would_eat`] 的纯逻辑，便于单测）。
@@ -400,6 +533,9 @@ fn eats_key(
     }
     let vk = event.virtual_key;
     if is_letter(vk) {
+        if modifiers.vietnamese_mode {
+            return true;
+        }
         if !composing && (modifiers.caps || (modifiers.english_mode && !english_candidates)) {
             return false;
         }
@@ -413,6 +549,9 @@ fn eats_key(
     if composing {
         return is_edit(vk) || is_nav(vk) || event.character.is_some_and(|c| !c.is_control());
     }
+    if modifiers.vietnamese_mode {
+        return is_edit(vk) || event.character.is_some_and(|c| !c.is_control());
+    }
     event
         .character
         .is_some_and(|c| c.is_ascii_punctuation() || c.is_ascii_digit())
@@ -421,9 +560,11 @@ fn eats_key(
 #[cfg(test)]
 mod tests {
     use qingjian_platform::protocol::{KeyEvent, KeyModifiers};
+    use windows::Win32::UI::Input::KeyboardAndMouse::VK_BACK;
 
     use super::{
-        digit_passthrough_native, eats_key, eats_without_server, passthrough_digit_to_app,
+        digit_passthrough_native, eats_key, eats_without_server, guard_backspace,
+        passthrough_digit_to_app,
     };
     use crate::com::key::event::to_key_event;
     use crate::com::service::next::Next;
@@ -587,6 +728,7 @@ mod tests {
             consumed: false,
             commit: None,
             preedit: String::new(),
+            caret: None,
         }));
         assert!(digit_passthrough_native(&Next::Abort));
         // `-` `=` 等非数字仍由壳插入；有前缀 / 已 Consumed 时不能 Test 放行
@@ -596,11 +738,34 @@ mod tests {
             consumed: true,
             commit: None,
             preedit: String::new(),
+            caret: None,
         }));
         assert!(!digit_passthrough_native(&Next::Document {
             consumed: false,
             commit: Some("hi".into()),
             preedit: String::new(),
+            caret: None,
         }));
+    }
+
+    /// 退格的「删空保护」：只有刚删空之后的自动重复才吃。
+    ///
+    /// 没在组句时长按退格（打一串数字那种）不能被吃 —— 吃了就打断系统的自动重复，
+    /// 只删得掉一个字。
+    #[test]
+    fn repeat_backspace_is_guarded_only_right_after_emptying() {
+        let repeat = key(VK_BACK.0 as u32, CHINESE.0, CHINESE.1).with_repeat(true);
+        let manual = key(VK_BACK.0 as u32, CHINESE.0, CHINESE.1);
+
+        // 刚把组句删空：自动重复要拦下来
+        assert!(guard_backspace(&repeat, true));
+        // 没删空过：自动重复放行，让系统自己重复
+        assert!(!guard_backspace(&repeat, false));
+        // 手动按的一记永远不管是哪一档
+        assert!(!guard_backspace(&manual, true));
+        assert!(!guard_backspace(&manual, false));
+        // 别的键与退格无关
+        let other = key(0x41, CHINESE.0, CHINESE.1).with_repeat(true);
+        assert!(!guard_backspace(&other, true));
     }
 }

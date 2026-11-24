@@ -143,6 +143,7 @@ fn rendered(targets: &[HitTarget]) -> Rendered {
         scale: 1.0,
         next_frame: None,
         material: None,
+        preedit: None,
         hits: targets
             .iter()
             .map(|&target| HitRegion {
@@ -210,6 +211,7 @@ fn look_takes_the_general_section() {
                 annotation: None,
             },
             animations: false,
+            candidate_weight: None,
         }
     );
 }
@@ -327,6 +329,7 @@ fn candidate(text: &str, reading: Option<&str>, senses: &[(&str, bool)]) -> Cand
                         part_of_speech: Some(PartOfSpeech::Interjection),
                         text: text.to_owned(),
                         reading: None,
+                        pronunciation: None,
                         fresh,
                     })
                     .collect(),

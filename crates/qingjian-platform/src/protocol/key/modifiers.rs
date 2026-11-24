@@ -10,15 +10,19 @@ use crate::config::Modifiers;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 pub struct KeyModifiers {
     /// Ctrl
+    #[serde(default)]
     pub ctrl: bool,
 
     /// Shift
+    #[serde(default)]
     pub shift: bool,
 
     /// Alt
+    #[serde(default)]
     pub alt: bool,
 
     /// Win（⊞）
+    #[serde(default)]
     pub win: bool,
 
     /// Caps Lock 亮着（锁定状态，不是按着）。管字母大小写；亮着时无论中英文模式都直接出大写英文（微软拼音式）。
@@ -28,6 +32,10 @@ pub struct KeyModifiers {
     /// 持久的英文模式（Windows 单击 Shift 切换，DLL 记状态）。中文模式为 `false`。macOS 壳不用这个字段。
     #[serde(default)]
     pub english_mode: bool,
+
+    /// 双击 Shift 切出的越南语模式。
+    #[serde(default)]
+    pub vietnamese_mode: bool,
 }
 
 impl KeyModifiers {
@@ -36,6 +44,7 @@ impl KeyModifiers {
         Self {
             caps: false,
             english_mode: false,
+            vietnamese_mode: false,
             ..self
         }
     }
@@ -56,6 +65,7 @@ impl From<Modifiers> for KeyModifiers {
             win: modifiers.command,
             caps: false,
             english_mode: false,
+            vietnamese_mode: false,
         }
     }
 }

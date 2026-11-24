@@ -28,6 +28,7 @@ pub(super) fn rendered(
         scale,
         next_frame: None,
         material: None,
+        preedit: None,
         hits: hits
             .iter()
             .map(|&(target, (x, y, width, height))| HitRegion {

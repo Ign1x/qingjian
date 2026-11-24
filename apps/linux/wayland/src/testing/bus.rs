@@ -83,7 +83,6 @@ impl Bus {
 
     pub async fn connect(&self) -> Connection {
         zbus::connection::Builder::address(self.address.as_str())
-            .unwrap()
             .build()
             .await
             .unwrap()
@@ -92,11 +91,8 @@ impl Bus {
     /// 一条新连接：占上 `name`，在 `path` 挂上 `interface`。
     pub async fn serve<I: Interface>(&self, name: &str, path: &str, interface: I) -> Connection {
         zbus::connection::Builder::address(self.address.as_str())
-            .unwrap()
             .name(name)
-            .unwrap()
             .serve_at(path, interface)
-            .unwrap()
             .build()
             .await
             .unwrap()

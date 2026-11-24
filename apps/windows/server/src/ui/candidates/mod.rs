@@ -20,14 +20,14 @@ use windows::Win32::UI::WindowsAndMessaging::{
     CreateWindowExW, DefWindowProcW, DestroyWindow, HWND_TOPMOST, IDC_ARROW, KillTimer,
     LoadCursorW, MSG, SW_HIDE, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE, SWP_SHOWWINDOW, SetTimer,
     SetWindowPos, ShowWindow, WM_LBUTTONDOWN, WM_MOUSEACTIVATE, WM_MOUSEWHEEL, WM_NCHITTEST,
-    WM_RBUTTONDOWN, WM_RBUTTONUP, WM_TIMER, WNDCLASSEXW, WS_EX_LAYERED, WS_EX_NOACTIVATE,
-    WS_EX_TOOLWINDOW, WS_EX_TOPMOST, WS_POPUP,
+    WM_RBUTTONDOWN, WM_RBUTTONUP, WM_SETTINGCHANGE, WM_TIMER, WNDCLASSEXW, WS_EX_LAYERED,
+    WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW, WS_EX_TOPMOST, WS_POPUP,
 };
 use windows::core::{Error, PCWSTR, Result, w};
 
-use qingjian_platform::Appearance;
 use qingjian_platform::protocol::Frame;
-use qingjian_render::Mode;
+use qingjian_platform::{Appearance, LayoutMode};
+use qingjian_render::{Mode, Rendered};
 
 use crate::dispatch::{CandidateMenu, KeyHintView};
 
@@ -35,6 +35,7 @@ pub use self::click::CandidateClicks;
 use self::key_hint::KeyHintWindow;
 pub(crate) use self::render_data::RenderData;
 use self::theme::Theme;
+use super::layered::backdrop::Backdrop;
 use super::layered::{self, Layered};
 use super::monitor;
 use super::painter::SharedPainter;
@@ -82,11 +83,18 @@ pub(crate) struct CandidateWindow {
     /// 上次记进日志的缩放值（窗口 DPI、光标所在显示器 DPI）：变了才再记一条（#146）。
     logged_dpi: Cell<Option<(u32, Option<u32>)>>,
 
+    /// 上一次画的是不是倒着排：先照它画，位置没换边就只画一次。正着画完再倒着画一遍的话，
+    /// 高亮的过渡会把正着那帧当上一帧，每敲一键都从顶上滑到 1。
+    reversed: Cell<bool>,
+
     /// 青简渲染器；`None` 走 GDI。
     painter: SharedPainter,
 
     /// 最近一次贴图时窗口左上角的屏幕坐标；动画帧贴在同一处。
     position: Cell<(i32, i32)>,
+
+    /// 主题写了 `material` 时垫在底下的系统亚克力。
+    backdrop: Backdrop,
 
     /// 旁边的键位提示窗口；建不成为 `None`，不显示键位提示。
     key_hint_window: Option<KeyHintWindow>,
@@ -138,8 +146,10 @@ impl CandidateWindow {
             dpi: Cell::new(dpi),
             dark: Cell::new(dark),
             logged_dpi: Cell::new(None),
+            reversed: Cell::new(false),
             painter,
             position: Cell::new((0, 0)),
+            backdrop: Backdrop::new(hwnd),
             key_hint_window,
             key_hint: RefCell::new(None),
         })
@@ -164,17 +174,17 @@ impl CandidateWindow {
     pub(crate) fn show(&self, anchor: RECT) {
         menu::close();
         self.sync_theme(anchor);
-        let rendered = {
-            let data = self.data.borrow();
-            self.painter.borrow_mut().as_mut().and_then(|painter| {
-                painter.render_frame(
-                    &data.render_frame(),
-                    data.layout,
-                    self.dark.get(),
-                    self.dpi.get(),
-                )
-            })
-        };
+        // 倒着排不改大小，按画出来的大小定位就知道该不该倒；只有换了边才重画
+        let guess = self.reversed.get();
+        let rendered = self.render(guess).and_then(|rendered| {
+            let reversed = self.reverses_above(&rendered, anchor);
+            self.reversed.set(reversed);
+            if reversed == guess {
+                Some(rendered)
+            } else {
+                self.render(reversed).or(Some(rendered))
+            }
+        });
         let updated = match rendered {
             Some(rendered) => {
                 let content = (
@@ -195,6 +205,8 @@ impl CandidateWindow {
                 self.position.set(position);
                 self.schedule(rendered.next_frame);
                 click::set_hits(rendered.hits.clone(), (content_x, content_y));
+                // 先垫材质再贴图：反过来的话刚换到玻璃主题那一帧会闪一下没底色的字
+                self.backdrop.update(rendered.material, self.dark.get());
                 layered::present(self.hwnd, &rendered.pixmap, position).map(|()| {
                     Some(RECT {
                         left: content_x,
@@ -206,6 +218,7 @@ impl CandidateWindow {
             }
             None => {
                 click::set_hits(Vec::new(), (0, 0));
+                self.backdrop.update(None, self.dark.get());
                 self.show_gdi(anchor).map(|()| None)
             }
         };
@@ -230,6 +243,36 @@ impl CandidateWindow {
             }
             Err(_) => self.hide(),
         }
+    }
+
+    /// 用青简渲染器画一帧；`reversed` 是候选倒着排。没装渲染器或画失败为 `None`。
+    fn render(&self, reversed: bool) -> Option<Rendered> {
+        let data = self.data.borrow();
+        let mut frame = data.render_frame();
+        frame.reversed = reversed;
+        self.painter.borrow_mut().as_mut().and_then(|painter| {
+            painter.set_material_support(self.backdrop.supported());
+            painter.render_frame(&frame, data.layout, self.dark.get(), self.dpi.get())
+        })
+    }
+
+    /// 开着「竖排在光标上方时倒着排」、竖排、窗口要放到光标上方：1 挪到最下面，紧挨输入行。
+    fn reverses_above(&self, rendered: &Rendered, anchor: RECT) -> bool {
+        let enabled = self
+            .painter
+            .borrow()
+            .as_ref()
+            .is_some_and(|painter| painter.reverse_above);
+        if !enabled || self.data.borrow().layout != LayoutMode::Vertical {
+            return false;
+        }
+        let content = (
+            rendered.content_width as i32,
+            rendered.content_height as i32,
+        );
+        let overhang = rendered.visible_overhang();
+        let (_, y) = place(anchor, content, (overhang.0 as i32, overhang.1 as i32));
+        y < anchor.top
     }
 
     /// 候选窗画好之后在它旁边贴键位提示；没有键位提示、或走 GDI 画法（`content` 为 `None`）时收起。
@@ -416,7 +459,7 @@ pub(super) fn place(anchor: RECT, content: (i32, i32), overhang: (i32, i32)) -> 
     (x, y)
 }
 
-/// 分层窗口无需 `WM_PAINT`；鼠标交给 [`click`]，其余全交默认处理。
+/// 分层窗口无需 `WM_PAINT`；鼠标交给 [`click`]，设置变更顺带同步输入法图标，其余全交默认处理。
 unsafe extern "system" fn wndproc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
     match msg {
         WM_NCHITTEST => click::hit_test(lparam),
@@ -434,6 +477,11 @@ unsafe extern "system" fn wndproc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: 
         WM_RBUTTONUP => {
             click::right_button_up();
             LRESULT(0)
+        }
+        // 深浅色切换以 WM_SETTINGCHANGE 广播到顶层窗口，候选窗口常驻（隐藏也收得到），由它带着改写输入法图标
+        WM_SETTINGCHANGE => {
+            super::taskbar_icon::sync();
+            unsafe { DefWindowProcW(hwnd, msg, wparam, lparam) }
         }
         _ => unsafe { DefWindowProcW(hwnd, msg, wparam, lparam) },
     }

@@ -46,11 +46,13 @@ pub fn render_frame(frame: &Frame, mode: Mode) -> qingjian_render::Frame {
             if grid && (Some(i / frame.columns) != highlight_row || candidate.text.is_empty()) {
                 row.index = String::new();
             }
+            row.diff = frame.differs.get(i).cloned().unwrap_or_default();
             row
         })
         .collect();
     qingjian_render::Frame {
         preedit: window_preedit(frame),
+        reversed: false,
         rows,
         // 协议里 usize::MAX 表示不高亮（拼音解析不出来的原样输入）
         highlighted: (frame.highlight != usize::MAX).then_some(frame.highlight),

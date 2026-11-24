@@ -1,4 +1,4 @@
-//! 菜单栏里的「中 / 英」状态项。
+//! 菜单栏里的「中 / 英 / 越」状态项。
 //!
 //! 输入源图标（Info.plist 的 tsInputMethodIconFileKey）没法动态换，所以自己放一个 NSStatusItem。
 //! Caps Lock 的变化不会作为普通按键送到输入法，用一个定时器轮询系统状态刷新。
@@ -7,6 +7,7 @@
 //! （固定 autosave 名也保不住），而焦点每进出一次输入框 IMK 就 deactivate / activate 一轮。
 //! 停用时改成收成零宽、清空标题，并且延迟 [`COLLAPSE_DELAY`] 再收：焦点只是在输入框之间挪的话，半秒内就会再次激活，根本收不下去；
 //! 真换到别的输入法才收起来，切回来再展开，位置一直在。
+//! 设置里关掉 `[general] menubar_indicator` 时例外：直接 `removeStatusItem` 彻底移除，避免菜单栏留空占位；重新打开后在下次刷新或激活时重建。
 //!
 //! 状态项等第一次激活才建：启动时 NSApplication 还没建、进程没连上 WindowServer，macOS 13 上这时建状态项直接 NSCGSPanic。
 //! 也不能为此把 NSApplication 提前到 IMKServer 之前建：那样装好后，系统弹窗抢走焦点再还回来时会把输入源切回 ABC。
@@ -17,8 +18,9 @@ use objc2::{MainThreadMarker, MainThreadOnly, Message, define_class, msg_send, s
 use objc2_app_kit::{NSMenu, NSStatusBar, NSStatusItem, NSVariableStatusItemLength};
 use objc2_foundation::{NSObject, NSObjectProtocol, NSString, NSTimer, ns_string};
 
-/// 轮询 Caps Lock 状态的间隔。
-const POLL_INTERVAL: f64 = 0.25;
+/// 平时只需低频轮询 Caps Lock；有第一下 Shift 等待双击时临时加快。
+const IDLE_POLL_INTERVAL: f64 = 0.25;
+const SHIFT_POLL_INTERVAL: f64 = 0.05;
 
 /// 停用后隔多久才把状态项收起：焦点在输入框之间挪动时 deactivate 与下一次 activate 只隔几十毫秒。
 const COLLAPSE_DELAY: f64 = 0.5;
@@ -33,14 +35,23 @@ pub struct ModeIndicator {
     /// 轮询定时器；未激活时为 `None`。
     timer: Option<Retained<NSTimer>>,
 
+    /// 正在等待双击 Shift，轮询临时加快。
+    fast_poll: bool,
+
     /// 停用后延迟收起的一次性定时器；再次激活时取消。
     collapse_timer: Option<Retained<NSTimer>>,
 
-    /// 正展开着（输入法激活中）。收起时不刷新标题。
-    shown: bool,
+    /// 菜单栏状态项开着（`[general] menubar_indicator`，缺省开；只有 macOS 用）。
+    enabled: bool,
 
-    /// 上次显示的是否英文模式，避免每次轮询都重设标题。
-    english: Option<bool>,
+    /// 输入法激活中：决定 Caps Lock / 双击 Shift 轮询定时器开不开。
+    active: bool,
+
+    /// 状态项正展开着。
+    expanded: bool,
+
+    /// 上次显示的（英文、越南语）模式，避免每次轮询都重设标题。
+    mode: Option<(bool, bool)>,
 
     /// 云联想开着：标题带云朵，让用户一眼知道上下文会发出去。
     cloud: bool,
@@ -54,9 +65,12 @@ impl ModeIndicator {
             item: None,
             menu: None,
             timer: None,
+            fast_poll: false,
             collapse_timer: None,
-            shown: false,
-            english: None,
+            enabled: true,
+            active: false,
+            expanded: false,
+            mode: None,
             cloud: false,
             mtm,
         }
@@ -72,30 +86,44 @@ impl ModeIndicator {
         })
     }
 
+    /// 按配置显示或移除菜单栏状态项；轮询定时器不受影响。
+    /// 激活状态下重新打开时会清空 `mode`，由调用方紧接着 `update` / `refresh_mode_ui` 刷新标题。
+    pub fn set_enabled(&mut self, enabled: bool) {
+        if self.enabled == enabled {
+            return;
+        }
+        self.enabled = enabled;
+        if !enabled {
+            if let Some(timer) = self.collapse_timer.take() {
+                timer.invalidate();
+            }
+            self.expanded = false;
+            self.mode = None;
+            if let Some(item) = self.item.take() {
+                NSStatusBar::systemStatusBar().removeStatusItem(&item);
+            }
+        } else if self.active {
+            self.expanded = true;
+            self.mode = None;
+            self.item().setLength(NSVariableStatusItemLength);
+        }
+    }
+
     /// 输入法激活：展开状态项并开始轮询；停用时安排的收起取消。
-    pub fn activate(&mut self, english: bool) {
+    pub fn activate(&mut self, english: bool, vietnamese: bool) {
         if let Some(timer) = self.collapse_timer.take() {
             timer.invalidate();
         }
-        if !self.shown {
-            self.shown = true;
-            self.item().setLength(NSVariableStatusItemLength);
+        self.active = true;
+        if self.enabled {
+            if !self.expanded {
+                self.expanded = true;
+                self.item().setLength(NSVariableStatusItemLength);
+            }
+            self.mode = None;
+            self.update(english, vietnamese);
         }
-        self.english = None;
-        self.update(english);
-        if self.timer.is_none() {
-            let target = ModeMonitor::new(self.mtm);
-            let timer = unsafe {
-                NSTimer::scheduledTimerWithTimeInterval_target_selector_userInfo_repeats(
-                    POLL_INTERVAL,
-                    &target,
-                    sel!(tick:),
-                    None,
-                    true,
-                )
-            };
-            self.timer = Some(timer);
-        }
+        self.start_poll_timer();
     }
 
     /// 输入法停用：停止轮询，半秒后没再激活就收起。
@@ -103,7 +131,9 @@ impl ModeIndicator {
         if let Some(timer) = self.timer.take() {
             timer.invalidate();
         }
-        if self.collapse_timer.is_some() {
+        self.active = false;
+        self.fast_poll = false;
+        if !self.enabled || !self.expanded || self.collapse_timer.is_some() {
             return;
         }
         let target = ModeMonitor::new(self.mtm);
@@ -122,11 +152,11 @@ impl ModeIndicator {
     /// 收成零宽、清空标题；位置保留。
     pub fn collapse(&mut self) {
         self.collapse_timer = None;
-        if !self.shown {
+        if !self.expanded {
             return;
         }
-        self.shown = false;
-        self.english = None;
+        self.expanded = false;
+        self.mode = None;
         let Some(item) = &self.item else {
             return;
         };
@@ -146,21 +176,67 @@ impl ModeIndicator {
 
     pub fn set_cloud(&mut self, cloud: bool) {
         self.cloud = cloud;
-        self.english = None;
+        self.mode = None;
     }
 
-    /// 按当前中英模式刷新标题；收起时不动。
-    pub fn update(&mut self, english: bool) {
-        if !self.shown {
+    /// 只在等待第二下 Shift 时使用 50 ms；其余时间恢复 250 ms。
+    pub fn set_fast_poll(&mut self, fast: bool) {
+        if self.fast_poll == fast {
             return;
         }
-        if self.english == Some(english) {
+        self.fast_poll = fast;
+        if self.timer.is_some() {
+            self.restart_poll_timer();
+        }
+    }
+
+    fn start_poll_timer(&mut self) {
+        if self.timer.is_some() || !self.active {
             return;
         }
-        self.english = Some(english);
+        let interval = if self.fast_poll {
+            SHIFT_POLL_INTERVAL
+        } else {
+            IDLE_POLL_INTERVAL
+        };
+        let target = ModeMonitor::new(self.mtm);
+        let timer = unsafe {
+            NSTimer::scheduledTimerWithTimeInterval_target_selector_userInfo_repeats(
+                interval,
+                &target,
+                sel!(tick:),
+                None,
+                true,
+            )
+        };
+        self.timer = Some(timer);
+    }
+
+    fn restart_poll_timer(&mut self) {
+        if let Some(timer) = self.timer.take() {
+            timer.invalidate();
+        }
+        self.start_poll_timer();
+    }
+
+    /// 按当前中 / 英 / 越模式刷新标题；收起或禁用时不动。
+    pub fn update(&mut self, english: bool, vietnamese: bool) {
+        if !self.enabled || !self.expanded {
+            return;
+        }
+        if self.mode == Some((english, vietnamese)) {
+            return;
+        }
+        self.mode = Some((english, vietnamese));
         let mtm = self.mtm;
         if let Some(button) = self.item().button(mtm) {
-            let mode = if english { "英" } else { "中" };
+            let mode = if vietnamese {
+                "越"
+            } else if english {
+                "英"
+            } else {
+                "中"
+            };
             let title = if self.cloud {
                 format!("{mode} ☁︎")
             } else {
@@ -181,7 +257,15 @@ define_class!(
     impl ModeMonitor {
         #[unsafe(method(tick:))]
         fn tick(&self, _timer: Option<&AnyObject>) {
-            crate::host::with(|h| h.refresh_mode_ui());
+            let switched = crate::host::with(|h| {
+                let switched = h.resolve_pending_shift();
+                h.refresh_mode_ui();
+                switched
+            })
+            .unwrap_or(false);
+            if switched {
+                crate::imk::commit_pending_after_switch();
+            }
         }
 
         #[unsafe(method(collapse:))]

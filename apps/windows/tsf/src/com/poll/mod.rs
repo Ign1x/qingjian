@@ -8,6 +8,7 @@ mod context;
 
 use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
+use std::mem::ManuallyDrop;
 use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::rc::Rc;
 
@@ -41,7 +42,9 @@ const MODE_SYNC_EVERY: u32 = 4;
 
 thread_local! {
     /// 本线程活着的定时器：消息窗口 → 回调上下文。查不到（已析构）就忽略这一拍。
-    static TIMERS: RefCell<HashMap<isize, Rc<PollContext>>> = RefCell::new(HashMap::new());
+    /// 上下文里有 TSF 对象，应用退出时不析构，理由同 `service` 的 `ACTIVE`。
+    static TIMERS: ManuallyDrop<RefCell<HashMap<isize, Rc<PollContext>>>> =
+        ManuallyDrop::new(RefCell::new(HashMap::new()));
 }
 
 /// 承载轮询定时器的隐藏消息窗口；`Drop` 里停表、销毁窗口、注销上下文。
@@ -118,6 +121,7 @@ unsafe extern "system" fn wndproc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: 
 
 /// 组句中或翻译评审中拉云结果；否则前台时隔几拍问一次切模式（顺路取回按键行为设置）。引擎正被按键处理借用时跳过这一拍；连接坏了断开。
 fn poll_once(context: &PollContext) {
+    super::service::on_shift_tick();
     let tick = context.ticks.get().wrapping_add(1);
     context.ticks.set(tick);
     let translating = context.shared.translating();
@@ -143,6 +147,12 @@ fn poll_once(context: &PollContext) {
                 .shared
                 .candidate_list()
                 .show(&frame, context.shared.last_context().as_ref());
+            if frame.symbol_panel {
+                drop(guard);
+                context.shared.follow_frame(&frame);
+                follow_panel_preedit(context, &frame);
+                return;
+            }
             // 翻译评审时回空帧 = 翻译已在 Server 侧结束（云端没给译文）。
             if translating && frame.is_empty() {
                 drop(guard);
@@ -161,10 +171,39 @@ fn poll_once(context: &PollContext) {
     }
 }
 
+/// 符号面板翻译组的译文是轮询送来的：帧里的组句文字与文档里的不同就补写一次（没有按键来顺手写）。
+fn follow_panel_preedit(context: &PollContext, frame: &Frame) {
+    let preedit = if frame.preedit_mode.inline() {
+        preedit_string(frame)
+    } else {
+        String::new()
+    };
+    if preedit == context.shared.preedit() {
+        return;
+    }
+    let Some(document) = context.shared.last_context() else {
+        return;
+    };
+    if let Err(error) = request_update(
+        &document,
+        context.client_id,
+        context.engine.clone(),
+        context.shared.clone(),
+        None,
+        preedit,
+        None,
+    ) {
+        log(&format!("panel preedit update rejected: {error}"));
+    }
+}
+
 /// 鼠标点候选窗口上屏：与按键结果一样经异步编辑会话写进文档，剩下的拼音接着组句。
 fn commit_clicked(context: &PollContext, frame: &Frame, commit: String) {
     let Some(document) = context.shared.last_context() else {
-        log(&format!("点击上屏没有上下文，丢弃: {commit:?}"));
+        log(&format!(
+            "clicked commit has no context, dropped {} chars",
+            commit.chars().count()
+        ));
         return;
     };
     // 「只在候选窗口」模式应用里不放行内拼音，与按键路径一致
@@ -173,12 +212,16 @@ fn commit_clicked(context: &PollContext, frame: &Frame, commit: String) {
     } else {
         String::new()
     };
-    context.shared.set_composing(!frame.is_empty());
+    context.shared.follow_frame(frame);
     context
         .shared
         .candidate_list()
         .show(frame, context.shared.last_context().as_ref());
-    log(&format!("点击上屏: {commit:?} preedit={preedit:?}"));
+    log(&format!(
+        "clicked commit: {} chars, preedit_len={}",
+        commit.chars().count(),
+        preedit.chars().count()
+    ));
     if let Err(error) = request_update(
         &document,
         context.client_id,
@@ -186,8 +229,11 @@ fn commit_clicked(context: &PollContext, frame: &Frame, commit: String) {
         context.shared.clone(),
         Some(commit),
         preedit,
+        None,
     ) {
-        log(&format!("点击上屏的编辑会话没被受理: {error}"));
+        log(&format!(
+            "edit session for the clicked commit was rejected: {error}"
+        ));
     }
 }
 
@@ -236,6 +282,6 @@ fn sync_mode(context: &PollContext) {
     super::service::on_input_settings(reply.input);
     super::service::on_indicator_state(reply.indicator);
     if let Some(english) = reply.english {
-        super::service::on_mode_sync(english);
+        super::service::on_mode_sync(english, reply.vietnamese);
     }
 }

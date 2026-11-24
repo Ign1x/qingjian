@@ -2,13 +2,13 @@
 
 use std::collections::HashMap;
 
-use zbus::zvariant::{OwnedValue, Str};
+use zbus::{OwnedVariant, Str};
 
 use super::action::Action;
 use super::kind::Kind;
 
 /// dbusmenu 一项的属性（`a{sv}`）。
-pub type Properties = HashMap<String, OwnedValue>;
+pub type Properties = HashMap<String, OwnedVariant>;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Entry {
@@ -38,14 +38,14 @@ impl Entry {
         let mut properties = Properties::new();
         let mut toggle = |kind: &str, on: bool| {
             properties.insert("toggle-type".to_owned(), text(kind));
-            properties.insert("toggle-state".to_owned(), OwnedValue::from(i32::from(on)));
+            properties.insert("toggle-state".to_owned(), OwnedVariant::from(i32::from(on)));
         };
         match self.kind {
             Kind::Radio(on) => toggle("radio", on),
             Kind::Check(on) => toggle("checkmark", on),
             Kind::Plain => {}
             Kind::Note => {
-                properties.insert("enabled".to_owned(), OwnedValue::from(false));
+                properties.insert("enabled".to_owned(), OwnedVariant::from(false));
             }
             Kind::Separator => {
                 properties.insert("type".to_owned(), text("separator"));
@@ -66,6 +66,6 @@ pub fn filter(mut properties: Properties, names: &[String]) -> Properties {
     properties
 }
 
-pub fn text(value: &str) -> OwnedValue {
-    OwnedValue::from(Str::from(value.to_owned()))
+pub fn text(value: &str) -> OwnedVariant {
+    OwnedVariant::from(Str::from(value.to_owned()))
 }

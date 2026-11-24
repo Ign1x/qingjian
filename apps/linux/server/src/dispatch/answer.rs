@@ -4,6 +4,7 @@ use qingjian_platform::protocol::ServerMessage;
 use qingjian_platform::protocol::linux::MenuReply;
 
 /// 一个 Linux 事件的答复。
+#[allow(clippy::large_enum_variant)]
 pub(crate) enum Answer {
     /// 共用消息类型里的那几种。
     Message(ServerMessage),

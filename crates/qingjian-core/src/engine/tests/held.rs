@@ -35,14 +35,14 @@ fn backspace_undoes_selections_before_deleting_letters() {
     pick(&mut engine, "开");
     pick(&mut engine, "开");
     assert_eq!(engine.held_text(), "开开");
-    assert!(engine.backspace());
+    assert!(engine.backspace(false).consumed());
     assert_eq!(engine.held_text(), "开");
     assert_eq!(engine.composition().text(), "kaixian");
-    assert!(engine.backspace());
+    assert!(engine.backspace(false).consumed());
     assert_eq!(engine.held_text(), "");
     assert_eq!(engine.composition().text(), "kaikaixian");
     assert_eq!(engine.composition().cursor(), 10);
-    assert!(engine.backspace());
+    assert!(engine.backspace(false).consumed());
     assert_eq!(engine.composition().text(), "kaikaixia");
 }
 
@@ -52,7 +52,7 @@ fn undone_selection_retracts_its_learning_when_another_word_is_chosen() {
     engine.set_input("kaifangxian");
     pick(&mut engine, "开放");
     assert_eq!(engine.learner().weight("开放"), 1);
-    engine.backspace();
+    engine.backspace(false);
     pick(&mut engine, "开");
     assert_eq!(engine.learner().weight("开放"), 0);
     assert_eq!(engine.learner().weight("开"), 1);
@@ -80,11 +80,211 @@ fn raw_commit_and_clear_include_or_drop_held_words() {
 }
 
 #[test]
+fn clearing_partial_selection_retracts_its_learning() {
+    let mut engine = engine().with_learner(Box::new(CountingLearner(HashMap::new())));
+    engine.set_input("kaifaxian");
+    assert_eq!(pick(&mut engine, "开发"), "");
+    assert_eq!(engine.learner().weight("开发"), 1);
+
+    engine.clear();
+
+    assert_eq!(engine.learner().weight("开发"), 0);
+}
+
+#[test]
 fn holding_can_be_turned_off() {
     let mut engine = engine();
     engine.set_hold_selections(false);
     engine.set_input("kaifaxian");
     assert_eq!(pick(&mut engine, "开发"), "开发");
-    assert!(engine.backspace());
+    assert!(engine.backspace(false).consumed());
     assert_eq!(engine.composition().text(), "xia");
+}
+
+/// 按词跳：首选整句的第一个词留在组句里，候选换成剩下拼音的；退格撤回；单个词不跳。
+#[test]
+fn next_word_holds_the_first_word_of_the_sentence() {
+    let dictionary = concat!(
+        "交易\tjiao yi\t5000\n中心\tzhong xin\t5000\n忠心\tzhong xin\t3000\n",
+        "开发\tkai fa\t5000\n",
+    );
+    let mut engine = Engine::new(Dictionary::parse(dictionary).unwrap());
+    engine.set_input("jiaoyizhongxin");
+    let lead = engine.query().unwrap().candidates.items.remove(0);
+    assert_eq!(lead.text, "交易中心");
+    assert_eq!(engine.hold_next_word(&lead).as_deref(), Some(""));
+    assert_eq!(engine.held_text(), "交易");
+    assert_eq!(engine.composition().text(), "zhongxin");
+    let rest = engine.query().unwrap().candidates.items;
+    assert!(rest.iter().any(|c| c.text == "忠心"));
+    // 剩下的只有一个词，不再跳
+    assert_eq!(engine.hold_next_word(&rest[0]), None);
+    assert!(engine.backspace(false).consumed());
+    assert_eq!(engine.held_text(), "");
+    assert_eq!(engine.composition().text(), "jiaoyizhongxin");
+
+    // 首选不是本地重算出的那句（知意重排、学过的整句）：按词库从句首切
+    engine.set_input("jiaoyizhongxin");
+    let mut reranked = engine.query().unwrap().candidates.items.remove(0);
+    reranked.text = "交易忠心".to_owned();
+    assert_eq!(engine.hold_next_word(&reranked).as_deref(), Some(""));
+    assert_eq!(engine.held_text(), "交易");
+    engine.clear();
+
+    engine.set_input("kaifa");
+    let word = engine.query().unwrap().candidates.items.remove(0);
+    assert_eq!(engine.hold_next_word(&word), None);
+    assert_eq!(engine.composition().text(), "kaifa");
+}
+
+/// 双拼下按词跳：定住的词吃掉它那几个键，剩下的键照常解码。
+#[test]
+fn next_word_works_with_shuangpin() {
+    let mut engine = xiaohe();
+    // 小鹤：kai = kd、fa = fa、xian = xm
+    engine.set_input("kdfaxm");
+    let lead = engine.query().unwrap().candidates.items.remove(0);
+    assert_eq!(lead.kind, CandidateKind::Sentence, "{}", lead.text);
+    assert_eq!(engine.hold_next_word(&lead).as_deref(), Some(""));
+    assert_eq!(engine.held_text(), "开发");
+    assert_eq!(engine.composition().text(), "xm");
+}
+
+/// 前面有定住的词时，光标在末尾就等于拼音行的字数：定住的字只算一次。
+#[test]
+fn cursor_stays_at_the_end_after_a_held_word() {
+    let mut engine = engine();
+    engine.set_input("kaifaxiankaifa");
+    pick(&mut engine, "开发");
+    let query = engine.query().unwrap();
+    assert_eq!(query.marked_text(), "开发xian'kai'fa");
+    assert_eq!(query.segments_cursor(), "开发xian'kai'fa".chars().count());
+
+    // 双拼解码时也一样
+    let mut engine = xiaohe();
+    engine.set_input("kdfaxmkdfa");
+    pick(&mut engine, "开发");
+    let query = engine.query().unwrap();
+    let text = query.marked_text();
+    assert_eq!(query.segments_cursor(), text.chars().count(), "{text}");
+}
+
+/// 长按保护：组句被删空之后，接着来的自动重复要停在输入法里，别删到应用里的字。
+#[test]
+fn holding_stops_at_the_buffer() {
+    use crate::engine::Backspace;
+
+    let mut engine = engine();
+    engine.set_input("ni");
+    assert_eq!(engine.backspace(false), Backspace::Deleted);
+    assert_eq!(engine.backspace(false), Backspace::Deleted);
+    // 组句已经空了，接下来是按住不放的自动重复：一直吞
+    assert_eq!(engine.backspace(true), Backspace::Held);
+    assert_eq!(engine.backspace(true), Backspace::Held);
+    assert_eq!(engine.backspace(true), Backspace::Held);
+    assert!(engine.composition().is_empty());
+    // 松手再按（不是重复了）：交还给应用
+    assert_eq!(engine.backspace(false), Backspace::Released);
+}
+
+/// 手动连按不套用长按保护：手一下一下点，隔多近都照删。
+/// 只看按键事件自带的重复标志，手动按的一律放行。
+#[test]
+fn rapid_manual_presses_are_not_swallowed() {
+    use crate::engine::Backspace;
+
+    let mut engine = engine();
+    engine.set_input("ni");
+    assert_eq!(engine.backspace(false), Backspace::Deleted);
+    assert_eq!(engine.backspace(false), Backspace::Deleted);
+    // 组句空了，但这是手动的两下（不是自动重复）：都该交给应用
+    assert_eq!(engine.backspace(false), Backspace::Released);
+    assert_eq!(engine.backspace(false), Backspace::Released);
+}
+
+/// 自动重复中途松手再按：保护不延续到新手势。
+#[test]
+fn a_fresh_press_ends_the_hold() {
+    use crate::engine::Backspace;
+
+    let mut engine = engine();
+    engine.set_input("ni");
+    engine.backspace(false);
+    engine.backspace(false);
+    assert_eq!(engine.backspace(true), Backspace::Held);
+    // 新的一下（false）结束这次长按，交还给应用
+    assert_eq!(engine.backspace(false), Backspace::Released);
+    // 交还之后再来的自动重复不该又被吞掉 —— 组句早已为空，重复就是删应用里的字，
+    // 那是用户按住时的正常行为，交还是之后的事
+    assert_eq!(engine.backspace(true), Backspace::Released);
+}
+
+/// 删空之后又上屏了别的字：「刚删空」的状态要作废，长按退格不能只删一个字。
+///
+/// 没在组句时，Windows 与安卓的第一下退格不经过 Core
+/// （DLL 直接放给应用、安卓直接 `deleteBackward`），这个状态更清不掉 ——
+/// 只能在 Core 自己这边、组句重新有内容或结束时清。
+#[test]
+fn emptied_state_does_not_survive_a_commit() {
+    use crate::engine::Backspace;
+
+    let mut engine = engine();
+    // 打 ni 再手动按两下退格删空
+    engine.set_input("ni");
+    assert!(engine.backspace(false).consumed());
+    assert!(engine.backspace(false).consumed());
+    assert!(engine.composition().is_empty());
+
+    // 打别的字上屏。样本词库里有 开（kai）
+    engine.set_input("kai");
+    let candidate = engine
+        .query()
+        .unwrap()
+        .candidates
+        .items
+        .into_iter()
+        .find(|c| !c.text.is_empty())
+        .expect("该有候选");
+    engine.commit(&candidate);
+    assert!(engine.composition().is_empty());
+
+    // 现在按住退格删应用里的字：第一下与之后的自动重复都该交给应用，
+    // 不能因为「刚才删空过」就吞掉
+    assert_eq!(engine.backspace(true), Backspace::Released);
+    assert_eq!(engine.backspace(true), Backspace::Released);
+    assert_eq!(engine.backspace(true), Backspace::Released);
+}
+
+/// 同样的场景，但中间是「打字」而不是「上屏」：新一段组句一开始状态也作废。
+#[test]
+fn emptied_state_does_not_survive_new_typing() {
+    use crate::engine::Backspace;
+
+    let mut engine = engine();
+    engine.set_input("ni");
+    assert!(engine.backspace(false).consumed());
+    assert!(engine.backspace(false).consumed());
+    assert!(engine.composition().is_empty());
+
+    // 新一段组句：打一个字母就够
+    engine.push('h');
+    assert!(!engine.composition().is_empty());
+    // 再删回去
+    assert!(engine.backspace(false).consumed());
+    // 组句空了，但这一记是这次的；后面的自动重复仍然该吞（同一轮长按）
+    assert_eq!(engine.backspace(true), Backspace::Held);
+}
+
+/// 同一轮长按里，删空之后紧接着的重复要继续吞 —— 这才是保护本身。
+#[test]
+fn emptied_state_holds_within_the_same_press() {
+    use crate::engine::Backspace;
+
+    let mut engine = engine();
+    engine.set_input("ni");
+    assert!(engine.backspace(false).consumed());
+    assert!(engine.backspace(false).consumed());
+    // 中间什么都没有：状态保留
+    assert_eq!(engine.backspace(true), Backspace::Held);
+    assert_eq!(engine.backspace(true), Backspace::Held);
 }

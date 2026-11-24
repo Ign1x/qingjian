@@ -1,7 +1,7 @@
 [package]
 name = "qingjian-linux-wayland"
 description = "Linux Wayland 原生前端：自己当 input-method-v2 客户端，候选窗用青简渲染器自绘，引擎在 Server 进程"
-version = "0.1.0-dev"
+version = "0.1.1-dev"
 edition.workspace = true
 license.workspace = true
 repository.workspace = true

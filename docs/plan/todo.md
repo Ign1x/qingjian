@@ -179,10 +179,17 @@
   - [ ] 按应用记住中英模式：macOS
   - [ ] 横排时翻页键展开成多行：Linux Wayland 原生版
   - [ ] 上屏键自定义：macOS
+  - [ ] 回车优先上屏译词：Windows、Linux fcitx 版、Linux Wayland 原生版
   - [ ] Emacs 风格候选键：Windows、Linux fcitx 版、Linux Wayland 原生版
   - [ ] Ctrl + Shift + F 切换简繁输出：macOS
+  - [ ] 青简剪贴板：Linux fcitx 版、Linux Wayland 原生版
   - [ ] 小键盘数字：macOS
   - [ ] 双拼候选窗显示按键：Linux fcitx 版、Linux Wayland 原生版
+  - [ ] 组句时切换单字模式：macOS、Linux fcitx 版、Linux Wayland 原生版
+  - [ ] 组句时按词跳：macOS、Linux fcitx 版、Linux Wayland 原生版
+  - [ ] 候选字粗细：macOS
+  - [ ] 成对符号自动补全：macOS、Linux fcitx 版、Linux Wayland 原生版
+  - [ ] 竖排在光标上方时倒着排：macOS、Linux Wayland 原生版
 
 ## 四、其他输入方案
 

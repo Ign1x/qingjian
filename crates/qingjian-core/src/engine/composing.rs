@@ -1,5 +1,6 @@
 //! 缓冲区与模式：按键进出、光标移动、表达式 / 英文直输 / 问字等模式判断、标点与上屏链。
 
+use super::backspace::Backspace;
 use super::commit::LastCommit;
 use super::input_log::{INPUT_LOG_VERSION, InputLogEntry, InputLogger, InputSource};
 use super::learning::Learner;
@@ -17,11 +18,7 @@ impl Engine {
     pub fn punctuate(&mut self, c: char) -> Option<&'static str> {
         // 组句外敲的标点：辅码态到此结束（壳已经把高亮候选上屏了）
         self.aux_code = None;
-        let converted = if self.full_width_punctuation {
-            self.punctuation.convert(c)
-        } else {
-            None
-        };
+        let converted = self.full_width_punctuation_of(c);
         if let Some(text) = converted {
             self.note_text(text);
             self.remember_commit(LastCommit::plain(text));
@@ -32,6 +29,15 @@ impl Engine {
         }
         self.chain.reset();
         converted
+    }
+
+    /// 中文标点开着、`c` 又没被指定保持半角时转成的全角标点。
+    pub(super) fn full_width_punctuation_of(&mut self, c: char) -> Option<&'static str> {
+        if self.full_width_punctuation && !self.half_width_symbols.contains(&c) {
+            self.punctuation.convert(c)
+        } else {
+            None
+        }
     }
 
     /// 壳把字符原样透传给应用后告知，用于「数字后的点保持半角」，也记入输入历史与输入日志（攒成一条 `passthrough`）。
@@ -60,6 +66,7 @@ impl Engine {
     /// 上次断开之后有过上屏才往输入日志记一条 `break`，连着失焦几次只记一次。
     pub fn break_chain(&mut self) {
         self.chain.reset();
+        self.punctuation.pairs().clear();
         self.recent_commits.clear();
         self.flush_passthrough();
         self.finish_examples();
@@ -133,6 +140,7 @@ impl Engine {
 
     /// 组句里要删东西了：第一次删之前把缓冲区留个快照，上屏时对比最终键串，不同就是一次重打（`retype`）。
     fn note_edit(&mut self) {
+        self.chain.clear_code_words();
         self.typing.edit(Instant::now());
         if self.retype_snapshot.is_none() && !self.composition.is_empty() {
             self.retype_snapshot = Some(self.composition.text().to_owned());
@@ -143,6 +151,7 @@ impl Engine {
     /// 接着重打那段拼音选了别的词，那次记的学习就退回去（见 `apply_retraction`）。
     /// 删得比记着的几次上屏加起来还多说明在改别处，全忘掉。
     pub fn note_backspace(&mut self) {
+        self.chain.clear_code_words();
         let Some(commit) = self
             .recent_commits
             .iter_mut()
@@ -175,7 +184,15 @@ impl Engine {
         &self.composition
     }
 
+    /// 单字模式开关（#848）：组句中候选只留单字，再切一次恢复；只管这一段组句，上屏完或清空就回到正常候选。
+    /// 没在组句时不起作用，返回 `false`，壳把按键交还应用。切完要重新 [`Self::query`]。
+    pub fn toggle_single_chars(&mut self) -> bool {
+        self.composition.toggle_single_chars()
+    }
+
     pub fn push(&mut self, c: char) {
+        // 打了新键：退回成数字的音节不再偏向用户之前选的写法
+        self.nine_key_unpinned = None;
         if self.composition.is_empty() {
             // 新一段组句：从这一键起算耗时、翻页与重打
             self.composition_started = Some(Instant::now());
@@ -183,6 +200,11 @@ impl Engine {
             self.page_turns = 0;
             self.retype_snapshot = None;
             self.typing.restart();
+            // 新一段组句：「上一记退格把组句删空」属于上一段，到此作废（issue #932）。
+            // 不清的话，删空 → 打字 → 按住退格的自动重复会被当成「删空后的重复」全吞掉。
+            self.backspace_emptied = false;
+            // 翻译框里选着字时开始打拼音：同记事本一样先删掉选中的字，拼音画在原处
+            self.remove_panel_selection();
         }
         self.typing.key(Instant::now());
         // 进缓冲区的字符也更新「上一个字符是不是数字」：直通了 `3` 再接着打拼音，
@@ -206,7 +228,33 @@ impl Engine {
     /// 开（缺省）停在辅码态（`;` 仍在、无码词也回来），关则回拼音态。码段本来就空（刚触发，或删空停住）
     /// 时按退格 = 退出辅码态、拼音一个字符都不动。每次退格候选都当场重筛。
     /// 前面有选好还没上屏的词时，退格先撤回最后一次选择（那段拼音接回来），都撤完了才删字母。
-    pub fn backspace(&mut self) -> bool {
+    ///
+    /// `repeat` 是这一记按键**是不是按住不放的自动重复**：各平台的按键事件本身都能分出来
+    /// （Windows 是 `lParam` 的 bit 30、macOS 是 `NSEvent.isARepeat`、安卓是 `KeyEvent.repeatCount`），
+    /// 拿它判断就不会误伤手动连按 —— 手一下一下点，隔多近都照删。
+    ///
+    /// 返回三态而不是 `bool`：把组句删空的那一下之后，自动重复由 [`Backspace::Held`] 拦在输入法里，
+    /// 别让它接着删掉应用里已经上屏的字（见 issue #932）。
+    pub fn backspace(&mut self, repeat: bool) -> Backspace {
+        // 上一记刚把组句删空，这一记又是自动重复：继续吞，手不松就一直吞
+        if repeat && self.backspace_emptied {
+            return Backspace::Held;
+        }
+        // 手动按的一记（或者重复已经断了）：保护到此为止，重新开始算
+        self.backspace_emptied = false;
+        let removed = self.backspace_inner();
+        if removed && self.composition.is_empty() {
+            self.backspace_emptied = true;
+        }
+        if removed {
+            Backspace::Deleted
+        } else {
+            Backspace::Released
+        }
+    }
+
+    /// 退格真正删东西的那部分，与长按保护无关。
+    fn backspace_inner(&mut self) -> bool {
         if let Some(code) = self.aux_code.take() {
             if code.len() > 1 {
                 self.aux_code = Some(code[..code.len() - 1].to_owned());
@@ -219,13 +267,28 @@ impl Engine {
             return true;
         }
         self.note_edit();
-        self.composition.backspace()
+        // 九宫格：末尾是拼音列选定的音节就整个退回成数字，先撤选择、再删键
+        if self.unpin_nine_key() {
+            return true;
+        }
+        let before = self.nine_key.then(|| self.composition.text().to_owned());
+        let removed = self.composition.backspace();
+        if removed {
+            if let Some(before) = before {
+                self.follow_nine_key_deletion(&before);
+            }
+            self.drop_pin_separator();
+            // 组句里删了字母：这段拼音被编辑过，整段合成词到此为止（issue #1024）
+            self.chain.note_edit();
+        }
+        removed
     }
 
     pub fn clear(&mut self) {
+        self.retract_held_learning();
         self.composition.clear();
         self.held.clear();
-        self.panel = None;
+        self.take_panel();
         self.aux_code = None;
         self.chain.leave_buffer();
         // 壳给的光标前文只对这段组句有效，下一段第一键再读
@@ -235,11 +298,23 @@ impl Engine {
         self.typing.restart();
         self.page_turns = 0;
         self.traditional.forget();
+        // 组句结束了：「刚删空」属于刚才那段，下一记退格删的是应用里的字（issue #932）
+        self.backspace_emptied = false;
+    }
+
+    /// 这段拼音有没有在组句里被改过（退格删字母、删音节、删到光标后）。
+    /// 测试与诊断用；`finish_buffer` 按它决定整段还合不合成。
+    pub fn chain_edited(&self) -> bool {
+        self.chain.edited()
     }
 
     pub fn delete_forward(&mut self) -> bool {
         self.note_edit();
-        self.composition.delete_forward()
+        let removed = self.composition.delete_forward();
+        if removed {
+            self.chain.note_edit();
+        }
+        removed
     }
 
     /// 删掉光标前的一个音节（壳里 ⌥⌫）：全拼按最优切分的最后一个音节连同它后面的 `'`，切不动的尾巴整个删；
@@ -252,7 +327,11 @@ impl Engine {
         let plain =
             self.raw_mode() || self.expression_mode() || self.question_mode() || self.zhuyin;
         let len = unit_len_before(before, self.shuangpin.is_some(), plain);
-        self.composition.delete_before_cursor(len)
+        let removed = self.composition.delete_before_cursor(len);
+        if removed {
+            self.chain.note_edit();
+        }
+        removed
     }
 
     /// 光标向左跳过一个音节，遇 `'` 连它一起跳过。光标在开头时返回 `false`。
@@ -306,16 +385,29 @@ impl Engine {
                 .is_expression(self.composition.text(), self.zhuyin)
     }
 
-    /// 表达式模式下这个字符进算式（数字与运算符），壳据此决定交给 [`Self::push`] 还是当选词键。
-    /// `vuuid`、`vts` 不是算式：数字留给选词。
-    pub fn expression_input(&self, c: char) -> bool {
-        self.expression_mode()
-            && shortcut::is_expression_char(c)
-            && !shortcut::is_generated_keyword(
-                &self.composition.text()[self.modes().expression.len_utf8()..],
-            )
+    /// `vbit:` 这类子模式只在全拼下认。
+    ///
+    /// 双拼的 `;` 是 ing 键、注音里字母是另一个键位、形码里字母都是字根 —— 那些方案把带
+    /// 冒号的串当子模式解析，会把正常输入吃掉。
+    pub(in crate::engine) fn expression_sub_modes(&self) -> bool {
+        self.shuangpin.is_none() && !self.zhuyin && self.code.is_none()
     }
-
+    /// 表达式模式下这个字符进算式（数字与运算符），壳据此决定交给 [`Self::push`] 还是当选词键。
+    /// `vuuid`、`vts` 不是算式：数字留给选词；但分号要收，`vts;2026-11-05` 得能接着敲参数。
+    pub fn expression_input(&self, c: char) -> bool {
+        if !self.expression_mode() {
+            return false;
+        }
+        // 子模式（`vbit:`、`vts;`）的按键规则全在 `shortcut::modes` 里统一登记，
+        // 这里只问「这个名字收不收这个键」：`None` 表示不是子模式，往下走算式判断。
+        if self.expression_sub_modes() {
+            let body = &self.composition.text()[self.modes().expression.len_utf8()..];
+            if let Some(accepts) = crate::shortcut::modes::accepts_key(body, c) {
+                return accepts;
+            }
+        }
+        shortcut::is_expression_char(c)
+    }
     /// 英文直输段：缓冲区里有拼音以外的字符（`no-way`），整段原样上屏、不解析拼音。
     /// 表达式模式与问字模式优先于它。
     pub fn raw_mode(&self) -> bool {
@@ -423,7 +515,7 @@ impl Engine {
 }
 
 /// 光标后的第一个「单位」占几个字节：先跳过紧跟的 `'`，再算一个音节；规则同 [`unit_len_before`]。
-fn unit_len_after(after: &str, shuangpin: bool, plain: bool) -> usize {
+pub(super) fn unit_len_after(after: &str, shuangpin: bool, plain: bool) -> usize {
     let trimmed = after.trim_start_matches('\'');
     let separators = after.len() - trimmed.len();
     let Some(first) = trimmed.chars().next() else {

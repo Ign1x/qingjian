@@ -1,6 +1,6 @@
 //! portal 里青简关心的几项设置，以及从 D-Bus 给的值里认出它们。
 
-use zbus::zvariant::Value;
+use zbus::Variant;
 
 const APPEARANCE: &str = "org.freedesktop.appearance";
 
@@ -30,21 +30,21 @@ impl Setting {
 
     /// 从 `ReadOne` / `Read` 的回复或 `SettingChanged` 认出一项；别的键、类型不对的值为 `None`。
     /// `Read` 的值多包了一层 variant，这里剥掉。
-    pub fn parse(namespace: &str, key: &str, value: &Value<'_>) -> Option<Self> {
+    pub fn parse(namespace: &str, key: &str, value: &Variant<'_>) -> Option<Self> {
         match ((namespace, key), innermost(value)) {
-            (Self::COLOR_SCHEME, Value::U32(scheme)) => {
+            (Self::COLOR_SCHEME, Variant::U32(scheme)) => {
                 Some(Self::ColorScheme { dark: *scheme == 1 })
             }
-            (Self::REDUCED_MOTION, Value::U32(motion)) => Some(Self::ReducedMotion(*motion == 1)),
-            (Self::ENABLE_ANIMATIONS, Value::Bool(enabled)) => Some(Self::Animations(*enabled)),
+            (Self::REDUCED_MOTION, Variant::U32(motion)) => Some(Self::ReducedMotion(*motion == 1)),
+            (Self::ENABLE_ANIMATIONS, Variant::Bool(enabled)) => Some(Self::Animations(*enabled)),
             _ => None,
         }
     }
 }
 
-fn innermost<'v, 'a>(value: &'v Value<'a>) -> &'v Value<'a> {
+fn innermost<'v, 'a>(value: &'v Variant<'a>) -> &'v Variant<'a> {
     match value {
-        Value::Value(inner) => innermost(inner),
+        Variant::Variant(inner) => innermost(inner),
         other => other,
     }
 }

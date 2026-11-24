@@ -14,7 +14,7 @@ use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant, SystemTime};
 
 use qingjian_core::{Language, NoTranslator};
-use qingjian_platform::Config;
+use qingjian_platform::{Config, UserDirs};
 use qingjian_predict::API_USAGE_FILE;
 
 pub(crate) use self::state::ConfigReload;
@@ -37,15 +37,20 @@ impl Router {
         config: &Config,
         config_path: PathBuf,
         root: PathBuf,
-        user_dir: PathBuf,
+        user: impl Into<UserDirs>,
     ) {
+        let user = user.into();
+        self.apply_schemes(config, &root, &user.custom());
         let mut reload = ConfigReload {
+            applied_config: config.clone(),
+            scheme_files: Vec::new(),
             last_mtime: mtime(&config_path),
             config_path,
             last_check: Instant::now(),
             root,
-            user_dir,
+            user,
             dictionary_files: Vec::new(),
+            glossary_files: Vec::new(),
             applied_dictionaries: config.dictionaries.clone(),
             applied_model: config.model.clone(),
             applied_predict: config.predict.clone(),
@@ -57,6 +62,8 @@ impl Router {
         reload.dictionary_files = reload.dict_snapshot();
         reload.code_files = reload.code_snapshot();
         reload.code_word_files = reload.code_word_snapshot();
+        reload.glossary_files = reload.glossary_snapshot();
+        reload.scheme_files = reload.scheme_snapshot();
         self.reload = Some(reload);
     }
 
@@ -82,6 +89,15 @@ impl Router {
                 .set_extra_dictionaries(reload.load_dictionaries());
             reload.dictionary_files = files;
         }
+        // 设置页下载装上（或更新了）释义表：英→中表与配置里的学习语言都按新文件重装
+        let glossaries = reload.glossary_snapshot();
+        if glossaries != reload.glossary_files {
+            reload.glossary_files = glossaries;
+            self.reload_glossaries();
+        }
+        let Some(reload) = &mut self.reload else {
+            return;
+        };
         // 用户 `codes/` 或 `schemes/` 下的文件增删或更新（设置页刚导入 / 移除一张码表、改了辅码方案）：不必等配置改动
         let codes_changed = reload.code_snapshot() != reload.code_files;
         if codes_changed {
@@ -94,22 +110,36 @@ impl Router {
         let words_changed = words != reload.code_word_files;
         reload.code_word_files = words;
         let current = mtime(&reload.config_path);
-        if current == reload.last_mtime {
-            // schemes/ 同时存双拼、形码与辅码方案，不能只重装辅码。
-            if (codes_changed || words_changed)
-                && let Ok(config) = Config::load(&reload.config_path)
-            {
-                self.reload_schemes(&config);
-            }
+        let changed = current != reload.last_mtime;
+        reload.last_mtime = current;
+        let old_scheme_files = reload.scheme_files.clone();
+        let files = reload.scheme_snapshot();
+        let schemes_changed = files != reload.scheme_files;
+        reload.scheme_files = files;
+        let reset_for_bundled_scheme =
+            schemes_changed && reload.selected_bundled_scheme_changed(&old_scheme_files);
+        if !changed && !schemes_changed && !codes_changed && !words_changed {
             return;
         }
-        reload.last_mtime = current;
-        match Config::load(&reload.config_path) {
-            Ok(config) => {
-                self.apply_config(&config);
-                tracing::info!("配置已热加载");
+        let path = reload.config_path.clone();
+        let applied = reload.applied_config.clone();
+        let root = reload.root.clone();
+        let user_dir = reload.user.custom();
+        if changed {
+            match Config::load(&path) {
+                Ok(config) => {
+                    self.apply_config(&config);
+                    tracing::info!("configuration reloaded");
+                    return;
+                }
+                Err(error) => {
+                    tracing::error!(%error, "failed to reload configuration, keeping previous configuration")
+                }
             }
-            Err(error) => tracing::error!(%error, "配置热加载解析失败，保持原配置"),
+        }
+        self.apply_schemes(&applied, &root, &user_dir);
+        if words_changed || reset_for_bundled_scheme {
+            self.reset_all_inputs();
         }
     }
 
@@ -117,9 +147,7 @@ impl Router {
     fn apply_config(&mut self, config: &Config) {
         let aux_view_changed = self.config.aux_code_show != config.general.aux_code_show
             || self.engine.aux_code_key() != config.general.aux_code_key();
-        self.engine.set_fuzzy(config.fuzzy);
-        // 拼音侧与形码侧一起装配（双拼 / 用户双拼 / 注音 / 形码与混输都在里面）
-        self.reload_schemes(config);
+        self.engine.set_fuzzy(config.fuzzy.clone());
         self.engine
             .set_shuangpin_raw_preedit(config.general.shuangpin_raw_preedit);
         self.engine
@@ -132,6 +160,8 @@ impl Router {
         self.engine
             .set_shift_letter_compose(config.general.shift_letter.compose());
         self.engine.set_learning(config.general.learning);
+        self.engine
+            .set_auto_phrase(config.auto_phrase.enabled, config.auto_phrase.max_chars);
         self.engine.set_chinese_first(config.general.chinese_first);
         self.engine
             .set_spelling_correction(config.general.spelling_correction);
@@ -148,6 +178,8 @@ impl Router {
         self.engine
             .set_symbol_limit(usize::from(config.general.symbols.get()));
         self.engine.set_traditional(config.general.traditional());
+        self.engine
+            .set_half_width_symbols(&config.general.half_width_symbols);
         self.engine.set_mode_keys(config.shortcut.mode);
         self.engine.set_auto_space(config.general.auto_space);
         self.engine
@@ -160,7 +192,7 @@ impl Router {
             .engine
             .set_custom_phrases(config.custom_phrases.clone())
         {
-            tracing::warn!(%error, "自定义短语有误，保持原来的");
+            tracing::warn!(%error, "invalid custom phrases, keeping previous phrases");
         }
         let next = RouterConfig::from(config);
         self.reload_mode(&next);
@@ -171,8 +203,10 @@ impl Router {
         let Some(mut reload) = self.reload.take() else {
             return;
         };
+        let schemes_changed = self.apply_schemes(config, &reload.root, &reload.user.custom());
+        reload.applied_config = config.clone();
         if config.predict != reload.applied_predict {
-            let usage_path = Some(reload.user_dir.join(API_USAGE_FILE));
+            let usage_path = Some(reload.user.records().join(API_USAGE_FILE));
             self.reload_cloud(&config.predict, usage_path);
             reload.applied_predict = config.predict.clone();
         }
@@ -191,15 +225,47 @@ impl Router {
             reload.applied_dictionaries = config.dictionaries.clone();
             self.engine
                 .set_extra_dictionaries(reload.load_dictionaries());
+            self.engine
+                .set_blocked_words(config.dictionaries.blocked.clone());
+            self.engine.set_base_words(config.dictionaries.base);
         }
         let aux_changed = config.aux_code != reload.applied_aux_code;
         reload.applied_aux_code = config.aux_code.clone();
         self.reload = Some(reload);
+        if schemes_changed {
+            self.reset_all_inputs();
+        }
         if aux_changed {
             self.reload_aux_codes();
         } else if aux_view_changed {
             self.refresh_input(false);
         }
+    }
+
+    /// 下载的释义表变了：英→中表重装；学习语言按当前配置重新换一次表（之前缺表没换成的这次能换上）。
+    fn reload_glossaries(&mut self) {
+        let Some(mut reload) = self.reload.take() else {
+            return;
+        };
+        // 下载的删了、又没随包的：英文候选右侧留空
+        let english = assembly::glossary_file(
+            &reload.root,
+            Some(&reload.user.downloads()),
+            Language::Chinese,
+        )
+        .and_then(|path| assembly::load_english_glossary(&path));
+        match english {
+            Some(glossary) => self.engine.set_english_translator(Box::new(glossary)),
+            None => self.engine.set_english_translator(Box::new(NoTranslator)),
+        }
+        let language = match Config::load(&reload.config_path) {
+            Ok(config) => assembly::learning_language(&config),
+            Err(_) => reload.applied_language,
+        };
+        if self.swap_translator(language, &reload) {
+            reload.applied_language = language;
+        }
+        self.reload = Some(reload);
     }
 
     /// 按已应用的 `[aux_code]` 重装辅码码表：`[aux_code]` 变了或用户 `codes/` / `schemes/` 下的文件变了都走这里。
@@ -210,7 +276,7 @@ impl Router {
         };
         let tables = reload.aux_sources().load(&reload.applied_aux_code);
         reload.code_files = reload.code_snapshot();
-        tracing::info!(count = tables.len(), "辅码码表已重装");
+        tracing::info!(count = tables.len(), "auxiliary code tables reloaded");
         self.engine.set_aux_codes(tables);
         self.refresh_input(true);
     }
@@ -222,14 +288,16 @@ impl Router {
             tracing::info!("学习语言已关，不显示译文");
             return true;
         };
-        let Some(path) = assembly::glossary_file(&reload.root, language) else {
+        let Some(path) =
+            assembly::glossary_file(&reload.root, Some(&reload.user.downloads()), language)
+        else {
             tracing::warn!(
                 language = language.code(),
                 "没有这门语言的释义表，学习语言不变"
             );
             return false;
         };
-        match assembly::load_glossary(language, &path, Some(&reload.user_dir)) {
+        match assembly::load_glossary(language, &path, Some(&reload.user.learning())) {
             Ok(glossary) => {
                 tracing::info!(language = language.code(), "释义表已切换");
                 self.engine.set_translator(Box::new(glossary));

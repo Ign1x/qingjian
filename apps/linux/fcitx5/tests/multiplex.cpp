@@ -53,7 +53,8 @@ int main() {
     };
     a.committed.clear(); tapShift(); type(a, "ni"); assert(engine.process(&a, fcitx::Key(FcitxKey_space)));
     assert(a.committed != "你");
-    type(b, "ni"); assert(engine.process(&b, fcitx::Key(FcitxKey_space))); assert(b.committed == "好你");
+    // 缺省中英模式是所有会话共用一份；A 切到英文后，B 也把这次输入按原文交给应用。
+    type(b, "ni"); assert(engine.process(&b, fcitx::Key(FcitxKey_space))); assert(b.committed == "好ni");
     tapShift(); a.committed.clear(); type(a, "ni"); assert(engine.process(&a, fcitx::Key(FcitxKey_space))); assert(a.committed == "你");
     b.committed = "好";
     // 单一上下文的显示回调可以销毁它自己，旧按键仍算消费且无悬空访问。

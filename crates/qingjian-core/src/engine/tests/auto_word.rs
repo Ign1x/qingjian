@@ -1,0 +1,365 @@
+//! 自造词与简拼学习：同一段拼音逐字选一次就成词、全拼选过的词简拼也排前，下次整段与简拼都排第一。
+
+use super::*;
+
+use crate::ranking::{USER_WORDS_BEFORE_SINGLES, WORDS_BEFORE_SINGLE_CHARS};
+
+/// 词库里有 石山、事实 和 是 屎 山 几个单字，没有 屎山；整句会读成 是山。
+fn shishan_engine() -> Engine {
+    let dictionary =
+        "石山\tshi shan\t900\n事实\tshi shi\t9000\n是\tshi\t9000\n屎\tshi\t10\n山\tshan\t9000\n";
+    Engine::new(Dictionary::parse(dictionary).unwrap())
+        .with_learner(Box::new(WordLearner::default()))
+}
+
+fn select(engine: &mut Engine, text: &str) {
+    let candidate = engine
+        .query()
+        .unwrap()
+        .candidates
+        .items
+        .into_iter()
+        .find(|c| c.text == text)
+        .unwrap_or_else(|| panic!("没有 {text}"));
+    engine.commit(&candidate);
+}
+
+#[test]
+fn picking_the_chars_once_makes_a_word_that_leads_the_whole_input_and_its_abbreviation() {
+    let mut engine = shishan_engine();
+    engine.set_input("shishan");
+    select(&mut engine, "屎");
+    select(&mut engine, "山");
+    assert!(engine.composition().is_empty());
+    engine.note_passthrough('\n');
+    for input in ["shishan", "ss", "shis"] {
+        engine.set_input(input);
+        assert_eq!(texts_of(&engine)[0], "屎山", "{input}");
+        engine.clear();
+    }
+}
+
+#[test]
+fn only_a_few_user_words_skip_the_word_quota_before_single_chars() {
+    // 简拼 `ss` 对得上十二个自造词：至多 USER_WORDS_BEFORE_SINGLES 个不占名额，其余照常占
+    // WORDS_BEFORE_SINGLE_CHARS 个名额，首音节的单字不被挤到后面
+    let mut learner = WordLearner::default();
+    for c in "一二三四五六七八九十百千".chars() {
+        learner.learn_word(&format!("书{c}"), &["shu".to_owned(), "san".to_owned()]);
+    }
+    let dictionary = "是\tshi\t9000\n书\tshu\t9000\n山\tshan\t9000\n";
+    let mut engine =
+        Engine::new(Dictionary::parse(dictionary).unwrap()).with_learner(Box::new(learner));
+    engine.set_input("ss");
+    let all = texts_of(&engine);
+    let first_char = all
+        .iter()
+        .position(|t| t.chars().count() == 1)
+        .unwrap_or_else(|| panic!("{all:?}"));
+    assert!(
+        first_char <= USER_WORDS_BEFORE_SINGLES + WORDS_BEFORE_SINGLE_CHARS,
+        "{all:?}"
+    );
+}
+
+#[test]
+fn a_sentence_picked_in_pieces_comes_first_for_its_pinyin_and_abbreviation() {
+    // 整句记忆：逐字纠正过的整句（人名不在词库里）下次全拼与整句简拼都排第一
+    let dictionary = concat!(
+        "小\txiao\t9000\n晓\txiao\t10\n明\tming\t9000\n铭\tming\t10\n小明\txiao ming\t9000\n",
+        "去了\tqu le\t9000\n学校\txue xiao\t9000\n",
+    );
+    let mut engine = Engine::new(Dictionary::parse(dictionary).unwrap())
+        .with_learner(Box::new(WordLearner::default()));
+    engine.set_input("xiaomingqulexuexiao");
+    for text in ["晓", "铭", "去了", "学校"] {
+        select(&mut engine, text);
+    }
+    assert!(engine.composition().is_empty());
+    engine.note_passthrough('\n');
+    for input in ["xiaomingqulexuexiao", "xmqlxx"] {
+        engine.set_input(input);
+        assert_eq!(texts_of(&engine)[0], "晓铭去了学校", "{input}");
+        engine.clear();
+    }
+}
+
+#[test]
+fn a_word_picked_by_full_pinyin_leads_its_abbreviation() {
+    // 词库里的词：用全拼选过一次，下次打简拼也排第一（选择按简拼键也记一份）
+    let dictionary = "事实\tshi shi\t9000\n实施\tshi shi\t5000\n是\tshi\t9000\n";
+    let mut engine = Engine::new(Dictionary::parse(dictionary).unwrap())
+        .with_learner(Box::new(WordLearner::default()));
+    engine.set_input("ss");
+    assert_eq!(texts_of(&engine)[0], "事实");
+    engine.clear();
+    engine.set_input("shishi");
+    select(&mut engine, "实施");
+    engine.note_passthrough('\n');
+    engine.set_input("ss");
+    assert_eq!(texts_of(&engine)[0], "实施");
+}
+
+#[test]
+fn the_same_word_typed_twice_does_not_make_a_doubled_word() {
+    let mut engine = shishan_engine();
+    engine.set_input("shishan");
+    select(&mut engine, "屎");
+    select(&mut engine, "山");
+    for _ in 0..4 {
+        engine.set_input("shishan");
+        select(&mut engine, "屎山");
+    }
+    let patterns: Vec<_> = ["shi", "shan", "shi", "shan"]
+        .map(qingjian_dictionary::SyllablePattern::complete)
+        .to_vec();
+    let doubled = engine.learner().user_words().is_some_and(|words| {
+        words
+            .lookup_exact(&patterns)
+            .iter()
+            .any(|hit| hit.text == "屎山屎山")
+    });
+    assert!(!doubled);
+}
+
+#[test]
+fn a_chosen_low_tier_word_survives_thousands_of_abbreviation_hits() {
+    // 补充词库里的词（低主词库一档）在 `ss` 下选过：几千个主词库两字词预选时也不把它砍掉，按选择排第一
+    let mut base = String::from("是\tshi\t9000\n");
+    for n in 0..3000 {
+        base.push_str(&format!("森森{n}\tsen sen\t{}\n", 9000 - n % 100));
+    }
+    let mut general = Dictionary::parse("屎山\tshi shan\t10\n").unwrap();
+    general.set_secondary(true);
+    let mut engine = Engine::new(Dictionary::parse(&base).unwrap())
+        .with_learner(Box::new(WordLearner::default()));
+    engine.set_extra_dictionaries(vec![general]);
+    engine.set_input("shishan");
+    select(&mut engine, "屎山");
+    engine.note_passthrough('\n');
+    engine.set_input("ss");
+    assert_eq!(texts_of(&engine)[0], "屎山");
+}
+
+/// 词库有 交易、中心，没有 交易中心；简拼 jyzx 下 就要、主席 词频更高。
+fn jiaoyi_engine() -> Engine {
+    let dictionary = concat!(
+        "交易\tjiao yi\t5000\n中心\tzhong xin\t5000\n就要\tjiu yao\t20000\n主席\tzhu xi\t20000\n",
+        "区\tqu\t9000\n",
+    );
+    Engine::new(Dictionary::parse(dictionary).unwrap())
+        .with_learner(Box::new(WordLearner::default()))
+}
+
+fn commit_sentence(engine: &mut Engine, input: &str) -> String {
+    engine.set_input(input);
+    let first = engine.query().unwrap().candidates.items.remove(0);
+    assert_eq!(first.kind, CandidateKind::Sentence, "{input}");
+    engine.commit(&first)
+}
+
+#[test]
+fn a_short_sentence_picked_once_becomes_a_word_for_its_abbreviation() {
+    // #875：全拼一次选中的陌生词（整句 交易中心），下次简拼 jyzx 也排第一
+    let mut engine = jiaoyi_engine();
+    engine.set_input("jyzx");
+    assert_ne!(texts_of(&engine)[0], "交易中心");
+    engine.clear();
+    assert_eq!(commit_sentence(&mut engine, "jiaoyizhongxin"), "交易中心");
+    engine.note_passthrough('\n');
+    for input in ["jiaoyizhongxin", "jyzx"] {
+        engine.set_input(input);
+        assert_eq!(texts_of(&engine)[0], "交易中心", "{input}");
+        engine.clear();
+    }
+}
+
+#[test]
+fn a_sentence_picked_once_with_a_single_char_or_over_six_chars_is_not_a_word() {
+    // 一次接受的整句带单字（交易 + 区）多半是句子，超过 6 个字的多半是模型首选，都不记成用户词
+    let mut engine = jiaoyi_engine();
+    assert_eq!(commit_sentence(&mut engine, "jiaoyiqu"), "交易区");
+    assert_eq!(engine.learner().weight("交易区"), 0);
+    engine.note_passthrough('\n');
+    assert_eq!(
+        commit_sentence(&mut engine, "jiaoyizhongxinjiaoyizhongxin"),
+        "交易中心交易中心"
+    );
+    assert_eq!(engine.learner().weight("交易中心交易中心"), 0);
+    engine.note_passthrough('\n');
+    assert_eq!(
+        commit_sentence(&mut engine, "jiaoyizhongxinzhongxin"),
+        "交易中心中心"
+    );
+    assert_eq!(engine.learner().weight("交易中心中心"), 1);
+}
+
+#[test]
+fn erasing_the_sentence_and_picking_another_forgets_the_new_word() {
+    // 按空格上屏了 交易中心，删掉重打改选 交易：刚造的词一并删掉
+    let mut engine = jiaoyi_engine();
+    commit_sentence(&mut engine, "jiaoyizhongxin");
+    assert_eq!(engine.learner().weight("交易中心"), 1);
+    for _ in 0..4 {
+        engine.note_backspace();
+    }
+    engine.set_input("jiaoyizhongxin");
+    select(&mut engine, "交易");
+    assert_eq!(engine.learner().weight("交易中心"), 0);
+}
+
+#[test]
+fn wubi_options_keep_once_only_sentence_learning_and_the_six_character_limit() {
+    for (enabled, max_chars) in [(false, 2), (true, 2), (true, 4), (true, 10)] {
+        for (input, text, expected) in [
+            ("jiaoyizhongxin", "交易中心", 1),
+            ("jiaoyizhongxinzhongxin", "交易中心中心", 1),
+            ("jiaoyizhongxinjiaoyizhongxin", "交易中心交易中心", 0),
+        ] {
+            let mut engine = jiaoyi_engine();
+            engine.set_auto_phrase(enabled, max_chars);
+            assert_eq!(commit_sentence(&mut engine, input), text);
+            assert_eq!(
+                engine.learner().weight(text),
+                expected,
+                "enabled={enabled}, max_chars={max_chars}, text={text}"
+            );
+        }
+    }
+}
+
+#[test]
+fn wubi_options_keep_shuangpin_once_only_split_selection_learning() {
+    for (enabled, max_chars) in [(false, 2), (true, 2), (true, 4), (true, 10)] {
+        let mut engine = shishan_engine();
+        engine.set_auto_phrase(enabled, max_chars);
+        engine.set_shuangpin(Some(Scheme::Xiaohe));
+        engine.set_input("uiuj");
+        select(&mut engine, "屎");
+        select(&mut engine, "山");
+        assert_eq!(engine.learner().weight("屎山"), 1);
+        engine.note_passthrough('\n');
+        engine.set_input("uiuj");
+        assert_eq!(texts_of(&engine)[0], "屎山");
+        engine.clear();
+        engine.set_shuangpin(None);
+        engine.set_input("ss");
+        assert_eq!(texts_of(&engine)[0], "屎山");
+    }
+}
+
+#[test]
+fn pinyin_and_shuangpin_split_commits_keep_the_twenty_character_memory_limit() {
+    for scheme in [None, Some(Scheme::Xiaohe)] {
+        for length in [6, 20, 21] {
+            let mut engine = Engine::new(Dictionary::parse("甲\tjia\t10\n").unwrap())
+                .with_learner(Box::<WordLearner>::default());
+            engine.set_shuangpin(scheme);
+            let keys = if scheme.is_some() { "jx" } else { "jia" };
+            engine.set_input(&keys.repeat(length));
+            for _ in 0..length {
+                select(&mut engine, "甲");
+            }
+            assert!(engine.composition().is_empty());
+            assert_eq!(
+                engine.learner().weight(&"甲".repeat(length)),
+                u32::from(length <= 20),
+                "scheme={scheme:?}, length={length}"
+            );
+        }
+    }
+}
+
+/// 词库里有 交易、中心，另有一个只吃掉 `zhong` 的单字 中，用来在段中间选错。
+fn jiaoyi_with_zhong_engine() -> Engine {
+    let dictionary = "交易\tjiao yi\t5000\n中心\tzhong xin\t5000\n中\tzhong\t900\n";
+    Engine::new(Dictionary::parse(dictionary).unwrap())
+        .with_learner(Box::new(WordLearner::default()))
+}
+
+#[test]
+fn pulling_back_a_later_pick_keeps_the_whole_segment_learnable() {
+    // 打 jiaoyizhongxin：选 交易 之后，第二下选错成单字 中（只吃掉 zhong），
+    // 退格撤回它、再选 中心。撤回是「这一下选错了」而不是「这段不打了」，
+    // 整段仍要学成 交易中心，和一次选完的结果一样。
+    let mut engine = jiaoyi_with_zhong_engine();
+    engine.set_input("jiaoyizhongxin");
+    select(&mut engine, "交易");
+    assert_eq!(engine.composition().text(), "zhongxin");
+    select(&mut engine, "中");
+    assert_eq!(engine.composition().text(), "xin");
+
+    assert!(engine.undo_selection(), "刚选过，撤得回来");
+    assert_eq!(engine.composition().text(), "zhongxin", "拼音接回来了");
+    assert!(!engine.chain_edited(), "撤回选择不算改过输入");
+
+    select(&mut engine, "中心");
+    assert!(engine.composition().is_empty());
+    assert!(
+        engine.learner().choice_weight("jiaoyizhongxin", "交易中心") > 0,
+        "撤回一次再选完，整段仍该学成 交易中心"
+    );
+}
+
+#[test]
+fn editing_the_buffer_mid_way_stops_the_whole_word_from_being_learned() {
+    // #1024：`jiaoyizhongxin` 先选 交易，组句里再敲一个字母、删掉它，接着选 中心。
+    // 用户中途动过输入，`交易中心` 不该被记成整段合成词。
+    //
+    // 用 `delete_syllable_backward`（壳里 ⌥⌫）而不是退格：退格在 held 非空时先撤回那次
+    // 选择、把整段拼音接回来，那是另一条路（`undo_selection` 已经 `reset()` 断开了）。
+    // 这里要测的是「拼音还在、只是被改过」。
+    let mut engine = jiaoyi_engine();
+    engine.set_input("jiaoyizhongxin");
+    select(&mut engine, "交易");
+    assert_eq!(engine.composition().text(), "zhongxin");
+
+    engine.push('n');
+    assert_eq!(engine.composition().text(), "zhongxinn");
+    engine.delete_syllable_backward();
+    assert_eq!(
+        engine.composition().text(),
+        "zhongxin",
+        "删掉的是刚敲的那个字母"
+    );
+    assert!(engine.chain_edited(), "组句里改过输入要记下来");
+
+    select(&mut engine, "中心");
+    assert!(engine.composition().is_empty());
+    assert_eq!(
+        engine.learner().choice_weight("jiaoyizhongxin", "交易中心"),
+        0,
+        "中途改过输入，不该记成整段合成词"
+    );
+}
+
+#[test]
+fn a_clean_split_selection_still_makes_the_whole_word() {
+    // 对照：不编辑的同一串照常记——#1024 的修不能误伤这里
+    let mut engine = jiaoyi_engine();
+    engine.set_input("jiaoyizhongxin");
+    select(&mut engine, "交易");
+    select(&mut engine, "中心");
+    assert!(engine.composition().is_empty());
+    assert_eq!(
+        engine.learner().choice_weight("jiaoyizhongxin", "交易中心"),
+        1
+    );
+}
+
+#[test]
+fn deleting_a_letter_with_the_forward_key_also_stops_the_whole_word() {
+    // 删到光标后（Delete）也算编辑过
+    let mut engine = jiaoyi_engine();
+    engine.set_input("jiaoyizhongxin");
+    select(&mut engine, "交易");
+    engine.push('n');
+    engine.move_cursor_syllable_left();
+    engine.delete_forward();
+    select(&mut engine, "中心");
+    assert!(engine.composition().is_empty());
+    assert_ne!(
+        engine.learner().choice_weight("jiaoyizhongxin", "交易中心"),
+        1
+    );
+}

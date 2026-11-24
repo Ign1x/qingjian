@@ -100,6 +100,7 @@ impl Router {
                             commit,
                             frame: Default::default(),
                             english: None,
+                            caret: None,
                         }
                         .into(),
                     );
@@ -115,6 +116,7 @@ impl Router {
                             commit,
                             frame: self.current_frame(),
                             english: None,
+                            caret: None,
                         }
                         .into(),
                     );
@@ -137,6 +139,7 @@ impl Router {
                             commit,
                             frame: self.current_frame(),
                             english: None,
+                            caret: None,
                         }
                         .into(),
                     );
@@ -289,6 +292,7 @@ impl Router {
                 commit,
                 frame,
                 english: switched,
+                caret: None,
             }
             .into(),
         )
@@ -312,7 +316,7 @@ impl Router {
         commit
     }
 
-    fn discard_session(&mut self, session: SessionId) {
+    pub(super) fn discard_session(&mut self, session: SessionId) {
         let info = self.sessions.get_mut(&session).expect("known session");
         info.switch_tap = None;
         info.display_frame = None;

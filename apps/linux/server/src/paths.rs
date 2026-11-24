@@ -46,25 +46,30 @@ pub fn onnx_runtime(user: &Path, root: &Path) -> Option<PathBuf> {
         // 显式路径错误时也不偷换成别处的运行库，方便定位版本问题。
         return existing(path.into());
     }
-    let dirs = [user.join("models/onnxruntime/lib"), root.join("lib")]
-        .into_iter()
-        .chain(
-            std::env::var_os("LD_LIBRARY_PATH")
-                .map(|paths| std::env::split_paths(&paths).collect::<Vec<_>>())
-                .unwrap_or_default()
-                .into_iter()
-                .filter(|path| path.is_absolute()),
-        )
-        .chain(
-            [
-                "/usr/local/lib",
-                "/usr/lib",
-                "/usr/lib64",
-                "/usr/lib/x86_64-linux-gnu",
-                "/usr/lib/aarch64-linux-gnu",
-            ]
-            .map(PathBuf::from),
-        );
+    let dirs = [
+        qingjian_platform::UserDirs::at(user.to_path_buf())
+            .models()
+            .join("onnxruntime/lib"),
+        root.join("lib"),
+    ]
+    .into_iter()
+    .chain(
+        std::env::var_os("LD_LIBRARY_PATH")
+            .map(|paths| std::env::split_paths(&paths).collect::<Vec<_>>())
+            .unwrap_or_default()
+            .into_iter()
+            .filter(|path| path.is_absolute()),
+    )
+    .chain(
+        [
+            "/usr/local/lib",
+            "/usr/lib",
+            "/usr/lib64",
+            "/usr/lib/x86_64-linux-gnu",
+            "/usr/lib/aarch64-linux-gnu",
+        ]
+        .map(PathBuf::from),
+    );
     find_runtime(dirs)
 }
 

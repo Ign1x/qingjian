@@ -5,7 +5,7 @@ use std::path::Path;
 use super::{compose, scheme, started, texts, user_dir};
 
 fn write_scheme(dir: &Path, id: &str, files: &[(&str, &str)]) {
-    let scheme = dir.join("schemes").join(id);
+    let scheme = dir.join("custom/schemes").join(id);
     std::fs::create_dir_all(&scheme).unwrap();
     for (name, content) in files {
         std::fs::write(scheme.join(name), content).unwrap();

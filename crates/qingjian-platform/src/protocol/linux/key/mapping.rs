@@ -30,6 +30,7 @@ pub fn to_key_event(keysym_value: u32, state: u32) -> KeyEvent {
         virtual_key: virtual_key(keysym_value, modifiers.shift),
         character: keysym::to_char(keysym_value),
         modifiers,
+        repeat: false,
     }
 }
 

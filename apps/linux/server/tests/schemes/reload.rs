@@ -68,7 +68,7 @@ fn an_imported_wubi_dictionary_applies_without_a_config_change() {
     assert!(texts(&compose(&mut router, "zzy")).is_empty());
     key(&mut router, ' ');
 
-    let words = dir.join("code_dicts");
+    let words = dir.join("custom/code_dicts");
     std::fs::create_dir_all(&words).unwrap();
     std::fs::write(words.join("mine.tsv"), "青简\tzzyy\t1000\n").unwrap();
     next_tick(&mut router);
@@ -80,7 +80,7 @@ fn an_imported_wubi_dictionary_applies_without_a_config_change() {
 #[test]
 fn editing_a_shape_table_refreshes_the_current_candidates() {
     let dir = user_dir("reload-table");
-    let scheme_dir = dir.join("schemes/mine");
+    let scheme_dir = dir.join("custom/schemes/mine");
     std::fs::create_dir_all(&scheme_dir).unwrap();
     std::fs::write(scheme_dir.join("scheme.toml"), "name = \"我的形码\"\n").unwrap();
     rewrite(&scheme_dir.join("table.tsv"), "青简\tqq\t100\n", 100);
@@ -102,7 +102,7 @@ fn editing_a_shape_table_refreshes_the_current_candidates() {
 #[test]
 fn editing_a_custom_shuangpin_scheme_applies_without_a_config_change() {
     let dir = user_dir("reload-shuangpin");
-    let scheme_dir = dir.join("schemes/mine");
+    let scheme_dir = dir.join("custom/schemes/mine");
     std::fs::create_dir_all(&scheme_dir).unwrap();
     rewrite(
         &scheme_dir.join("scheme.toml"),
@@ -130,7 +130,7 @@ fn editing_a_custom_shuangpin_scheme_applies_without_a_config_change() {
 #[test]
 fn editing_a_shape_table_refreshes_a_suspended_composition() {
     let dir = user_dir("reload-suspended");
-    let scheme_dir = dir.join("schemes/mine");
+    let scheme_dir = dir.join("custom/schemes/mine");
     std::fs::create_dir_all(&scheme_dir).unwrap();
     std::fs::write(scheme_dir.join("scheme.toml"), "name = \"我的形码\"\n").unwrap();
     rewrite(&scheme_dir.join("table.tsv"), "青简\tqq\t100\n", 100);

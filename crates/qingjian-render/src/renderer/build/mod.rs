@@ -24,6 +24,7 @@ use bamboo_slip::{Effect, Scene, Visual};
 use bamboo_slip::{TextPainter, TextStyle};
 
 use context::Context;
+pub(super) use frame::resolve_fill;
 
 pub(super) struct Builder<'a> {
     pub(super) scene: &'a mut Scene,
@@ -48,8 +49,14 @@ pub(super) struct Builder<'a> {
     /// 写了 `action` 的节点（点中的目标，节点）。
     pub(super) action_nodes: Vec<(HitTarget, NodeId)>,
 
+    /// 拼音行的节点与各字之间那道缝离行首的 x（像素），排版后换成 [`super::PreeditHit`]。
+    pub(super) preedit_node: Option<(NodeId, Vec<f32>)>,
+
     /// 壳在窗口底下垫了系统材质：根节点的底色换成这个着色（`None` 不着色）、不画投影。实例化根节点时取走。
     pub(super) material_root: Option<Option<ColorSpec>>,
+
+    /// 垫了材质时根节点改用的圆角（点）：壳的材质圆角由系统定死时给，`None` 照主题。
+    pub(super) material_corner: Option<f32>,
 
     /// 根节点的圆角（像素），壳按它裁材质。
     pub(super) root_radius: f32,
@@ -149,7 +156,12 @@ impl Builder<'_> {
                 else {
                     return Ok(());
                 };
-                for (i, row) in rows.iter().enumerate() {
+                let mut order: Vec<usize> = (0..rows.len()).collect();
+                if ctx.frame.reversed {
+                    order.reverse();
+                }
+                for i in order {
+                    let row = &rows[i];
                     let row_ctx = ctx.with_row(row, i, rows.len());
                     let before = out.len();
                     self.node(component, row_ctx, &layout, out)?;

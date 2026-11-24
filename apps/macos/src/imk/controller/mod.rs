@@ -23,13 +23,18 @@ mod click;
 mod command;
 mod commit;
 mod display;
+mod enter_translation;
 mod navigation;
 mod panel;
 mod text;
 mod trace;
 mod translate;
+mod vietnamese;
 
-pub use click::{click, menu_items, menu_pick, panel_mouse};
+pub use click::{
+    click, commit_pending_after_switch, menu_items, menu_pick, panel_mouse,
+    panel_translation_changed,
+};
 
 define_class!(
     // SAFETY:
@@ -64,6 +69,7 @@ define_class!(
         fn handle_event(&self, event: Option<&NSEvent>, client: Option<&AnyObject>) -> bool {
             match (event, client) {
                 (Some(event), Some(client)) => {
+                    self.note_event_controller();
                     let client = TextClient::new(client);
                     // panic 拦下后把缓冲区原样上屏，这个按键交还给应用
                     catch_panic("handleEvent", || {
@@ -95,6 +101,7 @@ define_class!(
             let client = client.map(TextClient::new);
             let done = catch_panic("commitComposition", || {
                 if let Some(client) = client {
+                    self.commit_vietnamese(client);
                     self.commit_raw(client);
                 }
                 self.end_trace("commit-request", true);
@@ -134,7 +141,8 @@ define_class!(
                     h.reload_config_if_changed();
                     h.mode_switch.reset();
                     let english = h.english_mode();
-                    h.indicator.activate(english);
+                    let vietnamese = h.vietnamese_mode();
+                    h.indicator.activate(english, vietnamese);
                     h.watch.start();
                 });
             });
@@ -163,11 +171,18 @@ define_class!(
 
         #[unsafe(method(deactivateServer:))]
         fn deactivate_server(&self, sender: Option<&AnyObject>) {
-            tracing::info!("deactivateServer");
-            self.clear_active();
             let client = sender.map(TextClient::new);
+            // 被莫名切回 ABC 时靠这一行查：切到了谁、在哪个应用里、是不是密码框
+            tracing::info!(
+                app = client.and_then(|c| c.bundle_identifier()).as_deref().unwrap_or("-"),
+                next_source = crate::app::input_source::current_id().as_deref().unwrap_or("-"),
+                secure_input = crate::imk::secure_input::enabled(),
+                "deactivateServer"
+            );
+            self.clear_active();
             let done = catch_panic("deactivateServer", || {
                 if let Some(client) = client {
+                    self.commit_vietnamese(client);
                     self.commit_raw(client);
                 }
                 self.end_trace("focus-out", true);
@@ -236,13 +251,14 @@ impl QingjianInputController {
         host::with(|h| h.engine.application() == Some(LOGIN_WINDOW)).unwrap_or(false)
     }
 
-    /// 修饰键事件：Shift 按下 / 抬起交给 [`Host::shift_event`] 判定单击；切到英文时把组句里的拼音原样上屏
+    /// 修饰键事件：Shift 按下 / 抬起交给 `host/mode/switch` 的 `Host::shift_event` 判定单击；切到英文时把组句里的拼音原样上屏
     /// （要借文本客户端，所以放在 Host 借用之外，同定时器那条路）。
-    fn handle_shift_event(&self, event: &NSEvent) {
+    fn handle_shift_event(&self, event: &NSEvent, client: TextClient<'_>) {
         let key = event.keyCode();
         let down = event.modifierFlags().contains(NSEventModifierFlags::Shift);
         if host::with(|h| h.shift_event(key, down)).unwrap_or(false) {
             click::commit_raw_after_switch();
+            self.commit_vietnamese(client);
         }
     }
 
@@ -252,7 +268,7 @@ impl QingjianInputController {
         // 是精确边沿。事件本身继续照常交给系统，不吞。
         if event.r#type() == NSEventType::FlagsChanged {
             if !self.in_login_window() {
-                self.handle_shift_event(event);
+                self.handle_shift_event(event, client);
             }
             return false;
         }
@@ -273,8 +289,35 @@ impl QingjianInputController {
             control,
             command,
         };
-        // 任一普通键按下都作废待定的「单击 Shift」（Shift + 字母不该被当成单击）
-        host::with(|h| h.note_key(key));
+        // 第一下 Shift 还在等双击时用户已开始打字：先落实单击并清理切换前的 composition，
+        // 再按新模式处理当前键。
+        if host::with(|h| h.note_key(key)).unwrap_or(false) {
+            self.commit_vietnamese(client);
+            self.commit_raw(client);
+        }
+        // 独立输入法也复用候选译词快捷键。必须放在语言专用分派之前，否则越南语看到 Command / Control
+        // 会先结束整段并把事件交给应用，Command+1 永远到不了共同快捷键。
+        let independent_composing = host::with(|h| {
+            h.vietnamese_mode() && !h.vietnamese.is_empty() && !h.session.layout.is_empty()
+        })
+        .unwrap_or(false);
+        if independent_composing
+            && !pressed.is_empty()
+            && let Some(digit) = digit_key(key)
+        {
+            let (first, second) = host::with(|h| h.translation_keys).unwrap_or_default();
+            if pressed == first {
+                tracing::info!(digit, sense = 0, "独立输入法译词快捷键命中");
+                return self.handle_translation_key(digit, 0, client);
+            }
+            if pressed == second {
+                tracing::info!(digit, sense = 1, "独立输入法译词快捷键命中");
+                return self.handle_translation_key(digit, 1, client);
+            }
+        }
+        if host::with(|h| h.vietnamese_mode()).unwrap_or(false) {
+            return self.handle_vietnamese_event(event, client);
+        }
         // 提示在显示：敲任何键先收掉，键照常处理
         host::with(|h| h.clear_notice());
         // 候选右键菜单开着：Esc 只关菜单、不清输入；别的键关菜单后照常处理
@@ -312,6 +355,14 @@ impl QingjianInputController {
         let typed = event
             .charactersIgnoringModifiers()
             .map(|c| c.to_string().to_ascii_lowercase());
+        // 翻译组快捷键（不在组句中）：打开符号面板停在翻译组
+        let translate_panel = host::with(|h| h.translate_panel_keys).unwrap_or_default();
+        if pressed == translate_panel.modifiers
+            && typed.as_deref().and_then(|t| t.chars().next()) == Some(translate_panel.key)
+            && host::with(|h| h.engine.composition().is_empty()).unwrap_or(false)
+        {
+            return self.open_translate_panel(client);
+        }
         let combo = host::with(|h| h.translate_keys).unwrap_or_default();
         if pressed == combo.modifiers
             && typed.as_deref().and_then(|t| t.chars().next()) == Some(combo.key)
@@ -392,6 +443,9 @@ impl QingjianInputController {
             }
             return true;
         }
+        if self.try_enter_translation(key, pressed, client) {
+            return true;
+        }
         let selector = match key {
             36 | 76 => Some(sel!(insertNewline:)),
             48 if shift => Some(sel!(insertBacktab:)),
@@ -416,7 +470,7 @@ impl QingjianInputController {
             _ => None,
         };
         if let Some(selector) = selector {
-            return self.handle_command(selector, client);
+            return self.handle_command(selector, event.isARepeat(), client);
         }
         if command || control {
             return false;

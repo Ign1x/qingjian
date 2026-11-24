@@ -449,7 +449,10 @@ mod tests {
     #[test]
     fn single_edition_rows_are_marked() {
         for feature in Feature::ALL {
-            let marked = matches!(feature, Feature::HorizontalGrid | Feature::KeyHint);
+            let marked = matches!(
+                feature,
+                Feature::HorizontalGrid | Feature::KeyHint | Feature::CandidateFontWeight
+            );
             let expected = marked.then_some(Platform::LinuxWayland);
             assert_eq!(
                 feature.linux_only(),

@@ -50,7 +50,7 @@ jobs:
         run: |
           mkdir -p ~/apt-archives/partial
           sudo apt-get update
-          sudo apt-get install -y -o Dir::Cache::Archives="$HOME/apt-archives" cmake g++ libfcitx5core-dev libfcitx5config-dev libfcitx5utils-dev nlohmann-json3-dev fcitx5
+          sudo apt-get install -y -o Dir::Cache::Archives="$HOME/apt-archives" cmake g++ libfcitx5core-dev libfcitx5config-dev libfcitx5utils-dev nlohmann-json3-dev fcitx5 dbus-daemon
 
       # Wayland 前端的黑盒测试（apps/linux/wayland/tests/blackbox）真的起前端二进制：它运行时 dlopen libxkbcommon，
       # 与整个 workspace 一起编时也 dlopen libwayland-client。写明了才不靠 runner 镜像里碰巧有；

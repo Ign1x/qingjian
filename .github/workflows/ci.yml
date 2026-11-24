@@ -290,7 +290,7 @@ jobs:
           apt-get update
           DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
             git curl ca-certificates build-essential pkg-config python3 \
-            cmake libssl-dev \
+            cmake libssl-dev dbus-daemon \
             fonts-dejavu-core
 
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

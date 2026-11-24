@@ -50,6 +50,7 @@ pub fn find_model(user_dir: Option<&Path>, bundled_root: &Path) -> Option<PathBu
                 .models()
                 .join("hanzhang-tongbian")
         }),
+        user_dir.map(|dir| dir.join("model-p2c")),
         Some(bundled_root.join("data/models/hanzhang-tongbian")),
     ];
     candidates

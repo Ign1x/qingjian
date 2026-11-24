@@ -284,6 +284,7 @@ impl Conversation {
             commit,
             frame: self.frame.clone(),
             english: None,
+            caret: None,
         })
         .expect("回包能转成 JSON");
         self.decorate(&mut reply["KeyResult"], session);

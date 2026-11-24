@@ -19,8 +19,8 @@ use std::time::Duration;
 use futures_util::future::Either;
 use futures_util::{StreamExt, stream};
 use zbus::proxy::MethodFlags;
-use zbus::zvariant::{OwnedValue, Value};
 use zbus::{Connection, Proxy};
+use zbus::{OwnedVariant, Variant};
 
 const DESTINATION: &str = "org.freedesktop.portal.Desktop";
 
@@ -57,7 +57,7 @@ fn run(desktop: &Desktop) -> zbus::Result<()> {
         .enable_all()
         .build()?;
     runtime.block_on(async {
-        let connection = zbus::connection::Builder::session()?
+        let connection = zbus::connection::Builder::session()
             .method_timeout(TIMEOUT)
             .build()
             .await?;
@@ -81,7 +81,7 @@ async fn follow(connection: &Connection, desktop: &Desktop) -> zbus::Result<()> 
         match event {
             Either::Left(message) => {
                 let body = message.body();
-                match body.deserialize::<(&str, &str, Value<'_>)>() {
+                match body.deserialize::<(&str, &str, Variant<'_>)>() {
                     Ok((namespace, key, value)) => {
                         if let Some(setting) = record(desktop, namespace, key, &value) {
                             tracing::info!(?setting, "桌面的外观偏好变了");
@@ -146,11 +146,11 @@ async fn call(
     proxy: &Proxy<'_>,
     method: &'static str,
     body: &(&str, &str),
-) -> zbus::Result<OwnedValue> {
+) -> zbus::Result<OwnedVariant> {
     // 连接上设的 method_timeout 只管 `Connection::call_method`，`call_with_flags` 不经过它，超时得自己套
     let reply = tokio::time::timeout(
         TIMEOUT,
-        proxy.call_with_flags(method, MethodFlags::NoAutoStart.into(), body),
+        proxy.call_with_flags(method, MethodFlags::NO_AUTO_START, body),
     )
     .await
     .map_err(|_| zbus::Error::InputOutput(Arc::new(std::io::ErrorKind::TimedOut.into())))??;
@@ -158,7 +158,7 @@ async fn call(
 }
 
 /// 记下 portal 给的一项；是认得的设置、且值变了时返回它。
-fn record(desktop: &Desktop, namespace: &str, key: &str, value: &Value<'_>) -> Option<Setting> {
+fn record(desktop: &Desktop, namespace: &str, key: &str, value: &Variant<'_>) -> Option<Setting> {
     let setting = Setting::parse(namespace, key, value)?;
     desktop.apply(setting).then_some(setting)
 }

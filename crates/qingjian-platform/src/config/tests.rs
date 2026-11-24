@@ -115,6 +115,13 @@ fn general_and_shortcut_sections_parse() {
     );
     assert_eq!(config.shortcut.switch_mode, SwitchKeys::default());
     assert!(config.general.english_mode);
+    assert!(config.general.menubar_indicator);
+}
+
+#[test]
+fn menubar_indicator_can_be_disabled() {
+    let config: Config = toml::from_str("[general]\nmenubar_indicator = false\n").unwrap();
+    assert!(!config.general.menubar_indicator);
 }
 
 #[test]
@@ -223,6 +230,38 @@ fn per_scheme_code_rules_go_into_nested_sections() {
 }
 
 #[test]
+fn setters_keep_the_rest_of_an_inline_table_section() {
+    // 手写的配置可以把分节写成行内表，加载时照样认；改其中一个键不能把同节其余的键清掉。
+    let path = std::env::temp_dir().join("qingjian-config-inline-section-test.toml");
+    std::fs::write(
+        &path,
+        "general = { page_size = 7 }\nfuzzy = { z_zh = true, n_l = true }\ncode = { wubi86 = { auto_commit = true } }\n",
+    )
+    .unwrap();
+    Config::set_bool(&path, "fuzzy", "an_ang", true).unwrap();
+    Config::set_value(&path, "general", "appearance", "dark").unwrap();
+    Config::set_value(&path, "code.wubi86", "top", true).unwrap();
+    let config = Config::load(&path).unwrap();
+    assert_eq!(config.general.page_size, 7);
+    assert_eq!(config.general.appearance(), Appearance::Dark);
+    assert!(config.fuzzy.z_zh && config.fuzzy.n_l && config.fuzzy.an_ang);
+    assert_eq!(
+        config.code_rules("wubi86"),
+        CodeRules {
+            auto_commit: Some(true),
+            top: Some(true),
+        }
+    );
+    // 改过的分节照旧写成标准表。
+    let text = std::fs::read_to_string(&path).unwrap();
+    assert!(
+        text.contains("[fuzzy]") && text.contains("[code.wubi86]"),
+        "{text}"
+    );
+    let _ = std::fs::remove_file(&path);
+}
+
+#[test]
 fn set_bool_keeps_comments_and_flips_only_that_key() {
     let path = std::env::temp_dir().join("qingjian-config-set-bool-test.toml");
     std::fs::write(
@@ -306,6 +345,21 @@ fn font_sizes_and_animations_parse_and_default() {
 }
 
 #[test]
+fn candidate_font_weight_rounds_to_hundreds_and_zero_follows_the_theme() {
+    let weight = |value: u16| {
+        let mut general = Config::default().general;
+        general.candidate_font_weight = value;
+        general.candidate_font_weight()
+    };
+    assert_eq!(weight(0), None);
+    assert_eq!(weight(500), Some(500));
+    assert_eq!(weight(449), Some(400));
+    assert_eq!(weight(880), Some(900));
+    assert_eq!(weight(99), None);
+    assert_eq!(weight(1000), None);
+}
+
+#[test]
 fn font_size_edits_ignore_echoed_theme_size() {
     let unset = FontSize::default();
     // 框里显示主题的 17，原样交回不写
@@ -347,4 +401,14 @@ fn manual_prediction_shortcut_round_trips() {
         toml::from_str::<Config>(&toml::to_string(&config).unwrap()).unwrap(),
         config
     );
+}
+
+/// 基础词库开关单独一项：旧配置没写 `base` 时开着，用户词库叫 base 也不影响它。
+#[test]
+fn base_dictionary_switch_is_separate_from_disabled_files() {
+    let config: Config = toml::from_str("[dictionaries]\ndisabled = [\"base\"]\n").unwrap();
+    assert!(config.dictionaries.base);
+    assert!(!config.dictionaries.is_enabled("base"));
+    let config: Config = toml::from_str("[dictionaries]\nbase = false\n").unwrap();
+    assert!(!config.dictionaries.base);
 }

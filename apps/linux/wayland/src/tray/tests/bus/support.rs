@@ -5,11 +5,11 @@ use std::collections::HashMap;
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
 use zbus::proxy::CacheProperties;
-use zbus::zvariant::{OwnedValue, Value};
 use zbus::{Connection, Proxy};
+use zbus::{OwnedVariant, Variant};
 
 const PATIENCE: Duration = Duration::from_secs(5);
-type Layout = (u32, (i32, HashMap<String, OwnedValue>, Vec<OwnedValue>));
+type Layout = (u32, (i32, HashMap<String, OwnedVariant>, Vec<OwnedVariant>));
 
 pub(super) fn runtime() -> tokio::runtime::Runtime {
     tokio::runtime::Builder::new_current_thread()
@@ -38,11 +38,8 @@ pub(super) async fn proxy<'a>(
 ) -> Proxy<'a> {
     zbus::proxy::Builder::new(connection)
         .destination(item_name())
-        .unwrap()
         .path(path)
-        .unwrap()
         .interface(interface)
-        .unwrap()
         .cache_properties(CacheProperties::No)
         .build()
         .await
@@ -58,8 +55,8 @@ pub(super) async fn layout(menu: &Proxy<'_>) -> Layout {
 /// 第 `index` 个子节点的 toggle-state；没有为 `None`。
 pub(super) fn toggle_state(layout: &Layout, index: usize) -> Option<i32> {
     let child = &layout.1.2[index];
-    let structure = <&zbus::zvariant::Structure<'_>>::try_from(child).unwrap();
-    let Value::Dict(properties) = &structure.fields()[1] else {
+    let structure = <&zbus::Structure<'_>>::try_from(child).unwrap();
+    let Variant::Dict(properties) = &structure.fields()[1] else {
         panic!("子节点的属性不是字典");
     };
     properties.get::<_, i32>(&"toggle-state").unwrap()

@@ -1,8 +1,8 @@
 //! `org.kde.StatusNotifierItem`：托盘里那个图标。左键（`Activate`）切中 / 英，右键由托盘宿主按 `Menu` 属性弹 dbusmenu 菜单。
 
 use qingjian_platform::protocol::linux::InputMode;
+use zbus::ObjectPath;
 use zbus::object_server::SignalEmitter;
-use zbus::zvariant::ObjectPath;
 
 use super::MENU_PATH;
 use super::clicks::Clicks;

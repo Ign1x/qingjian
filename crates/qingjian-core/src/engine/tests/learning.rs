@@ -126,13 +126,9 @@ fn splitting_a_buffer_into_a_word_and_a_sentence_forms_the_whole_phrase() {
             engine.learner().choice_weight("xiangkaifaxian", &phrase),
             round
         );
-        // 第二次：整段合成 想开X先；接缝处不造两字词
+        // 第一次就整段合成 想开X先；接缝处不造两字词
         let words = shared.lock().unwrap().0.clone();
-        if round == 1 {
-            assert!(words.is_empty(), "{words:?}");
-        } else {
-            assert_eq!(words, [phrase.clone()]);
-        }
+        assert_eq!(words, [phrase.clone()], "round {round}");
         engine.note_passthrough('\n');
     }
     // 第三次整段打出来：合成词直接排第一
@@ -194,6 +190,7 @@ fn missing_glosses_are_requested_on_commit_and_learned_when_they_arrive() {
             text: "open".into(),
             reading: None,
             fresh: false,
+            pronunciation: None,
         }],
     );
     ready.lock().unwrap().push(FilledGloss {
@@ -408,6 +405,57 @@ fn erasing_a_committed_sentence_retracts_its_transitions() {
     assert_eq!(ngram.pair(None, "想"), EXPLICIT_TRANSITION_WEIGHT);
 }
 
+/// 撤回一次选择之后，上文与记下的转移都要接在撤掉那个词的前面，不能挂在它身上。
+///
+/// `jiaoyizhongxin` 选「交易」、再选单字「中」、退格撤回、接着选「中心」：
+/// 记下的是「交易 → 中心」，没有「中 → 中心」，排「中心」时的上文也是「交易」。
+#[test]
+fn undoing_a_pick_attaches_the_next_word_to_the_word_before_it() {
+    let shared = Arc::new(Mutex::new((Vec::new(), sentence::UserNgram::default())));
+    let learner = WordLearner {
+        shared: Arc::clone(&shared),
+        ..WordLearner::default()
+    };
+    let dictionary = "交易\tjiao yi\t5000\n中心\tzhong xin\t5000\n中\tzhong\t900\n";
+    let mut engine =
+        Engine::new(Dictionary::parse(dictionary).unwrap()).with_learner(Box::new(learner));
+
+    let select = |engine: &mut Engine, text: &str| {
+        let candidate = engine
+            .query()
+            .unwrap()
+            .candidates
+            .items
+            .into_iter()
+            .find(|c| c.text == text && c.kind == CandidateKind::Chinese)
+            .unwrap();
+        engine.commit(&candidate);
+    };
+
+    engine.set_input("jiaoyizhongxin");
+    select(&mut engine, "交易");
+    select(&mut engine, "中");
+    assert_eq!(engine.composition().text(), "xin");
+
+    assert!(engine.undo_selection(), "刚选过，撤得回来");
+    assert_eq!(engine.chain.previous(), Some("交易"), "上文该退回交易");
+
+    select(&mut engine, "中心");
+    assert!(engine.composition().is_empty());
+
+    let ngram = &shared.lock().unwrap().1;
+    assert_eq!(
+        ngram.pair(Some("中"), "中心"),
+        0,
+        "撤掉的那个字不该留下转移"
+    );
+    assert!(
+        ngram.pair(Some("交易"), "中心") > 0,
+        "该记成 交易 → 中心，实际 {:?}",
+        ngram.pair(Some("交易"), "中心")
+    );
+}
+
 #[test]
 fn commits_feed_the_personal_bigram_and_form_words() {
     let shared = Arc::new(Mutex::new((Vec::new(), sentence::UserNgram::default())));
@@ -417,7 +465,7 @@ fn commits_feed_the_personal_bigram_and_form_words() {
     };
     let mut engine = engine().with_learner(Box::new(learner));
 
-    // 整句上屏：按路径上的词记转移，第一个词在句首
+    // 整句上屏：按路径上的词记转移，第一个词在句首；带单字的整句（想 + 开发）不记成用户词
     engine.set_input("xiangkaifa");
     let sentence = engine.query().unwrap().candidates.items[0].clone();
     assert_eq!(sentence.kind, CandidateKind::Sentence);
@@ -428,7 +476,7 @@ fn commits_feed_the_personal_bigram_and_form_words() {
         assert_eq!(ngram.pair(Some("想"), "开发"), 1);
     }
 
-    // 标点断句；之后连续从同一段拼音里选 开发 + 先：第一次只记转移，第二次自动造词 开发先
+    // 标点断句；之后连续从同一段拼音里选 开发 + 先：第一次就自动造词 开发先
     engine.punctuate('，');
     let select = |engine: &mut Engine, text: &str| {
         let candidate = engine
@@ -457,7 +505,7 @@ fn commits_feed_the_personal_bigram_and_form_words() {
             learned.1.pair(Some("开发"), "先"),
             round * EXPLICIT_TRANSITION_WEIGHT
         );
-        assert_eq!(learned.0.len(), usize::from(round == 2), "round {round}");
+        assert_eq!(learned.0.len(), 1, "round {round}");
         engine.note_passthrough('\n');
     }
     assert_eq!(shared.lock().unwrap().0, ["开发先"]);
@@ -494,6 +542,7 @@ fn committing_the_translation_learns_the_word_and_returns_the_gloss() {
                         text: "開発する".into(),
                         reading: Some("かいはつする".into()),
                         fresh: false,
+                        pronunciation: None,
                     }],
                 )
             })
@@ -626,10 +675,10 @@ fn input_log_records_a_retype_when_keys_change_after_backspace_in_composition() 
     for c in "kaifs".chars() {
         engine.push(c);
     }
-    engine.backspace();
+    engine.backspace(false);
     engine.push('a');
     // 再删一次不换快照：记的是第一次退格前的串
-    engine.backspace();
+    engine.backspace(false);
     engine.push('a');
     assert_eq!(commit_first(&mut engine), "开发");
     let entries = entries.lock().unwrap();
@@ -652,7 +701,7 @@ fn backspace_that_restores_the_same_keys_is_not_a_retype() {
     for c in "kaifa".chars() {
         engine.push(c);
     }
-    engine.backspace();
+    engine.backspace(false);
     engine.push('a');
     commit_first(&mut engine);
     assert_eq!(entries.lock().unwrap().len(), 1);

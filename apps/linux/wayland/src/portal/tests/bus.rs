@@ -7,7 +7,7 @@ use std::time::{Duration, Instant};
 
 use zbus::Connection;
 use zbus::object_server::SignalEmitter;
-use zbus::zvariant::{OwnedValue, Value};
+use zbus::{OwnedVariant, Variant};
 
 use super::super::{DESTINATION, Desktop, PATH, Preference, follow};
 use crate::testing::Bus;
@@ -38,7 +38,7 @@ struct Settings {
 
 #[zbus::interface(name = "org.freedesktop.portal.Settings")]
 impl Settings {
-    async fn read_one(&self, namespace: &str, key: &str) -> zbus::fdo::Result<OwnedValue> {
+    async fn read_one(&self, namespace: &str, key: &str) -> zbus::fdo::Result<OwnedVariant> {
         match (namespace, key) {
             ("org.freedesktop.appearance", "color-scheme") => Ok(self.scheme.into()),
             ("org.gnome.desktop.interface", "enable-animations") => Ok(self.animations.into()),
@@ -53,7 +53,7 @@ impl Settings {
         emitter: &SignalEmitter<'_>,
         namespace: &str,
         key: &str,
-        value: Value<'_>,
+        value: Variant<'_>,
     ) -> zbus::Result<()>;
 }
 
@@ -64,10 +64,10 @@ struct OldSettings {
 
 #[zbus::interface(name = "org.freedesktop.portal.Settings")]
 impl OldSettings {
-    async fn read(&self, namespace: &str, key: &str) -> zbus::fdo::Result<OwnedValue> {
+    async fn read(&self, namespace: &str, key: &str) -> zbus::fdo::Result<OwnedVariant> {
         match (namespace, key) {
             ("org.freedesktop.appearance", "color-scheme") => {
-                Ok(Value::Value(Box::new(Value::U32(self.scheme)))
+                Ok(Variant::Variant(Box::new(Variant::U32(self.scheme)))
                     .try_into_owned()
                     .unwrap())
             }
@@ -98,7 +98,7 @@ async fn settle(desktop: &Desktop, expected: Preference) {
     }
 }
 
-async fn change(portal: &Connection, namespace: &str, key: &str, value: Value<'_>) {
+async fn change(portal: &Connection, namespace: &str, key: &str, value: Variant<'_>) {
     let emitter = SignalEmitter::new(portal, PATH).unwrap();
     Settings::setting_changed(&emitter, namespace, key, value)
         .await
@@ -133,7 +133,7 @@ fn reads_and_follows_a_portal() {
         )
         .await;
         let appearance = "org.freedesktop.appearance";
-        change(&portal, appearance, "color-scheme", Value::U32(2)).await;
+        change(&portal, appearance, "color-scheme", Variant::U32(2)).await;
         settle(
             &desktop,
             Preference {
@@ -143,16 +143,16 @@ fn reads_and_follows_a_portal() {
         )
         .await;
         // 不认得的键跳过，后面的照常
-        change(&portal, appearance, "contrast", Value::U32(1)).await;
-        change(&portal, appearance, "reduced-motion", Value::U32(1)).await;
+        change(&portal, appearance, "contrast", Variant::U32(1)).await;
+        change(&portal, appearance, "reduced-motion", Variant::U32(1)).await;
         change(
             &portal,
             "org.gnome.desktop.interface",
             "enable-animations",
-            Value::Bool(true),
+            Variant::Bool(true),
         )
         .await;
-        change(&portal, appearance, "color-scheme", Value::U32(1)).await;
+        change(&portal, appearance, "color-scheme", Variant::U32(1)).await;
         settle(
             &desktop,
             Preference {
@@ -161,7 +161,7 @@ fn reads_and_follows_a_portal() {
             },
         )
         .await;
-        change(&portal, appearance, "reduced-motion", Value::U32(0)).await;
+        change(&portal, appearance, "reduced-motion", Variant::U32(0)).await;
         settle(
             &desktop,
             Preference {
@@ -235,7 +235,7 @@ fn waits_for_a_portal_that_starts_later() {
             &portal,
             "org.freedesktop.appearance",
             "color-scheme",
-            Value::U32(0),
+            Variant::U32(0),
         )
         .await;
         settle(

@@ -1,4 +1,7 @@
-//! 改 `config.toml` / 用户 `dicts/` 后，下一次 tick 就进入正在运行的 Router。
+//! 改 `config.toml` / 用户 `custom/dicts/` 后，下一次 tick 就进入正在运行的 Router。
+
+mod auto_phrase;
+mod schemes;
 
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant, SystemTime};
@@ -6,7 +9,7 @@ use std::time::{Duration, Instant, SystemTime};
 use qingjian_core::Engine;
 use qingjian_dictionary::{Dictionary, import};
 use qingjian_platform::protocol::{ClientMessage, PROTOCOL_VERSION, SessionId};
-use qingjian_platform::{Config, HighlightKeys, KeyCombo, NumpadDigit, SwitchKeys};
+use qingjian_platform::{Config, HighlightKeys, KeyCombo, NumpadDigit, SwitchKeys, UserDirs};
 
 use crate::dispatch::reload::CONFIG_POLL_INTERVAL;
 use crate::dispatch::{Router, RouterConfig};
@@ -27,7 +30,12 @@ fn watched(dir: &Path, source: &str) -> Router {
         Engine::new(Dictionary::default()),
         RouterConfig::from(&config),
     );
-    router.watch_config(&config, config_path, dir.to_owned(), dir.to_owned());
+    router.watch_config(
+        &config,
+        config_path,
+        dir.to_owned(),
+        UserDirs::at(dir.to_owned()),
+    );
     router
 }
 
@@ -166,7 +174,7 @@ fn user_dictionary_import_applies_without_config_change() {
 
     let source = dir.join("law.dict.yaml");
     std::fs::write(&source, "---\nname: law\n...\n合同法\the tong fa\t120\n").unwrap();
-    let imported = import::import(&source, &dir.join("dicts")).unwrap();
+    let imported = import::import(&source, &dir.join("custom/dicts")).unwrap();
     set_mtime(&imported.path, 100);
     poll(&mut router);
     let dictionaries = router.engine.extra_dictionaries();

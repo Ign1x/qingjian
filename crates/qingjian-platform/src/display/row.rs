@@ -45,6 +45,7 @@ pub fn from_candidate(
     Row {
         index: (position + 1).to_string(),
         text: candidate.text.clone(),
+        diff: Vec::new(),
         code,
         annotation,
         cloud: candidate.kind == CandidateKind::Cloud,
@@ -69,6 +70,7 @@ mod tests {
                     part_of_speech: Some(PartOfSpeech::Verb),
                     text: "develop".to_owned(),
                     reading: None,
+                    pronunciation: None,
                     fresh: false,
                 }],
             )),
@@ -118,6 +120,7 @@ mod tests {
             part_of_speech: None,
             text: "exploit".to_owned(),
             reading: None,
+            pronunciation: None,
             fresh: true,
         };
         candidate.translation = Some(Translation::new(Language::English, vec![develop, exploit]));

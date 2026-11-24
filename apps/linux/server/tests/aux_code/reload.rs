@@ -13,7 +13,7 @@ use serde_json::json;
 fn temp_dir(name: &str) -> PathBuf {
     let dir = std::env::temp_dir().join(format!("qingjian-aux-{name}-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&dir);
-    std::fs::create_dir_all(dir.join("codes")).unwrap();
+    std::fs::create_dir_all(dir.join("custom/codes")).unwrap();
     dir
 }
 
@@ -41,7 +41,7 @@ fn started(dir: &Path, config: &Config) -> Router {
     let dict = dir.join("dict.tsv");
     std::fs::write(&dict, DICT).unwrap();
     let mut engine = assembly::assemble(&AssemblySpec {
-        user_dir: Some(dir.to_owned()),
+        user: Some(qingjian_platform::UserDirs::at(dir.to_owned())),
         aux_code: config.aux_code.clone(),
         ..AssemblySpec::new(dict)
     })
@@ -77,7 +77,7 @@ fn a_new_table_in_the_user_dir_applies_on_the_next_tick() {
     assert_eq!(code_segment(&before), None, "一张码表都没有时 ; 照旧");
     function(&mut router, 1, ESCAPE);
 
-    write_table(&dir.join("codes/mine.qj"), "kf");
+    write_table(&dir.join("custom/codes/mine.qj"), "kf");
     next_tick(&mut router);
     let after = compose(&mut router, 1, "kaifa;k");
     assert_eq!(code_segment(&after).as_deref(), Some("k"));
@@ -91,8 +91,8 @@ fn a_new_table_in_the_user_dir_applies_on_the_next_tick() {
 #[test]
 fn switching_the_scheme_reloads_the_table() {
     let dir = temp_dir("switch");
-    write_table(&dir.join("codes/first.qj"), "kf");
-    write_table(&dir.join("codes/second.qj"), "zz");
+    write_table(&dir.join("custom/codes/first.qj"), "kf");
+    write_table(&dir.join("custom/codes/second.qj"), "zz");
     let path = dir.join("config.toml");
     let config = write_config(
         &path,
@@ -121,8 +121,8 @@ fn switching_the_scheme_reloads_the_table() {
 #[test]
 fn switching_tables_refreshes_aux_input_in_suspended_sessions() {
     let dir = temp_dir("suspended");
-    write_table(&dir.join("codes/first.qj"), "kf");
-    write_table(&dir.join("codes/second.qj"), "zz");
+    write_table(&dir.join("custom/codes/first.qj"), "kf");
+    write_table(&dir.join("custom/codes/second.qj"), "zz");
     let path = dir.join("config.toml");
     let config = write_config(
         &path,
@@ -157,7 +157,7 @@ fn showing_codes_refreshes_current_and_suspended_candidates() {
         } else {
             "show-active"
         });
-        write_table(&dir.join("codes/first.qj"), "kf");
+        write_table(&dir.join("custom/codes/first.qj"), "kf");
         let path = dir.join("config.toml");
         let config = write_config(&path, "[aux_code]\nenabled = true\n", 100);
         let mut router = started(&dir, &config);

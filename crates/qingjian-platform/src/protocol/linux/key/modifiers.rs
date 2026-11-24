@@ -1,7 +1,7 @@
 //! 修饰键掩码 → [`KeyModifiers`]。
 //!
 //! 复用协议里的 [`KeyModifiers`] 而不是另立一个：它的六个位（ctrl / shift / alt / win / caps /
-//! english_mode）本来就是平台无关的，类型注释里的「Windows 语义」说的是字段怎么来的，不是字段本身。
+//! english_mode / vietnamese_mode）本来就是平台无关的，类型注释里的「Windows 语义」说的是字段怎么来的，不是字段本身。
 //! 配置层 `Modifiers` 到它的映射（option→Alt、command→Super）在 Linux 上同样成立。
 //!
 //! 掩码取值是 X11 的修饰键位，IBus（`IBusModifierType`）与 GDK 用的是同一套。
@@ -37,5 +37,6 @@ pub fn from_mask(state: u32) -> KeyModifiers {
         win: state & (MOD4 | MOD3) != 0,
         caps: state & LOCK != 0,
         english_mode: false,
+        vietnamese_mode: false,
     }
 }

@@ -6,7 +6,7 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use qingjian_platform::protocol::linux::InputMode;
-use zbus::zvariant::{Array, OwnedValue, Value};
+use zbus::{Array, OwnedVariant, Variant};
 
 use crate::tray::{ITEM_PATH, MENU_PATH, WATCHER, WATCHER_PATH};
 
@@ -48,17 +48,17 @@ fn registers_and_serves_the_icon_and_menu() {
         );
         assert_eq!(item.get_property::<String>("Id").await.unwrap(), "qingjian");
         assert!(!item.get_property::<bool>("ItemIsMenu").await.unwrap());
-        let path: OwnedValue = item.get_property("Menu").await.unwrap();
+        let path: OwnedVariant = item.get_property("Menu").await.unwrap();
         assert_eq!(path.value_signature().to_string(), "o");
         assert_eq!(
             item.get_property::<String>("IconName").await.unwrap(),
             "qingjian",
             "不知道模式时用图标主题里的青简标志"
         );
-        let logo: OwnedValue = item.get_property("IconPixmap").await.unwrap();
+        let logo: OwnedVariant = item.get_property("IconPixmap").await.unwrap();
         assert_eq!(logo.value_signature().to_string(), "a(iiay)");
         assert_eq!(<&Array<'_>>::try_from(&logo).unwrap().len(), 6);
-        let tooltip: OwnedValue = item.get_property("ToolTip").await.unwrap();
+        let tooltip: OwnedVariant = item.get_property("ToolTip").await.unwrap();
         assert_eq!(tooltip.value_signature().to_string(), "(sa(iiay)ss)");
 
         let before = layout(&menu).await;
@@ -78,7 +78,7 @@ fn registers_and_serves_the_icon_and_menu() {
         next_signal(&mut tooltips, "NewToolTip").await;
         next_signal(&mut layouts, "LayoutUpdated").await;
         assert_eq!(item.get_property::<String>("IconName").await.unwrap(), "");
-        let english: OwnedValue = item.get_property("IconPixmap").await.unwrap();
+        let english: OwnedVariant = item.get_property("IconPixmap").await.unwrap();
         assert_ne!(english, logo);
         let after = layout(&menu).await;
         assert!(after.0 > before.0, "版本号要往前走");
@@ -86,12 +86,12 @@ fn registers_and_serves_the_icon_and_menu() {
 
         // 点菜单里的「中文」与左键单击图标：都排给主线程，并叫醒它
         let () = menu
-            .call("Event", &(1_i32, "clicked", Value::I32(0), 0_u32))
+            .call("Event", &(1_i32, "clicked", Variant::I32(0), 0_u32))
             .await
             .unwrap();
         assert_eq!(tray.clicked(), Some(ModeTarget::English(false)));
         let () = menu
-            .call("Event", &(1_i32, "hovered", Value::I32(0), 0_u32))
+            .call("Event", &(1_i32, "hovered", Variant::I32(0), 0_u32))
             .await
             .unwrap();
         assert_eq!(tray.clicked(), None, "只认 clicked");
@@ -104,7 +104,7 @@ fn registers_and_serves_the_icon_and_menu() {
         let unknown: Vec<i32> = menu
             .call(
                 "EventGroup",
-                &(vec![(42_i32, "clicked", Value::I32(0), 0_u32)],),
+                &(vec![(42_i32, "clicked", Variant::I32(0), 0_u32)],),
             )
             .await
             .unwrap();

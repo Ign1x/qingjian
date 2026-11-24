@@ -90,7 +90,7 @@ fn run(modes: watch::Receiver<Option<InputMode>>, clicks: Clicks) -> zbus::Resul
         .enable_all()
         .build()?;
     runtime.block_on(async {
-        let connection = zbus::connection::Builder::session()?
+        let connection = zbus::connection::Builder::session()
             .method_timeout(TIMEOUT)
             .build()
             .await?;
@@ -117,9 +117,9 @@ async fn serve(
     let name = format!("org.kde.StatusNotifierItem-{}-1", std::process::id());
     connection.request_name(name.as_str()).await?;
     let watcher: Proxy<'_> = zbus::proxy::Builder::new(connection)
-        .destination(WATCHER)?
-        .path(WATCHER_PATH)?
-        .interface(WATCHER)?
+        .destination(WATCHER)
+        .path(WATCHER_PATH)
+        .interface(WATCHER)
         .cache_properties(CacheProperties::No)
         .build()
         .await?;
@@ -153,7 +153,7 @@ async fn register(watcher: &Proxy<'_>, name: &str) {
     let body = (name,);
     let call = watcher.call_with_flags::<_, _, ()>(
         "RegisterStatusNotifierItem",
-        MethodFlags::NoAutoStart.into(),
+        MethodFlags::NO_AUTO_START,
         &body,
     );
     match tokio::time::timeout(TIMEOUT, call).await {

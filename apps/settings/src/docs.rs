@@ -10,6 +10,18 @@ const DOCS_URL: &str = "https://qingjian.app/docs";
 const LINKS: &[(PageId, &str, &str, &str)] = &[
     (
         PageId::Input,
+        "input.auto_phrase",
+        "personalize/dictionaries",
+        "自动组词",
+    ),
+    (
+        PageId::Input,
+        "input.auto_phrase_length",
+        "personalize/dictionaries",
+        "自动组词",
+    ),
+    (
+        PageId::Input,
         "input.pinyin",
         "input/fuzzy-and-shuangpin",
         "选择方案",
@@ -168,6 +180,12 @@ const LINKS: &[(PageId, &str, &str, &str)] = &[
         "打拼音时敲标点",
     ),
     (
+        PageId::Language,
+        "language.menubar_indicator",
+        "getting-started/settings",
+        "输入法菜单（macOS）",
+    ),
+    (
         PageId::Appearance,
         "appearance.preedit",
         "personalize/appearance",
@@ -196,6 +214,12 @@ const LINKS: &[(PageId, &str, &str, &str)] = &[
         "shortcut.commit_raw",
         "personalize/keys-settings",
         "上屏键（Windows、Linux）",
+    ),
+    (
+        PageId::Shortcuts,
+        "shortcuts.enter_translation",
+        "personalize/keys-settings",
+        "回车优先上屏译词（macOS）",
     ),
     (
         PageId::Shortcuts,
@@ -289,12 +313,6 @@ const LINKS: &[(PageId, &str, &str, &str)] = &[
         "AI 候选词",
     ),
     (PageId::Cloud, "cloud.sentence", "cloud/predict", "整句补全"),
-    (
-        PageId::Cloud,
-        "cloud.sentence_translation",
-        "cloud/sentence-translation",
-        "整句候选翻译",
-    ),
     (PageId::Cloud, "cloud.api_key", "cloud/index", "会发送什么"),
     (PageId::Cloud, "cloud.connection", "cloud/index", "开启"),
     (

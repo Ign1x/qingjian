@@ -20,6 +20,9 @@ pub struct Look {
     /// 候选字、译文字号，盖过主题的。
     pub sizes: TextSizes,
 
+    /// 用户设置的候选字重；未设置时沿用主题。
+    pub candidate_weight: Option<u16>,
+
     /// 过渡与循环动画（`[general] animations`）。
     pub animations: bool,
 }
@@ -34,6 +37,7 @@ impl Look {
                 annotation: general.annotation_font_size.get(),
             },
             animations: general.animations,
+            candidate_weight: general.candidate_font_weight(),
         }
     }
 
@@ -60,6 +64,8 @@ impl Look {
         ThemeLibrary::load(themes_dir)
             .resolve(&self.theme_id, false)
             .with_text_sizes(self.sizes)
+            .with_candidate_weight(self.candidate_weight)
+            .with_user_font(!self.font.is_empty())
             .with_animations(self.animations)
     }
 }

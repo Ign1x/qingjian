@@ -17,7 +17,7 @@ pub fn config_path() -> PathBuf {
 
 /// 用户主题目录，一个主题一个子目录。
 pub fn themes_dir() -> PathBuf {
-    xdg("XDG_DATA_HOME", ".local/share").join("themes")
+    qingjian_platform::UserDirs::at(xdg("XDG_DATA_HOME", ".local/share")).themes()
 }
 
 pub fn log_dir() -> PathBuf {

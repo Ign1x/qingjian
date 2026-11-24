@@ -15,6 +15,7 @@ const CTRL_SHIFT: KeyModifiers = KeyModifiers {
     win: false,
     caps: false,
     english_mode: false,
+    vietnamese_mode: false,
 };
 
 #[test]

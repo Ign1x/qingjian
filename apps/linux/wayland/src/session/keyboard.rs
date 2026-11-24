@@ -142,7 +142,7 @@ impl<S: Server> Session<S> {
             self.repeat.stop();
             return;
         }
-        let event = to_key_event(key.keysym, key.mask);
+        let event = to_key_event(key.keysym, key.mask).with_repeat(true);
         // 重复的不报能读选区：要选区的翻译快捷键本来就不重复
         match self.server.key(event, false, self.surrounding(), false) {
             Ok(reply) => {

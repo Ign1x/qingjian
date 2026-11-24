@@ -17,13 +17,13 @@ pub use service::Menu;
 use std::collections::HashMap;
 
 use qingjian_platform::protocol::linux::InputMode;
-use zbus::zvariant::{OwnedValue, Value};
+use zbus::{OwnedVariant, Variant};
 
 use crate::session::ModeTarget;
 use entry::{filter, text};
 
 /// dbusmenu 的一个节点 `(ia{sv}av)`：编号、属性、子节点（每个子节点也是这样一个节点，包在 variant 里）。
-pub type Node = (i32, Properties, Vec<OwnedValue>);
+pub type Node = (i32, Properties, Vec<OwnedVariant>);
 
 /// 这个模式下的菜单。不知道模式时中 / 英两项都不选、两个开关都不勾，照样能点（会话先问 Server 再切）。
 pub fn entries(mode: Option<&InputMode>) -> Vec<Entry> {
@@ -89,8 +89,8 @@ fn root(names: &[String]) -> Properties {
 }
 
 /// 子节点放进 `av`：包成 variant。值里没有文件描述符，转成自有的不会失败。
-fn boxed(node: Node) -> OwnedValue {
-    OwnedValue::try_from(Value::from(node)).expect("菜单节点里没有文件描述符")
+fn boxed(node: Node) -> OwnedVariant {
+    OwnedVariant::try_from(Variant::from(node)).expect("菜单节点里没有文件描述符")
 }
 
 /// 编号 → [`entries`] 里的位置；根与越界的编号为 `None`。

@@ -24,7 +24,7 @@ fn requested_model_wins_and_missing_files_fall_back() {
     }
     let user = dirs.user.as_ref().unwrap();
     // 目录结构与设置页下载结果一致；现找文件，启动之后下载的也能选到。
-    touch(user, "models/zhiyi-onnx/laya.int8g.onnx");
+    touch(user, "downloads/models/zhiyi-onnx/laya.int8g.onnx");
     assert_eq!(
         dirs.resolve(LocalModel::Zhiyi),
         Some(ModelFiles::Sentence(fallback.clone()))
@@ -33,11 +33,11 @@ fn requested_model_wins_and_missing_files_fall_back() {
     assert_eq!(
         dirs.resolve(LocalModel::Zhiyi),
         Some(ModelFiles::Zhiyi {
-            dir: user.join("models/zhiyi-onnx"),
+            dir: user.join("downloads/models/zhiyi-onnx"),
             runtime,
         })
     );
-    std::fs::remove_dir_all(user.join("models/zhiyi-onnx")).unwrap();
+    std::fs::remove_dir_all(user.join("downloads/models/zhiyi-onnx")).unwrap();
     assert_eq!(
         dirs.resolve(LocalModel::Zhiyi),
         Some(ModelFiles::Sentence(fallback))
@@ -57,7 +57,7 @@ fn tongbian_precedes_bundled_and_zhiwei_is_ignored() {
     std::fs::write(&old, b"").unwrap();
     assert_eq!(find_model(Some(&user), &bundled), None);
 
-    let user_old = user.join("models/hanzhang-zhiwei/model.qjm");
+    let user_old = user.join("downloads/models/hanzhang-zhiwei/model.qjm");
     std::fs::create_dir_all(user_old.parent().unwrap()).unwrap();
     std::fs::write(&user_old, b"").unwrap();
     assert_eq!(find_model(Some(&user), &bundled), None);
@@ -67,7 +67,7 @@ fn tongbian_precedes_bundled_and_zhiwei_is_ignored() {
     std::fs::write(&bundled_p2c, b"").unwrap();
     assert_eq!(find_model(Some(&user), &bundled), Some(bundled_p2c));
 
-    let user_p2c = user.join("models/hanzhang-tongbian/model.qjm");
+    let user_p2c = user.join("downloads/models/hanzhang-tongbian/model.qjm");
     std::fs::create_dir_all(user_p2c.parent().unwrap()).unwrap();
     std::fs::write(&user_p2c, b"").unwrap();
     assert_eq!(find_model(Some(&user), &bundled), Some(user_p2c.clone()));

@@ -117,6 +117,14 @@ impl Router {
         self.focus = Focus::default();
         self.grid = None;
     }
+
+    pub(super) fn reset_all_inputs(&mut self) {
+        self.reset_composition();
+        let sessions: Vec<SessionId> = self.sessions.keys().copied().collect();
+        for session in sessions {
+            self.discard_session(session);
+        }
+    }
     pub(super) fn close_session(&mut self, session: SessionId) {
         if !self.sessions.contains_key(&session) {
             return;

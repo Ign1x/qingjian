@@ -41,12 +41,9 @@ pub fn started(dir: &Path, source: &str) -> (Router, Config) {
     std::fs::write(&path, source).unwrap();
     let config = Config::load(&path).unwrap();
     let engine = Engine::new(Dictionary::parse(DICT).unwrap());
+    write_bundled_wubi(dir);
     let mut router = Router::new(engine, RouterConfig::from(&config));
-    router.configure_schemes(
-        &config,
-        Some(dir.to_owned()),
-        find_bundled_schemes(&repository()),
-    );
+    router.configure_schemes(&config, Some(dir.join("custom")), find_bundled_schemes(dir));
     router.handle(ClientMessage::OpenSession {
         session: SessionId(1),
         app: None,
@@ -55,6 +52,21 @@ pub fn started(dir: &Path, source: &str) -> (Router, Config) {
     router.handle_linux(json!({"DisplayReporting": {"session": 1, "identity": {"generation": 1, "context": "schemes", "revision": 0}, "version": 4}}));
     router.handle_linux(json!({"LinuxEvent": {"session": 1, "event": {"Capabilities": {"sensitive": false, "password": false, "disabled": false}}}}));
     (router, config)
+}
+
+fn write_bundled_wubi(dir: &Path) {
+    let scheme = dir.join("data/generated/schemes/wubi86");
+    std::fs::create_dir_all(&scheme).unwrap();
+    std::fs::write(
+        scheme.join("scheme.toml"),
+        "name = \"五笔（86）\"\ncode_length = 4\nphrase_rule = \"wubi86\"\n",
+    )
+    .unwrap();
+    std::fs::write(
+        scheme.join("table.tsv"),
+        "一\tggll\t100\n工\tggll\t10\n我们\ttrwu\t100\n中国\tkhlg\t100\n国\tkhlg\t10\n",
+    )
+    .unwrap();
 }
 
 /// 按下一个可打印键，键码按插件报的 Windows 虚拟键码给。

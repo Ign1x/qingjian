@@ -115,9 +115,9 @@ pub fn keyboard_scenes() -> Vec<(&'static str, Keyboard)> {
     ]
 }
 
-/// 86 版五笔字根图，读随包的字形表（`assets/schemes/wubi86/roots86-glyphs.tsv`）。
+/// 86 版五笔字根图，读随包的字形表（`crates/qingjian-core/data/roots86-glyphs.tsv`）。
 fn wubi() -> Keyboard {
-    const TABLE: &str = include_str!("../../../../assets/schemes/wubi86/roots86-glyphs.tsv");
+    const TABLE: &str = include_str!("../../../qingjian-core/data/roots86-glyphs.tsv");
     let mut keys: Vec<(char, Keycap)> = Vec::new();
     for line in TABLE.lines().filter(|line| !line.starts_with('#')) {
         let fields: Vec<&str> = line.split('\t').collect();
@@ -257,6 +257,7 @@ pub fn corrected_japanese() -> Frame {
         mode: Mode::default(),
         columns: 0,
         column_ems: Vec::new(),
+        reversed: false,
     }
 }
 
@@ -274,6 +275,7 @@ pub fn probe() -> Frame {
         mode: Mode::default(),
         columns: 0,
         column_ems: Vec::new(),
+        reversed: false,
     }
 }
 
@@ -321,6 +323,7 @@ pub fn aux_code() -> Frame {
         mode: Mode::default(),
         columns: 0,
         column_ems: Vec::new(),
+        reversed: false,
     }
 }
 
@@ -350,6 +353,7 @@ pub fn short() -> Frame {
         mode: Mode::default(),
         columns: 0,
         column_ems: Vec::new(),
+        reversed: false,
     }
 }
 
@@ -394,5 +398,6 @@ pub fn matrix() -> Frame {
         mode: Mode::default(),
         columns: 5,
         column_ems: vec![1.0; 5],
+        reversed: false,
     }
 }

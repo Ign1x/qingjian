@@ -1,13 +1,13 @@
 //! 菜单的布局与勾选态、点了做什么、给 dbusmenu 的属性，以及托盘提示的说明。
 
 use qingjian_platform::protocol::linux::InputMode;
-use zbus::zvariant::{OwnedValue, Structure, Value};
+use zbus::{OwnedVariant, Structure, Variant};
 
 use super::super::item::describe;
 use super::super::menu::{Action, Entry, Kind, entries, layout};
 use crate::session::ModeTarget;
 
-fn text(value: &OwnedValue) -> &str {
+fn text(value: &OwnedVariant) -> &str {
     <&str>::try_from(value).expect("字符串")
 }
 
@@ -134,7 +134,7 @@ fn the_layout_hangs_every_item_under_the_root() {
     for (index, child) in children.iter().enumerate() {
         assert_eq!(child.value_signature().to_string(), "(ia{sv}av)");
         let structure = <&Structure<'_>>::try_from(child).expect("子节点是结构");
-        assert_eq!(structure.fields()[0], Value::I32(index as i32 + 1));
+        assert_eq!(structure.fields()[0], Variant::I32(index as i32 + 1));
     }
     let (_, _, children) = layout(&menu, 0, 0, &[]).expect("根");
     assert!(children.is_empty(), "深度 0 不带子节点");

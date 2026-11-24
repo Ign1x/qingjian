@@ -73,9 +73,9 @@ if ((${#missing[@]})); then
   exit 1
 fi
 install_prefix=$(python3 -c 'import os, sys; print(os.path.realpath(sys.argv[1]))' "$install_prefix")
-mkdir -p "$here/data"
-# 数据包在 macOS 上打，带 LIBARCHIVE.xattr 扩展头，GNU tar 会逐个警告
-tar --warning=no-unknown-keyword -xzf "$here/target/release-data/qingjian-data.tar.gz" -C "$here"
+# 随包模型与词库带的是下载缓存，按 models.lock / dicts.lock 核对后解开，不联网
+python3 "$here/tools/release/models-fetch.py"
+python3 "$here/tools/release/dicts-fetch.py"
 files_args=(install "$install_prefix" --root "$here" --server "$here/bin/qingjian-linux-server" --settings "$here/bin/qingjian-settings")
 staged=$(mktemp -d)
 trap 'rm -rf -- "$staged"' EXIT

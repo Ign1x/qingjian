@@ -63,7 +63,7 @@ fn tier_change_keeps_the_model_and_changes_context_budget() {
 #[test]
 fn disabling_while_loading_discards_the_receiver() {
     let root = std::env::temp_dir().join(format!("qj-model-cancel-{}", std::process::id()));
-    let model_dir = root.join("models/hanzhang-tongbian");
+    let model_dir = root.join("downloads/models/hanzhang-tongbian");
     std::fs::create_dir_all(&model_dir).unwrap();
     std::fs::write(model_dir.join("model.qjm"), b"bad model").unwrap();
     let mut router = router();

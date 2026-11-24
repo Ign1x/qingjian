@@ -1,6 +1,6 @@
 [package]
 name = "qingjian-platform"
-description = "平台相关但不依赖系统 API 的部分：配置文件读写、壳与 Server 之间的协议、自绘壳共用的帧换算"
+description = "平台层共用：配置文件读写、Server 与各壳之间的协议、自绘帧换算及 Windows 命名管道身份校验"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -35,3 +35,7 @@ models = ["dep:qingjian-neural"]
 [target.'cfg(target_os = "linux")'.dependencies]
 libc = "0.2.189"
 xkeysym.workspace = true
+
+# Windows 命名管道的名字与两端身份校验（`pipe` 模块），Server 与 DLL 共用
+[target."cfg(windows)".dependencies]
+windows = { version = "0.62.2", features = ["Win32_Foundation", "Win32_Security", "Win32_Security_Authorization", "Win32_Storage_FileSystem", "Win32_System_Pipes", "Win32_System_RemoteDesktop", "Win32_System_Threading"] }

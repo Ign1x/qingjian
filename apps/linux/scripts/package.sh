@@ -47,8 +47,9 @@ stage="$out/$name"
 rm -rf "$stage" "$out/$name.tar.gz"
 mkdir -p "$stage/bin"
 install -m 755 "$cargo_output/release/qingjian-linux-server" "$cargo_output/release/qingjian-settings" "$stage/bin/"
-resources=(LICENSE apps/settings/linux assets/icon/linux/hicolor assets/stroke/LICENSE-CNS11643.txt assets/sample assets/glossary assets/levels assets/emoji assets/schemes \
-  tools/release/data.lock target/release-data/qingjian-data.tar.gz)
+resources=(LICENSE apps/settings/linux assets/icon/linux/hicolor assets/stroke/LICENSE-CNS11643.txt assets/sample assets/levels assets/emoji
+  tools/release/mirror.py tools/release/dicts.lock tools/release/dicts-fetch.py target/release-data/dicts
+  tools/release/models.lock tools/release/models-fetch.py target/release-data/models)
 if [[ "$frontend" == wayland ]]; then
   install -m 755 "$cargo_output/release/qingjian-linux-wayland" "$stage/bin/"
   install -m 644 apps/linux/scripts/qingjian-server.service.in apps/linux/scripts/qingjian-wayland.service.in "$stage/"
@@ -65,7 +66,7 @@ if [[ "$frontend" == wayland ]]; then
 fi
 install -m 755 apps/linux/scripts/uninstall.sh "$stage/"
 install -m 644 apps/linux/scripts/files.py "$stage/"
-# 产品数据只带压缩包，install.sh 装前解开（files.py 按 data.lock 校验压缩包，再按包内摘要逐个校验解出的文件）
+# 产品数据只带下载缓存，install.sh 装前不联网解开（files.py 按 dicts.lock / models.lock 校验缓存与解出的文件）
 cp -r --parents "${resources[@]}" "$stage/"
 tar -C "$out" -czf "$out/$name.tar.gz" "$name"
 echo "已打包：$out/$name.tar.gz"

@@ -10,6 +10,7 @@ use qingjian_render::{
     Theme, ThemeLibrary, UiFont, system_fonts,
 };
 
+use super::layered::backdrop;
 use crate::dispatch::RenderSettings;
 
 /// UI 线程上共享的渲染器；`None` = 系统绘制。
@@ -24,6 +25,9 @@ pub(super) struct Painter {
 
     /// 主题（浅色那一份，画的时候按外观取深浅）。
     theme: Theme,
+
+    /// 竖排窗口在光标上方时倒着排（`[general] vertical_reverse_above`）；只有青简渲染器画得了。
+    pub(super) reverse_above: bool,
 }
 
 impl Painter {
@@ -51,10 +55,13 @@ impl Painter {
             font = library.ui_family(),
             "候选窗口与状态条使用青简渲染器"
         );
+        let mut renderer = Renderer::new(library);
+        renderer.set_material_corner_radius(Some(backdrop::CORNER_RADIUS));
         Some(Self {
-            renderer: Renderer::new(library),
+            renderer,
             font: font.to_owned(),
             theme: Theme::light(),
+            reverse_above: false,
         })
     }
 
@@ -77,7 +84,10 @@ impl Painter {
                             candidate: candidate.get(),
                             annotation: annotation.get(),
                         })
+                        .with_candidate_weight(settings.candidate_weight)
+                        .with_user_font(!settings.font.is_empty())
                         .with_animations(settings.animations);
+                    painter.reverse_above = settings.reverse_above;
                     painter
                         .renderer
                         .load_theme_fonts(&painter.theme, system_fonts::family_files);
@@ -118,6 +128,11 @@ impl Painter {
             "候选窗位图已画"
         );
         Some(rendered)
+    }
+
+    /// 候选窗这一帧能不能垫系统材质（[`backdrop::Backdrop::supported`]）。
+    pub(super) fn set_material_support(&mut self, supported: bool) {
+        self.renderer.set_material_support(supported);
     }
 
     /// 动画的下一帧；没有在播的返回 `None`。

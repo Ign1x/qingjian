@@ -1,8 +1,8 @@
 //! 托盘菜单的 D-Bus 对象：响应宿主读取与点击，模式变化时通知布局更新。
 
 use qingjian_platform::protocol::linux::InputMode;
+use zbus::OwnedVariant;
 use zbus::object_server::SignalEmitter;
-use zbus::zvariant::OwnedValue;
 
 use super::action::Action;
 use super::entry::Properties;
@@ -112,7 +112,7 @@ impl Menu {
             .collect()
     }
 
-    fn get_property(&self, id: i32, name: String) -> zbus::fdo::Result<OwnedValue> {
+    fn get_property(&self, id: i32, name: String) -> zbus::fdo::Result<OwnedVariant> {
         let entries = entries(self.mode.as_ref());
         let names = [name];
         layout(&entries, id, 0, &names)
@@ -125,7 +125,7 @@ impl Menu {
         &self,
         id: i32,
         event_id: String,
-        _data: OwnedValue,
+        _data: OwnedVariant,
         _timestamp: u32,
     ) -> zbus::fdo::Result<()> {
         if event_id == "clicked" && !self.click(id) {
@@ -135,7 +135,7 @@ impl Menu {
     }
 
     /// 回认不得的编号。
-    fn event_group(&self, events: Vec<(i32, String, OwnedValue, u32)>) -> Vec<i32> {
+    fn event_group(&self, events: Vec<(i32, String, OwnedVariant, u32)>) -> Vec<i32> {
         events
             .into_iter()
             .filter(|(id, event_id, _, _)| event_id == "clicked" && !self.click(*id))

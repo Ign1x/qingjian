@@ -24,10 +24,11 @@ use std::path::PathBuf;
 use std::time::{Duration, Instant};
 
 use qingjian_core::candidate::arrows::Focus;
-use qingjian_core::{Engine, Grid};
+use qingjian_core::{Engine, Grid, TelexComposer};
 use qingjian_platform::logs::CompositionTrace;
 use qingjian_platform::protocol::{
-    ClientMessage, Frame, IndicatorState, InputSettings, ScreenRect, ServerMessage, SessionId,
+    CaretEdit, ClientMessage, Frame, IndicatorState, InputSettings, ScreenRect, ServerMessage,
+    SessionId,
 };
 use qingjian_platform::{LocalModelConfig, SchemeSlot};
 use qingjian_render::Mode;
@@ -82,14 +83,21 @@ pub struct Router {
     /// 「翻译选中文字」请求号计数器。
     selection_seq: u64,
 
+    /// 这一键要 DLL 对文档做的成对符号编辑（#928），随这次 `KeyResult` 带走。
+    pending_caret: Option<CaretEdit>,
+
     /// 整句补全（preedit 右侧、Tab 上屏）；缓冲变化时清空。
     sentence: Option<String>,
 
     /// 删候选后的屏幕提示，随下一帧下发、下一次按键清。
     notice: Option<String>,
 
-    /// 用户从菜单发起、正在等待的模型译文生成（请求序号、候选）。
-    candidate_translation: Option<(u64, qingjian_core::Candidate)>,
+    /// 用户从菜单发起、正在等待的模型译文生成；第三项是独立输入法指定的目标语言，中文候选为 `None`。
+    candidate_translation: Option<(
+        u64,
+        qingjian_core::Candidate,
+        Option<qingjian_core::Language>,
+    )>,
 
     /// 当前高亮候选在布局里的下标（跨页）。
     highlight: usize,
@@ -118,11 +126,23 @@ pub struct Router {
     /// 当前中英模式（`true` 英文）；按应用记忆时是 `mode_session` 对应的那份。
     english: bool,
 
+    /// 当前是否为越南语第三输入法。
+    vietnamese_mode: bool,
+
+    /// 越南语 Simple Telex 当前词。
+    vietnamese: TelexComposer,
+
+    /// 越南语输入候选词表。
+    vietnamese_words: Option<qingjian_dictionary::WordList>,
+
+    /// 越南语候选的中文释义：个人模型译词优先，随包反向词库兜底。
+    vietnamese_glossary: Option<qingjian_translate::LayeredTranslator>,
+
     /// 最近同步中英状态的会话，与持有组句的 `focused` 分开，切模式不抢走待上屏的组句。
     mode_session: Option<SessionId>,
 
     /// 应用 exe 名（小写）到中英状态；会话断开仍保留，Server 重启后清空。
-    app_modes: HashMap<String, bool>,
+    app_modes: HashMap<String, (bool, bool)>,
 
     /// 当前输入法是不是青简：有 DLL 来取模式就是，切成别的输入法时收起。状态条只在这时显示；
     /// 应用退出不影响它，状态条是桌面常驻的。
@@ -170,8 +190,9 @@ pub struct Router {
 }
 
 impl Router {
-    pub fn new(engine: Engine, config: RouterConfig) -> Self {
+    pub fn new(mut engine: Engine, config: RouterConfig) -> Self {
         let english = config.english_mode && config.default_english;
+        engine.set_pair_punctuation(config.pair_punctuation, config.english_pair_punctuation);
         Self {
             engine,
             config: RouterConfig {
@@ -185,6 +206,7 @@ impl Router {
             pending_selection: None,
             clicked: None,
             selection_seq: 0,
+            pending_caret: None,
             sentence: None,
             notice: None,
             candidate_translation: None,
@@ -197,6 +219,10 @@ impl Router {
             candidates: Box::new(NoopSink),
             status: Box::new(NoopStatusSink),
             english,
+            vietnamese_mode: false,
+            vietnamese: TelexComposer::default(),
+            vietnamese_words: None,
+            vietnamese_glossary: None,
             mode_session: None,
             app_modes: HashMap::new(),
             ime_active: false,
@@ -227,12 +253,16 @@ impl Router {
             toggle_punctuation: self.config.toggle_punctuation,
             switch_mode: self.config.switch_mode,
             english_mode: self.config.english_mode,
+            double_shift_input: self.config.double_shift_input,
             shift_letter_compose: self.config.shift_letter_compose,
             restore_mode: self.config.default_english || self.config.remember_mode_per_app,
             toggle_traditional: self.config.toggle_traditional,
             english_candidates: self.config.english_candidates_in(app),
             predict: (self.config.cloud_enabled && self.engine.prediction_enabled())
                 .then_some(self.config.predict),
+            show_english_pronunciation: self.config.show_english_pronunciation,
+            single_chars: self.config.single_chars,
+            next_word: self.config.next_word,
         }
     }
 
@@ -250,6 +280,17 @@ impl Router {
     pub fn set_candidate_sink(&mut self, sink: Box<dyn CandidateSink>) {
         sink.configure(self.config.render_settings());
         self.candidates = sink;
+    }
+
+    pub fn set_vietnamese_words(&mut self, words: Option<qingjian_dictionary::WordList>) {
+        self.vietnamese_words = words;
+    }
+
+    pub fn set_vietnamese_glossary(
+        &mut self,
+        glossary: Option<qingjian_translate::LayeredTranslator>,
+    ) {
+        self.vietnamese_glossary = glossary;
     }
 
     /// 直接碰 Engine：测试里改模式键这类启动时才设的开关。

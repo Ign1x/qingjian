@@ -5,7 +5,6 @@ use std::os::unix::net::UnixStream;
 use qingjian_platform::protocol::{PROTOCOL_VERSION, read_message, write_message};
 use serde_json::{Value, json};
 
-use super::repository;
 use super::server::Server;
 
 fn exchange(stream: &mut UnixStream, message: Value) -> Value {
@@ -23,16 +22,19 @@ fn the_server_finds_bundled_schemes_under_its_resources() {
     let config = directory.join("config/qingjian/config.toml");
     std::fs::create_dir_all(config.parent().unwrap()).unwrap();
     std::fs::write(&config, "[general]\nscheme = \"none\"\ncode = \"wubi86\"\n").unwrap();
-    // 随包根的布局与装好之后一样：`resources/assets/schemes/wubi86`
-    let bundled = directory.join("resources/assets/schemes/wubi86");
+    // 随包根的布局与装好之后一样：`resources/data/generated/schemes/wubi86`
+    let bundled = directory.join("resources/data/generated/schemes/wubi86");
     std::fs::create_dir_all(&bundled).unwrap();
-    for name in ["scheme.toml", "table.tsv"] {
-        std::fs::copy(
-            repository().join("assets/schemes/wubi86").join(name),
-            bundled.join(name),
-        )
-        .unwrap();
-    }
+    std::fs::write(
+        bundled.join("scheme.toml"),
+        "name = \"五笔（86）\"\ncode_length = 4\nphrase_rule = \"wubi86\"\n",
+    )
+    .unwrap();
+    std::fs::write(
+        bundled.join("table.tsv"),
+        "一\tggll\t100\n工\tggll\t10\n我们\ttrwu\t100\n中国\tkhlg\t100\n国\tkhlg\t10\n",
+    )
+    .unwrap();
     let mut server = Server::start(directory.clone());
     let mut stream = server.connect();
     for message in [

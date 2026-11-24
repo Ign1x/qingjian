@@ -35,16 +35,21 @@ impl ModelDirs {
     }
 
     fn zhiyi_dir(&self) -> Option<PathBuf> {
-        let dir = self.user.as_deref()?.join("models/zhiyi-onnx");
+        let dir = crate::UserDirs::at(self.user.as_ref()?.clone())
+            .models()
+            .join("zhiyi-onnx");
         dir.join("laya.int8g.onnx").is_file().then_some(dir)
     }
 }
 
-/// 通变优先读用户目录，兼容旧的 `model-p2c/`；已下线的知微目录不再读取。
+/// 通变优先读用户目录，旧的 `model-p2c/` 由 UserDirs 迁移；已下线的知微目录不再读取。
 pub fn find_model(user_dir: Option<&Path>, bundled_root: &Path) -> Option<PathBuf> {
     let candidates = [
-        user_dir.map(|dir| dir.join("models/hanzhang-tongbian")),
-        user_dir.map(|dir| dir.join("model-p2c")),
+        user_dir.map(|dir| {
+            crate::UserDirs::at(dir.to_path_buf())
+                .models()
+                .join("hanzhang-tongbian")
+        }),
         Some(bundled_root.join("data/models/hanzhang-tongbian")),
     ];
     candidates

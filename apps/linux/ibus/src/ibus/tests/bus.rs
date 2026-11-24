@@ -11,9 +11,9 @@ pub(super) struct Bus {
 
 impl Bus {
     pub(super) fn start() -> Self {
-        let daemon = ["dbus-daemon", "/usr/bin/dbus-daemon", "/bin/dbus-daemon"]
+        let daemon = ["/usr/bin/dbus-daemon", "/bin/dbus-daemon"]
             .into_iter()
-            .find(|path| path == &"dbus-daemon" || std::path::Path::new(path).is_file())
+            .find(|path| std::path::Path::new(path).is_file())
             .unwrap_or("dbus-daemon");
         let child = Command::new(daemon)
             .args(["--session", "--nofork", "--print-address=1"])
